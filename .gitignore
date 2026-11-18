@@ -15,3 +15,6 @@ backups/*.html
 
 # Preserve the exact pre-change backup in version control.
 !backups/refresh-insitu-v7-original.html
+
+# Local Netlify folder
+.netlify
