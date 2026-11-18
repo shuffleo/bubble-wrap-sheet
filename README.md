@@ -1,10 +1,12 @@
-![Bubble Wrap](assets/social/bubble-wrap-social-v8.png)
+
 
 # Bubble Wrap
 
 Click, drag, tap or use a physical keyboard to pop those bubbles. Works on desktop and mobile.
 
 **Demo Link:** https://bubblewrapsheet.netlify.app/
+
+![Bubble Wrap](assets/social/bubble-wrap-social-v8.png)
 
 ## Hidden interactions
 
