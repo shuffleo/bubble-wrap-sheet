@@ -1,0 +1,5 @@
+
+> bubble-wrap@8.0.0 test:react-syntax
+> node scripts/check_react.mjs
+
+6 React adapter files syntax-checked. This is not a host React runtime/integration test.

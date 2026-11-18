@@ -1,0 +1,64 @@
+PASS bundled server serves panel query instead of 404
+PASS S is selected on a clean first load
+PASS user preset and Original motion are preserved apart from size and fresh seeds
+PASS both seeds are randomized on startup
+PASS normal URL has no panel icon, sidebar, crop dialog or controls
+PASS one shared WebGL canvas still renders two surfaces in one draw
+PASS haptic wiring is independent of the audio engine unlock
+PASS reload simulation rolls both stored seeds again
+PASS reload changes the actual inflated and collapsed atlas assignments
+PASS storage adapter saves without mounting the panel (memory test double)
+PASS custom preferences survive simulated reload; seeds do not (storage test double)
+PASS mouse tap still commits one pop
+PASS a real pop requests a 13 ms pulse on the vibration path
+PASS repeat taps bounce without double-counting and request a lighter pulse
+PASS Fresh Sheet resets the counter and regenerates every seed
+PASS fresh seeds keep the same grade, dimensions and motion
+PASS wave reinflation remains scheduled on reset
+PASS all newly cut edges stay collapsed during regeneration
+PASS refill still plays when resetting popped bubbles
+PASS Space refreshes seeds even when the sheet is already fresh
+PASS refreshing an already-fresh sheet does not play a refill cue
+PASS all 47 physical keys still pop exactly one per press
+PASS fresh sheet keyboard groups remain balanced
+PASS holding a key still suppresses repeats
+PASS sound mute does not suppress haptics
+PASS muted refresh rerolls all seeds with no new refill sound
+PASS URL rejects unauthorized panel query ?panel=hide
+PASS URL rejects unauthorized panel query ?notpanel=show
+PASS URL rejects unauthorized panel query ?panel=show&panel=hide
+PASS exact panel=show opens the existing sidebar automatically
+PASS panel opt-in still does not add an icon to the header
+PASS sidebar S button matches the active size
+PASS both random seeds have an all-seeds reroll action
+PASS edgeSeed refresh regenerates both seeds without touching other preferences
+PASS edgeSeed controls synchronize with regenerated values
+PASS variantSeed refresh regenerates both seeds without touching other preferences
+PASS variantSeed controls synchronize with regenerated values
+PASS restored motion controls remain editable
+PASS refill file is decoded separately from pop samples
+PASS supplied refill sample plays once at its original length
+PASS custom refill obeys mute
+PASS custom refill obeys zero volume
+PASS invalid refill file leaves the previously loaded sample intact
+PASS explicit fallback restores the synthesized refill
+PASS haptics switch disables pop vibration requests
+PASS sidebar reports feedback path and disabled state honestly
+PASS dedicated feedback test requests a bounded pulse
+PASS panel can close without leaving an icon or blocking interaction
+PASS returning to the normal URL removes the panel again
+PASS mouse dragging retains continuous trail popping
+PASS invisible corner remains draggable
+PASS corner marker remains invisible
+PASS 390px mobile has S default and no panel button or horizontal overflow
+PASS 390px footer hit areas are at least 56x56
+PASS 320px mobile has S default and no panel button or horizontal overflow
+PASS 320px footer hit areas are at least 56x56
+PASS mobile opt-in panel fits the viewport
+PASS no application errors during normal and opt-in flows
+PASS native-switch fallback mounts only when its feature is available
+PASS trusted direct tap pops once and forwards native label activation
+PASS re-tap also activates native switch without a second pop
+PASS programmatic label clicks are not treated as trusted haptics
+PASS disabling native haptics leaves touch popping functional
+PASS two-finger pop remains functional with the native label overlay

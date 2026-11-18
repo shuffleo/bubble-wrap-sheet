@@ -1,0 +1,43 @@
+{
+  "version": "8.0.0",
+  "builtDate": "2026-11-18",
+  "canonicalURL": "https://bubblewrapsheet.netlify.app/",
+  "defaultSize": "S",
+  "defaultMotion": "Original",
+  "defaultRefresh": "slide in/out",
+  "legacyRefresh": "refresh insitu",
+  "panelQuery": "?panel=show",
+  "totalControls": 68,
+  "userAudioBundled": true,
+  "unitTests": 158,
+  "browserAssertions": 64,
+  "reactSyntaxFiles": 6,
+  "typescript": "5.8.3",
+  "node": "22.16.0",
+  "chromium": "144.0.7559.96",
+  "physicalDevicesVerified": false,
+  "cleanNpmInstallVerified": false,
+  "fileHashes": {
+    "index.html": "b47d4041a52a821d48f89bd616e26d1bf7e42dc59f29702f8fa0cc4ebbea783c",
+    "standalone.html": "f2187a1ecd48d166e8a3e7d97bce370f8ffa7ba3b77e68ae2ad0739929fef13a",
+    "backups/refresh-insitu.html": "a71fb7cd206adadefd54a149fd4cf1aa64c7e30b5933f1aa01de1945a1541059",
+    "backups/refresh-insitu-v7-original.html": "3c1a0c52676f5ec5b57aea35d02e8ffc8ae704a2dace1e757299402d79029b9e",
+    "assets/material-inflated-320.jpg": "6ec3f9965e2a53006a61f4c6b6906138f0c009d475f01a02c7897946ae29d9ef",
+    "assets/material-collapsed-320.jpg": "2b9c34c8586e234e27e23f40cd1c31eb65a63550631224d6e25cd22732c30711",
+    "assets/crop-manifest.json": "a943260c61063a4a56c32f2c99792bcf78e7b8b543d54e6f0b76e10b427a791d",
+    "assets/variant-manifest.json": "15d0eb7e7baf45e9454d7df114b21a81cde10fa88412bd0d9ceea07e9c93a28a",
+    "assets/social/bubble-wrap-social-v8.png": "7d50463aa69d0dbbd5df1a438e3851e7ce78bb636de1c8c2e81be60a2903f86a",
+    "assets/social/bubble-wrap-square-v8.png": "3eedb7b22b30bd79cad936900a85b8931280c6e6aab6a912a7505d0768f267de",
+    "assets/icons/favicon.ico": "5d4f07092658dd831d9ec3bcf397a37a7f506a86f6b7d5a6044543adb2e932a5",
+    "assets/audio/processed/pop-01.wav": "c26676c160ac8aa9fbc90688ee9e7aa06212ea8751231d750d3fcd82badbca7a",
+    "assets/audio/processed/pop-02.wav": "d049ede3f058eb1b0244561849e6cc898b40f1589f9459d717cd074bc98048c3",
+    "assets/audio/processed/pop-03.wav": "3bd0c840be629936c9682b0c73df28355e755bad0405c6af5b5cb577bbd190f4",
+    "assets/audio/processed/refresh.wav": "6294470a4e30f421845dbca54a506279c9d0ae582942bb86e3baa0fc3cc52470"
+  },
+  "sourceAudioHashes": {
+    "single 1.wav": "52db036114acada7b77b6c761602d7aaf334ad816836f8e4314fabb4075b2b56",
+    "refresh sound.wav": "11bdd966b5d06c00e1d15881a9f46d98f7fdba778345860312200f3a17bb0416",
+    "single 3.wav": "b83d2ad4f41c9f7b52f6dc4d8650f8f2d4708d17a386d68e5753381a196b9d77",
+    "single 2.wav": "fe495150d19c2900ec834b0b85db49a7a2a4b112a1181fd2c1442d67a8d69e46"
+  }
+}

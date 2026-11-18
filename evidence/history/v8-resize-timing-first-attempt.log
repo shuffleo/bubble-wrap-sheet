@@ -1,0 +1,43 @@
+
+> bubble-wrap@8.0.0 test:browser
+> python3 tests/release_browser.py
+
+PASS normal URL: no settings panel or panel icon
+PASS default is S with slide in/out selected
+PASS three real pop samples and a refill are predecoded before any gesture
+PASS embedded sample names are the supplied files, not generated fixtures
+PASS main title, canonical and JSON-LD are in static HTML
+PASS one shared WebGL canvas and draw call
+PASS mouse click then typing pops without a sheet focus outline
+PASS one keyboard key commits one additional pop
+PASS live pop playback selects a bundled PCM buffer
+PASS Tab navigation restores the visible sheet outline
+PASS popping after Tab retains the accessibility outline
+PASS returning to pointer input suppresses only the sheet outline
+PASS Space starts an actual slide exchange with old instances preserved
+PASS refill uses a recorded sample and at least the 720ms slide duration
+PASS new sheet starts inflated while the old copy keeps popped cells
+PASS refresh changes both seeds but not the material grade
+PASS sheet inputs are locked while two sheets travel
+PASS header fidget remains hit-testable during transport
+PASS old sheet moves right and incoming sheet enters from the left
+PASS transport uses one context and one draw with temporary extra instances
+PASS temporary geometry is released after the slide
+PASS refresh button remains dim but enabled on an empty sheet
+PASS empty-sheet Space still plays a real excerpt
+PASS reentrant refresh does not reroll again or stack sheets
+PASS empty-sheet refresh button also starts the transition
+PASS full sheet plays the complete 1.129-second recording at original rate
+PASS muting suppresses refill playback without skipping the animation
+PASS all 47 physical keys pop one bubble from their group
+PASS holding a mapped key does not auto-repeat popping
+PASS no WebGL errors after transport and keyboard use
+FAIL resizing mid-slide cancels its snapshot safely
+Traceback (most recent call last):
+  File "/mnt/data/bubble-wrap-release/tests/release_browser.py", line 77, in <module>
+    check('resizing mid-slide cancels its snapshot safely',p.evaluate('!bubbleUI.refreshing&&bubbleUI.renderInstances===bubbleUI.points.length&&bubbleUI.gl.getError()===0'))
+    ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/data/bubble-wrap-release/tests/release_browser.py", line 12, in check
+    results.append({'test':name,'passed':bool(ok)});(E/'release-browser-results.json').write_text(json.dumps(results,indent=2)+'\n');print(('PASS ' if ok else 'FAIL ')+name,flush=True);assert ok,name
+                                                                                                                                                                                                ^^
+AssertionError: resizing mid-slide cancels its snapshot safely

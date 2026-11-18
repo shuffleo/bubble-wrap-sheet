@@ -1,0 +1,17 @@
+{
+  "name": "generated-refill-padded.wav",
+  "kind": "refill",
+  "sampleRate": 44100,
+  "channels": 1,
+  "originalSeconds": 1.72,
+  "processedSeconds": 1.2266213151927439,
+  "trimmedStartMs": 218.25396825396825,
+  "trimmedEndMs": 275.12471655328795,
+  "inputPeakDbFS": -6.02038661551963,
+  "outputPeakDbFS": -3.7417325341874683,
+  "outputRmsDbFS": -6.962968761257455,
+  "appliedGainDb": 2.267628752950473,
+  "thresholdDbFS": -52.00936162009336,
+  "clippedInputSamples": 0,
+  "warnings": []
+}

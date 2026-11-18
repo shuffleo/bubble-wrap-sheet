@@ -1,0 +1,69 @@
+
+> bubble-wrap@8.0.0 test:browser
+> python3 tests/release_browser.py
+
+PASS normal URL: no settings panel or panel icon
+PASS default is S with slide in/out selected
+PASS three real pop samples and a refill are predecoded before any gesture
+PASS embedded sample names are the supplied files, not generated fixtures
+PASS main title, canonical and JSON-LD are in static HTML
+PASS one shared WebGL canvas and draw call
+PASS mouse click then typing pops without a sheet focus outline
+PASS one keyboard key commits one additional pop
+PASS live pop playback selects a bundled PCM buffer
+PASS Tab navigation restores the visible sheet outline
+PASS popping after Tab retains the accessibility outline
+PASS returning to pointer input suppresses only the sheet outline
+PASS Space starts an actual slide exchange with old instances preserved
+PASS refill uses a recorded sample and at least the 720ms slide duration
+PASS new sheet starts inflated while the old copy keeps popped cells
+PASS refresh changes both seeds but not the material grade
+PASS sheet inputs are locked while two sheets travel
+PASS header fidget remains hit-testable during transport
+PASS old sheet moves right and incoming sheet enters from the left
+PASS transport uses one context and one draw with temporary extra instances
+PASS temporary geometry is released after the slide
+PASS refresh button remains dim but enabled on an empty sheet
+PASS empty-sheet Space still plays a real excerpt
+PASS reentrant refresh does not reroll again or stack sheets
+PASS empty-sheet refresh button also starts the transition
+PASS full sheet plays the complete 1.129-second recording at original rate
+PASS muting suppresses refill playback without skipping the animation
+PASS all 47 physical keys pop one bubble from their group
+PASS holding a mapped key does not auto-repeat popping
+PASS no WebGL errors after transport and keyboard use
+PASS resizing mid-slide cancels its snapshot safely
+PASS 320px mobile shows the interactive bubble, not brand text
+PASS 390px mobile shows the interactive bubble, not brand text
+PASS 520px mobile shows the interactive bubble, not brand text
+PASS 760px mobile shows the interactive bubble, not brand text
+PASS bottom controls retain 56px mobile touch targets
+PASS mobile header bubble really compresses
+PASS URL opt-in opens the existing library sidebar, with no icon
+PASS debug URL is noindexed while canonical stays at the public root
+PASS 68 sidebar controls include both refresh modes
+PASS sidebar correctly reports bundled sound availability and requested credit
+PASS typing in controls does not pop bubbles
+PASS refresh insitu remains selectable without a sliding snapshot
+PASS insitu reset finishes with cut edges still flat
+PASS context loss during slide restores a stable fresh sheet
+PASS named backup opens in refresh insitu with recorded audio bundled
+PASS standalone pops with bundled recordings while offline
+PASS offline refresh uses the recorded WAV, not synth fallback
+PASS reduced-motion mode suppresses directional travel
+PASS two independent mobile touches pop two bubbles
+PASS mobile touch keeps the viewport still and no sheet outline
+PASS touch reset uses slide and the recorded excerpt
+PASS touch reset clears interior pops without reinflating cut edges
+PASS no JavaScript page errors
+PASS deploy serves ?panel=show
+PASS deploy serves favicon.ico
+PASS deploy serves assets/icons/favicon-96.png
+PASS deploy serves assets/social/bubble-wrap-social-v8.png
+PASS deploy serves assets/social/bubble-wrap-square-v8.png
+PASS deploy serves assets/audio/processed/pop-01.wav
+PASS deploy serves assets/audio/processed/refresh.wav
+PASS deploy serves robots.txt
+PASS deploy serves sitemap.xml
+PASS deploy serves site.webmanifest
+64 browser/deployment assertions passed.

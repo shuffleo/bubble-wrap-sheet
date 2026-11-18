@@ -1,0 +1,58 @@
+[
+  {
+    "test": "DPR is capped at two",
+    "passed": true
+  },
+  {
+    "test": "two simultaneous touch pointers captured",
+    "passed": true
+  },
+  {
+    "test": "two-finger drag pops both trails",
+    "passed": true
+  },
+  {
+    "test": "all touch pointers released",
+    "passed": true
+  },
+  {
+    "test": "touch action disables browser gestures",
+    "passed": true
+  },
+  {
+    "test": "pointercancel clears tracking",
+    "passed": true
+  },
+  {
+    "test": "pointercancel does not pop on release",
+    "passed": true
+  },
+  {
+    "test": "rotation preserves bubble diameter",
+    "passed": true
+  },
+  {
+    "test": "landscape has no horizontal overflow",
+    "passed": true
+  },
+  {
+    "test": "second engine refused before creating another context",
+    "passed": true
+  },
+  {
+    "test": "WebGL context loss and restoration recover",
+    "passed": true
+  },
+  {
+    "test": "interaction works after context restoration",
+    "passed": true
+  },
+  {
+    "test": "no JavaScript runtime errors",
+    "passed": true
+  },
+  {
+    "test": "unsupported WebGL shows explicit error",
+    "passed": true
+  }
+]

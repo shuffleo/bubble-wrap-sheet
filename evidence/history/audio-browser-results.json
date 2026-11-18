@@ -1,0 +1,114 @@
+[
+  {
+    "test": "requested sound credit appears in the bottom sidebar footer",
+    "passed": true
+  },
+  {
+    "test": "creator and CC0 links use official destinations",
+    "passed": true
+  },
+  {
+    "test": "credit does not misrepresent the procedural fallback as a loaded recording",
+    "passed": true
+  },
+  {
+    "test": "all three sample files are analyzed before playback",
+    "passed": true
+  },
+  {
+    "test": "leading and trailing silence are removed from every pop",
+    "passed": true
+  },
+  {
+    "test": "sample attacks stay within a few milliseconds of start",
+    "passed": true
+  },
+  {
+    "test": "processed outputs retain distinct tones and stay below clipping",
+    "passed": true
+  },
+  {
+    "test": "analysis rows expose cleaned WAV download actions",
+    "passed": true
+  },
+  {
+    "test": "exported analysis contains real trim/gain measurements",
+    "passed": true
+  },
+  {
+    "test": "cleaned WAV export is valid and trimmed",
+    "passed": true
+  },
+  {
+    "test": "shuffle bag never repeats the same file on consecutive pops",
+    "passed": true
+  },
+  {
+    "test": "random pitch, level and tone are actually applied at playback",
+    "passed": true
+  },
+  {
+    "test": "completed pop voices clean up their playback resources",
+    "passed": true
+  },
+  {
+    "test": "failed replacement preserves the previous usable sample bank",
+    "passed": true
+  },
+  {
+    "test": "refill silence is trimmed independently of the pop bank",
+    "passed": true
+  },
+  {
+    "test": "refill duration comes from cleaned PCM, not the file including silence",
+    "passed": true
+  },
+  {
+    "test": "full refill audition plays the complete processed duration",
+    "passed": true
+  },
+  {
+    "test": "full-sheet Space reset plans the entire trimmed clip",
+    "passed": true
+  },
+  {
+    "test": "refill source is scheduled at original pitch and full content length",
+    "passed": true
+  },
+  {
+    "test": "full timed refill has completed visually at its shared endpoint",
+    "passed": true
+  },
+  {
+    "test": "one key still pops exactly one bubble",
+    "passed": true
+  },
+  {
+    "test": "one popped bubble gets a short refill excerpt",
+    "passed": true
+  },
+  {
+    "test": "short excerpt uses source offset and duration rather than speeding up the whole sound",
+    "passed": true
+  },
+  {
+    "test": "single-bubble wave ends with the short cue",
+    "passed": true
+  },
+  {
+    "test": "adaptive refill still rolls all seeds",
+    "passed": true
+  },
+  {
+    "test": "mute suppresses refill audio without blocking the timed animation",
+    "passed": true
+  },
+  {
+    "test": "no runtime errors in sampled audio and reset synchronization",
+    "passed": true
+  },
+  {
+    "test": "mobile sidebar footer and controls fit horizontally",
+    "passed": true
+  }
+]

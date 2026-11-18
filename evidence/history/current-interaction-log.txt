@@ -1,0 +1,70 @@
+[
+  {
+    "test": "engine initialized",
+    "passed": true
+  },
+  {
+    "test": "one canvas",
+    "passed": true
+  },
+  {
+    "test": "two surfaces, one draw",
+    "passed": true
+  },
+  {
+    "test": "mouse click pops exactly once",
+    "passed": true
+  },
+  {
+    "test": "audio unlocks",
+    "passed": true
+  },
+  {
+    "test": "popped membrane collapses",
+    "passed": true
+  },
+  {
+    "test": "repeat click is idempotent",
+    "passed": true
+  },
+  {
+    "test": "drag pops a continuous trail",
+    "passed": true
+  },
+  {
+    "test": "mute toggles",
+    "passed": true
+  },
+  {
+    "test": "keyboard pops next bubble",
+    "passed": true
+  },
+  {
+    "test": "fresh sheet clears count",
+    "passed": true
+  },
+  {
+    "test": "wave reinflates",
+    "passed": true
+  },
+  {
+    "test": "spring-return button compresses",
+    "passed": true
+  },
+  {
+    "test": "spring-return reinflates without pop count",
+    "passed": true
+  },
+  {
+    "test": "mobile layout no horizontal overflow",
+    "passed": true
+  },
+  {
+    "test": "single context after resize",
+    "passed": true
+  },
+  {
+    "test": "no runtime errors",
+    "passed": true
+  }
+]

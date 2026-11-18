@@ -1,0 +1,23 @@
+{
+  "version": 3,
+  "reference_size": [
+    1500,
+    1500
+  ],
+  "coordinate_space": [
+    1000,
+    1000
+  ],
+  "source_membranes": 64,
+  "inflated_variants": 320,
+  "collapsed_variants": 320,
+  "max_normalized_source_radius": 0.9992783189658444,
+  "sampling": "radially contained inside individually reviewed ellipses; exterior uses inward seal extension",
+  "ai_generated": false,
+  "popped": "derived crushed-film variants, not separate photographs",
+  "unique_inflated_cells": 320,
+  "unique_collapsed_cells": 320,
+  "tile_pixels": 128,
+  "atlas_columns": 20,
+  "atlas_rows": 16
+}

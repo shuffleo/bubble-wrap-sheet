@@ -1,0 +1,38 @@
+[
+  {
+    "test": "feature-selected native feedback path mounts one label per surface",
+    "passed": true
+  },
+  {
+    "test": "actual trusted touch forwards label activation and pops once",
+    "passed": true
+  },
+  {
+    "test": "synthetic click cannot claim native haptic feedback",
+    "passed": true
+  },
+  {
+    "test": "off switch stops label feedback while re-tap remains functional",
+    "passed": true
+  },
+  {
+    "test": "trusted drag does not falsely claim per-bubble native haptics",
+    "passed": true
+  },
+  {
+    "test": "cancellation through native label clears tracked pointer without release pop",
+    "passed": true
+  },
+  {
+    "test": "native path explicitly reports hardware as unverified",
+    "passed": true
+  },
+  {
+    "test": "teardown removes native switches and touch labels",
+    "passed": true
+  },
+  {
+    "test": "no runtime errors in the feature-spoofed fallback",
+    "passed": true
+  }
+]

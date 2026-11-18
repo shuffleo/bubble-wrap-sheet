@@ -1,0 +1,18 @@
+{
+  "old_source_sha256": "db04dbc6359b223a47e495f2acfdfcda8dfdc43b8c94d9b9dcfa85bc79072c5a",
+  "baseline_zip_sha256": "591a02b6b813e96d4cbd065cd6eaf95447a814d67df119a0a264856176fe6431",
+  "unchanged_assets": {
+    "assets/material-collapsed-320.jpg": "2b9c34c8586e234e27e23f40cd1c31eb65a63550631224d6e25cd22732c30711",
+    "assets/material-inflated-320.jpg": "6ec3f9965e2a53006a61f4c6b6906138f0c009d475f01a02c7897946ae29d9ef",
+    "assets/crop-manifest.json": "a943260c61063a4a56c32f2c99792bcf78e7b8b543d54e6f0b76e10b427a791d",
+    "assets/variant-manifest.json": "15d0eb7e7baf45e9454d7df114b21a81cde10fa88412bd0d9ceea07e9c93a28a"
+  },
+  "version": "7.1.0",
+  "html_sha256": "3c1a0c52676f5ec5b57aea35d02e8ffc8ae704a2dace1e757299402d79029b9e",
+  "default_size": "S",
+  "default_profile": "original",
+  "panel_query": "?panel=show",
+  "total_controls": 65,
+  "current_completed_assertions": 261,
+  "user_audio_bundled": false
+}

@@ -1,0 +1,56 @@
+{
+  "pops": [
+    {
+      "name": "generated-pop-0.wav",
+      "kind": "pop",
+      "sampleRate": 44100,
+      "channels": 1,
+      "originalSeconds": 0.4899773242630385,
+      "processedSeconds": 0.13811791383219954,
+      "trimmedStartMs": 117.98185941043084,
+      "trimmedEndMs": 233.87755102040816,
+      "inputPeakDbFS": -3.401269813785859,
+      "outputPeakDbFS": -3.098039233314196,
+      "outputRmsDbFS": -16.61544436619376,
+      "appliedGainDb": 0.45676741315499636,
+      "thresholdDbFS": -49.554806612869854,
+      "clippedInputSamples": 0,
+      "warnings": []
+    },
+    {
+      "name": "generated-pop-1.wav",
+      "kind": "pop",
+      "sampleRate": 44100,
+      "channels": 1,
+      "originalSeconds": 0.5699773242630386,
+      "processedSeconds": 0.13780045351473924,
+      "trimmedStartMs": 197.93650793650795,
+      "trimmedEndMs": 234.24036281179139,
+      "inputPeakDbFS": -3.265168890753582,
+      "outputPeakDbFS": -3.0980393695301456,
+      "outputRmsDbFS": -16.809740138655222,
+      "appliedGainDb": 0.230981189613352,
+      "thresholdDbFS": -49.32902038932822,
+      "clippedInputSamples": 0,
+      "warnings": []
+    },
+    {
+      "name": "generated-pop-2.wav",
+      "kind": "pop",
+      "sampleRate": 44100,
+      "channels": 1,
+      "originalSeconds": 0.6499773242630386,
+      "processedSeconds": 0.14006802721088435,
+      "trimmedStartMs": 277.89115646258506,
+      "trimmedEndMs": 232.01814058956916,
+      "inputPeakDbFS": -3.2225245201037604,
+      "outputPeakDbFS": -3.0980393281302976,
+      "outputRmsDbFS": -16.959994025263946,
+      "appliedGainDb": 0.14674133688326482,
+      "thresholdDbFS": -49.24478053659812,
+      "clippedInputSamples": 0,
+      "warnings": []
+    }
+  ],
+  "refill": null
+}

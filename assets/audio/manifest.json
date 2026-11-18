@@ -1,0 +1,92 @@
+[
+  {
+    "kind": "pop",
+    "file": "assets/audio/processed/pop-01.wav",
+    "analysis": {
+      "name": "single 1.wav",
+      "kind": "pop",
+      "sampleRate": 48000,
+      "channels": 2,
+      "originalSeconds": 0.5966979166666667,
+      "processedSeconds": 0.042,
+      "trimmedStartMs": 166.5,
+      "trimmedEndMs": 388.1979166666667,
+      "inputPeakDbFS": -0.000868776543637768,
+      "outputPeakDbFS": -3.0982664075284743,
+      "outputRmsDbFS": -30.82631783133522,
+      "appliedGainDb": -3.0841766998823177,
+      "thresholdDbFS": -46.01386249983254,
+      "clippedInputSamples": 0,
+      "warnings": [
+        "Multiple distinct source transients: app version isolates the main crack; full cleaned version is retained separately."
+      ]
+    }
+  },
+  {
+    "kind": "pop",
+    "file": "assets/audio/processed/pop-02.wav",
+    "analysis": {
+      "name": "single 2.wav",
+      "kind": "pop",
+      "sampleRate": 48000,
+      "channels": 2,
+      "originalSeconds": 0.3268020833333333,
+      "processedSeconds": 0.087,
+      "trimmedStartMs": 0.0,
+      "trimmedEndMs": 239.80208333333334,
+      "inputPeakDbFS": -0.000868776543637768,
+      "outputPeakDbFS": -3.0982664075284743,
+      "outputRmsDbFS": -33.346685833507,
+      "appliedGainDb": -3.125332563013004,
+      "thresholdDbFS": -45.97270663670186,
+      "clippedInputSamples": 0,
+      "warnings": [
+        "Attack begins at the original recording boundary; no missing pre-roll was invented."
+      ]
+    }
+  },
+  {
+    "kind": "pop",
+    "file": "assets/audio/processed/pop-03.wav",
+    "analysis": {
+      "name": "single 3.wav",
+      "kind": "pop",
+      "sampleRate": 48000,
+      "channels": 2,
+      "originalSeconds": 0.6080520833333334,
+      "processedSeconds": 0.096,
+      "trimmedStartMs": 158.5,
+      "trimmedEndMs": 353.55208333333337,
+      "inputPeakDbFS": -0.000868776543637768,
+      "outputPeakDbFS": -3.0982664075284743,
+      "outputRmsDbFS": -34.43885554969612,
+      "appliedGainDb": -3.0425533881939293,
+      "thresholdDbFS": -46.05548581152093,
+      "clippedInputSamples": 0,
+      "warnings": [
+        "Multiple distinct source transients: app version isolates the main crack; full cleaned version is retained separately."
+      ]
+    }
+  },
+  {
+    "kind": "refill",
+    "file": "assets/audio/processed/refresh.wav",
+    "analysis": {
+      "name": "refresh sound.wav",
+      "kind": "refill",
+      "sampleRate": 48000,
+      "channels": 2,
+      "originalSeconds": 1.12934375,
+      "processedSeconds": 1.1293541666666667,
+      "trimmedStartMs": 0.0,
+      "trimmedEndMs": 0.0,
+      "inputPeakDbFS": -12.000870071746096,
+      "outputPeakDbFS": -3.7418144282383166,
+      "outputRmsDbFS": -34.576597910272866,
+      "appliedGainDb": 7.503771898675216,
+      "thresholdDbFS": -57.245504765818104,
+      "clippedInputSamples": 0,
+      "warnings": []
+    }
+  }
+]

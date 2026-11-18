@@ -1,0 +1,45 @@
+import os,json
+os.environ.pop('DISPLAY',None)
+from pathlib import Path
+from playwright.sync_api import sync_playwright
+ROOT=Path(__file__).resolve().parents[1];results=[]
+def check(name,test):
+ assert test,name
+ results.append({'test':name,'passed':True})
+with sync_playwright() as p:
+ browser=p.chromium.launch(executable_path=os.environ.get('CHROMIUM_PATH') or ('/usr/lib/chromium/chromium' if Path('/usr/lib/chromium/chromium').exists() else None),headless=True,args=['--no-sandbox','--enable-unsafe-swiftshader','--use-gl=angle','--use-angle=swiftshader','--ozone-platform=headless'])
+ page=browser.new_page(viewport={'width':1280,'height':900},device_scale_factor=1)
+ errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+ page.set_content((ROOT/'index.html').read_text(),wait_until='load');page.wait_for_function('bubbleUI.atlasReady===1',timeout=30000)
+ check('engine initialized',page.evaluate('!!window.bubbleUI'))
+ check('one canvas',page.locator('canvas').count()==1)
+ check('two surfaces, one draw',page.evaluate('bubbleUI.getStats().surfaces===2 && bubbleUI.getStats().drawCalls===1'))
+ get="bubbleUI.inspect().filter(p=>p.mode==='poppable'&&p.eligible&&p.x>150&&p.x<1100&&p.y>200&&p.y<650)"
+ point=page.evaluate(get+'[5]')
+ page.mouse.click(point['x'],point['y']);page.wait_for_function(f'bubbleUI.inspect()[{point["index"]}].squish>.9',timeout=15000)
+ check('mouse click pops exactly once',page.evaluate('bubbleUI.getStats().popped')==1)
+ check('audio unlocks',page.evaluate("bubbleUI.getStats().audio==='running'"))
+ check('popped membrane collapses',page.evaluate(f'bubbleUI.inspect()[{point["index"]}].squish')>.9)
+ page.mouse.click(point['x'],point['y']);page.wait_for_timeout(120)
+ check('repeat click is idempotent',page.evaluate('bubbleUI.getStats().popped')==1)
+ a=page.evaluate(get+'[30]');b=page.evaluate(get+'[38]')
+ page.mouse.move(a['x'],a['y']);page.mouse.down();page.mouse.move(b['x'],b['y'],steps=10);page.mouse.up();page.wait_for_timeout(450)
+ popped=page.evaluate('bubbleUI.getStats().popped');check('drag pops a continuous trail',popped>=8)
+ page.screenshot(path=str(ROOT/'evidence/desktop-popped.png'))
+ page.locator('#sound').click();check('mute toggles',page.evaluate('bubbleUI.audio.muted'))
+ page.locator('#sheet').focus();page.keyboard.press('Enter');page.wait_for_timeout(100)
+ check('keyboard pops next bubble',page.evaluate('bubbleUI.getStats().popped')==popped+1)
+ page.locator('#reset').click();page.wait_for_function('Math.max(...bubbleUI.inspect().filter(p=>p.mode==="poppable"&&p.eligible).map(p=>Math.abs(p.squish)))<.01',timeout=15000)
+ check('fresh sheet clears count',page.evaluate('bubbleUI.getStats().popped')==0)
+ check('wave reinflates',page.evaluate('Math.max(...bubbleUI.inspect().filter(p=>p.mode==="poppable"&&p.eligible).map(p=>Math.abs(p.squish)))')<.01)
+ fidget=page.locator('#fidget').bounding_box();page.mouse.move(fidget['x']+fidget['width']/2,fidget['y']+fidget['height']/2);page.mouse.down();page.wait_for_function('bubbleUI.inspect().find(p=>p.mode==="spring-return").squish>.4',timeout=15000)
+ check('spring-return button compresses',page.evaluate('bubbleUI.inspect().find(p=>p.mode==="spring-return").squish')>.4)
+ page.mouse.up();page.wait_for_function('Math.abs(bubbleUI.inspect().find(p=>p.mode==="spring-return").squish)<.02',timeout=15000)
+ check('spring-return reinflates without pop count',page.evaluate('bubbleUI.inspect().find(p=>p.mode==="spring-return").squish')<.02 and page.evaluate('bubbleUI.getStats().popped')==0)
+ page.set_viewport_size({'width':390,'height':844});page.wait_for_timeout(500)
+ check('mobile layout no horizontal overflow',page.evaluate('document.documentElement.scrollWidth===innerWidth'))
+ check('single context after resize',page.evaluate('bubbleUI.getStats().surfaces===2 && document.querySelectorAll("canvas").length===1'))
+ page.screenshot(path=str(ROOT/'evidence/mobile.png'))
+ check('no runtime errors',not errors)
+ browser.close()
+print(json.dumps(results,indent=2));(ROOT/'evidence/interaction-results.json').write_text(json.dumps(results,indent=2))

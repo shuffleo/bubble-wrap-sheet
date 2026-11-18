@@ -1,0 +1,19 @@
+
+> bubble-wrap@8.0.0 build
+> node scripts/build.mjs
+
+Built self-contained index.html (7613 KiB).
+Deployment: dist/ | Portable preview: standalone.html
+
+> bubble-wrap@8.0.0 social
+> python3 scripts/make_social_assets.py && npm run build
+
+bubble-wrap-social-v8.png (1200, 630)
+bubble-wrap-square-v8.png (1080, 1080)
+Favicon and social assets captured from the app.
+
+> bubble-wrap@8.0.0 build
+> node scripts/build.mjs
+
+Built self-contained index.html (7613 KiB).
+Deployment: dist/ | Portable preview: standalone.html

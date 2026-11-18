@@ -1,0 +1,17 @@
+node_modules/
+.compiled/
+__pycache__/
+*.pyc
+.DS_Store
+.env
+.env.*
+# Built artifacts are included in this release zip for convenience, but source
+# control can regenerate them with npm run build.
+dist/
+index.html
+standalone.html
+src/components/bubble-ui/core/bubble-bundled-data.ts
+backups/*.html
+
+# Preserve the exact pre-change backup in version control.
+!backups/refresh-insitu-v7-original.html

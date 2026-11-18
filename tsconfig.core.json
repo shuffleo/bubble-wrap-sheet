@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "CommonJS",
+    "lib": [
+      "ES2020",
+      "DOM"
+    ],
+    "strict": true,
+    "esModuleInterop": true,
+    "outDir": ".compiled",
+    "rootDir": "src",
+    "skipLibCheck": true
+  },
+  "include": [
+    "src/main.ts",
+    "src/components/bubble-ui/core/**/*.ts"
+  ],
+  "exclude": [
+    "src/**/*.tsx"
+  ]
+}
