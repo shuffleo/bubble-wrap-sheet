@@ -126,7 +126,7 @@ with sync_playwright() as pw:
   cdp.send('Input.dispatchTouchEvent',{'type':'touchMove','touchPoints':[{'x':q['x'],'y':q['y'],'id':9,'radiusX':4,'radiusY':4,'force':1}]});tp.wait_for_timeout(25)
  cdp.send('Input.dispatchTouchEvent',{'type':'touchEnd','touchPoints':[]});tp.wait_for_timeout(180)
  check('one mobile scrub pops every crossed bubble',tp.evaluate('bubbleUI.getStats().popped')==popped+len(scrub))
- check('Android scrub emits one distinct haptic pulse per pop',tp.evaluate('__mobilePulses.length')>=pulse_count+len(scrub))
+ check('Android scrub emits one distinct haptic pulse per pop',tp.evaluate('''([start,added])=>{const pulses=__mobilePulses.slice(start).flatMap(value=>Array.isArray(value)?value.filter((_,index)=>index%2===0):[value]);return pulses.filter(value=>value>=10&&value<=30).length>=added}''',[pulse_count,len(scrub)]))
  touch.close()
  check('no JavaScript page errors',not errors)
  browser.close()
