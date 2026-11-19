@@ -9,18 +9,35 @@ export class BubbleHaptics {
  readonly mode:HapticMode;private active=true;private destroyed=false;
  private bindings=new Set<{sync:()=>void;dispose:()=>void}>();
  private requests=0;private accepted=0;private nativeTaps=0;private lastResult='not-tested';
+ private queued:number[]=[];private timer:ReturnType<typeof setTimeout>|null=null;private nextPulseAt=0;
  constructor(){
   const nav=typeof navigator==='undefined'?undefined:navigator;
   this.mode=typeof nav?.vibrate==='function'?'vibration-api':
    typeof document!=='undefined'&&(nav?.maxTouchPoints??0)>0&&'switch' in document.createElement('input')?'native-switch-tap':'unavailable';
  }
  get enabled(){return this.active;}
- set enabled(value:boolean){this.active=value;for(const b of this.bindings)b.sync();}
+ set enabled(value:boolean){this.active=value;if(!value)this.clearQueue();for(const b of this.bindings)b.sync();}
+ private clearQueue(){this.queued=[];if(this.timer!==null){clearTimeout(this.timer);this.timer=null;}}
+ private vibrate(milliseconds:number):boolean {
+  try {const ok=navigator.vibrate(milliseconds);this.lastResult=ok?'api-accepted':'api-declined';if(ok)this.accepted++;return ok;}
+  catch {this.lastResult='api-blocked';return false;}
+ }
+ private drain(){
+  this.timer=null;
+  if(this.destroyed||!this.active||this.mode!=='vibration-api'||(typeof document!=='undefined'&&document.hidden)){this.clearQueue();return;}
+  const milliseconds=this.queued.shift();if(milliseconds===undefined)return;
+  this.vibrate(milliseconds);this.nextPulseAt=performance.now()+milliseconds+8;
+  if(this.queued.length)this.timer=setTimeout(()=>this.drain(),milliseconds+8);
+ }
  pulse(milliseconds=13):boolean {
   if(this.destroyed||!this.active||this.mode!=='vibration-api'||(typeof document!=='undefined'&&document.hidden))return false;
-  this.requests++;
-  try {const ok=navigator.vibrate(Math.max(1,Math.min(30,Math.round(milliseconds))));this.lastResult=ok?'api-accepted':'api-declined';if(ok)this.accepted++;return ok;}
-  catch {this.lastResult='api-blocked';return false;}
+  this.requests++;const duration=Math.max(1,Math.min(30,Math.round(milliseconds))),now=performance.now();
+  if(this.timer===null&&!this.queued.length&&now>=this.nextPulseAt){const ok=this.vibrate(duration);this.nextPulseAt=now+duration+8;return ok;}
+  // Repeated vibrate() calls cancel the pulse already in progress on Android.
+  // Queue a bounded pulse per pop so a scrub produces distinct feedback.
+  if(this.queued.length<12)this.queued.push(duration);
+  if(this.timer===null)this.timer=setTimeout(()=>this.drain(),Math.max(0,this.nextPulseAt-now));
+  return true;
  }
  /** The label is the actual touch target. The engine must capture this label,
   * not its parent, so the browser's release click can activate the native switch.
@@ -61,5 +78,5 @@ export class BubbleHaptics {
   if(this.mode==='native-switch-tap')return 'Native tap feedback available (best effort). iPhone feedback occurs on a direct tap/release, not each drag or keyboard pop. System haptics must be enabled.';
   return 'This browser exposes no supported haptic path. Sound and visual feedback remain available.';
  }
- destroy(){if(this.destroyed)return;this.destroyed=true;for(const b of [...this.bindings])b.dispose();}
+ destroy(){if(this.destroyed)return;this.destroyed=true;this.clearQueue();for(const b of [...this.bindings])b.dispose();}
 }

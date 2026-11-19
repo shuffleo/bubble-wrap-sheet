@@ -23,19 +23,35 @@ export class BubbleAudio {
   }catch{/* Older WebKit can allocate buffers after context creation instead. */}
  }
  lastSample:{index:number;rate:number;gain:number;toneDb:number;duration:number}|null=null;lastRefillPlan:RefillPlan|null=null;
+ private flushPending(){
+  if(this.context?.state!=='running'||!this.pendingPops)return;
+  const count=this.pendingPops;this.pendingPops=0;for(let i=0;i<count;i++)this.pop(false);
+ }
+ /** Start a zero-length audible graph inside the trusted input call stack.
+  * Older iOS WebKit needs this in addition to resume() before it will render. */
+ private prime(){
+  const context=this.context,master=this.master;if(!context||!master||context.state==='closed')return;
+  try{const buffer=context.createBuffer(1,1,context.sampleRate),source=context.createBufferSource();source.buffer=buffer;source.connect(master);source.onended=()=>source.disconnect();source.start(0);}catch{}
+ }
  unlock(){
   if(!this.context){const AC=window.AudioContext||(window as unknown as {webkitAudioContext:typeof AudioContext}).webkitAudioContext;if(!AC)return;
-   this.context=new AC({latencyHint:'interactive'});this.loadBundled(this.context);this.context.onstatechange=()=>{if(this.context?.state!=='running')return;if(this.pendingPops){const count=this.pendingPops;this.pendingPops=0;for(let i=0;i<count;i++)this.pop(false);}};
+   try{this.context=new AC({latencyHint:'interactive'});}catch{try{this.context=new AC();}catch{return;}}
+   this.loadBundled(this.context);this.context.onstatechange=()=>this.flushPending();
    this.master=this.context.createGain();this.master.gain.value=this.muted?0:this.volume;
    const limit=this.context.createDynamicsCompressor();limit.threshold.value=-12;limit.ratio.value=8;this.master.connect(limit);limit.connect(this.context.destination);
    this.noise=this.context.createBuffer(1,Math.ceil(this.context.sampleRate*.12),this.context.sampleRate);const data=this.noise.getChannelData(0);for(let i=0;i<data.length;i++)data[i]=Math.random()*2-1;
    this.refillNoise=this.context.createBuffer(1,Math.ceil(this.context.sampleRate*1.5),this.context.sampleRate);const refillData=this.refillNoise.getChannelData(0);for(let i=0;i<refillData.length;i++)refillData[i]=Math.random()*2-1;
-  }if(this.context.state==='suspended')void this.context.resume().catch(()=>{});
+  }
+  if(this.context.state==='running'){this.flushPending();return;}
+  this.prime();
+  if(this.context.state==='closed')return;
+  try{void this.context.resume().then(()=>this.flushPending()).catch(()=>{});}
+  catch{}
  }
  setMuted(value:boolean){this.muted=value;if(value){this.pendingPops=0;this.refillGeneration++;this.refillVoice?.cancel();this.refillVoice=null;}if(this.context&&this.master)this.master.gain.setTargetAtTime(value?0:this.volume,this.context.currentTime,.01);}
  pop(withHaptic=true){
   if(withHaptic)this.feedback.pulse(13);
-  const c=this.context;if(this.muted||this.volume<=0||!c||!this.master||!this.noise||this.voices>=14)return;if(c.state==='suspended'){this.pendingPops=Math.min(4,this.pendingPops+1);return;}if(c.state!=='running')return;
+  const c=this.context;if(this.muted||this.volume<=0||!c||!this.master||!this.noise||this.voices>=14)return;if(c.state!=='running'){if(c.state!=='closed'){this.pendingPops=Math.min(8,this.pendingPops+1);this.unlock();}return;}
   if(this.imported.length){
    const index=this.bag.pick(this.imported.length),buffer=this.imported[index],rate=1+(Math.random()*2-1)*this.pitchVariation,gain=1+(Math.random()*2-1)*this.sampleGainVariation,toneDb=(Math.random()*2-1)*this.sampleToneVariation;
    const node=c.createBufferSource(),level=c.createGain(),tone=c.createBiquadFilter();node.buffer=buffer;node.playbackRate.value=rate;level.gain.value=gain;tone.type='highshelf';tone.frequency.value=3500;tone.gain.value=toneDb;
