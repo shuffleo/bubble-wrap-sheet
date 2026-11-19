@@ -200,6 +200,10 @@
     "passed": true
   },
   {
+    "test": "first mobile touch unlocks Web Audio and starts pop samples",
+    "passed": true
+  },
+  {
     "test": "mobile touch keeps the viewport still and no sheet outline",
     "passed": true
   },
@@ -209,6 +213,14 @@
   },
   {
     "test": "touch reset clears interior pops without reinflating cut edges",
+    "passed": true
+  },
+  {
+    "test": "one mobile scrub pops every crossed bubble",
+    "passed": true
+  },
+  {
+    "test": "Android scrub emits one distinct haptic pulse per pop",
     "passed": true
   },
   {
