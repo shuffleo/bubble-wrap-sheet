@@ -147,7 +147,7 @@ export const GROUPS:{title:string;open?:boolean;controls:Control[]}[]=[
   {key:'sampleToneVariation',label:'Sample tone variation',min:0,max:3,step:.1,hint:'Random high-shelf variation in dB. 0 preserves the recorded tone.'},
   {key:'adaptiveRefill',label:'Adaptive refill duration',hint:'A full sheet uses the complete trimmed sound; partial sheets use a shorter, faded ending. Animation follows the same duration.'},
   {key:'refillMinimum',label:'Single-bubble refill',min:.08,max:.6,step:.01,hint:'Seconds for one bubble, bounded by the trimmed clip length.'},
-  {key:'haptics',label:'Haptics',hint:'Android requests vibration pulses. iPhone uses direct native tap feedback where supported; drag/key vibration is not available in Safari.'},{key:'dpr',label:'Pixel ratio cap',min:1,max:2,step:.25},
+  {key:'haptics',label:'Haptics',hint:'A pulse for every pop, including while a finger drags. Android vibrates; iPhone uses the system tick under the finger.'},{key:'dpr',label:'Pixel ratio cap',min:1,max:2,step:.25},
   {key:'showContours',label:'Crop / cell guides'}]}
 ];
 const ranges=new Map(GROUPS.flatMap(g=>g.controls.map(c=>[c.key,c] as const)));
