@@ -12,12 +12,35 @@ This plan implements `docs/ROGUELIKE-GDD.md` without coupling game rules to WebG
 6. Keep Free Pop as the default compatibility path until Game mode is explicitly selected.
 7. Add behavior behind stable APIs; do not reach into engine private fields from the game layer.
 
+## Engine decision
+
+Use the existing `BubbleEngine` plus a custom, headless game-rules layer for the MVP. Do not add a general-purpose game engine, ECS, physics engine, or external state-machine runtime yet.
+
+Reasons:
+
+- `BubbleEngine` already owns the specialized WebGL renderer, instancing, bubble physics, moving hit tests, keyboard groups, multi-touch, audio, haptics, and mobile recovery.
+- Phaser or another complete engine would add a second scene graph, frame loop, input system, loader, and lifecycle around systems that already work.
+- A renderer-only library such as PixiJS would replace custom rendering without helping shops, scoring, hazards, or run flow.
+- An ECS such as bitECS is optimized for larger heterogeneous entity sets; the current typed arrays already provide data-oriented bubble storage.
+- XState or a small headless framework could model phases, but the planned phase graph is small enough for a typed pure reducer.
+- Pure TypeScript modules can already run headlessly in Node tests without a framework.
+
+Reconsider this decision only if profiling or scope demonstrates one of these needs:
+
+- Several distinct game worlds with reusable entity composition.
+- Replay/rewind or deterministic lockstep.
+- Networked simulation.
+- Complex nested/parallel statecharts that make the reducer difficult to verify.
+- A second renderer or platform backend.
+
+The game layer still behaves like a headless engine: it accepts typed events plus elapsed game time, returns state/effects, never reads the DOM, and never owns rendering.
+
 ## Proposed source scaffold
 
 ```text
 config/
-  survival-run.json
-  survival-run.schema.json
+  level-design.json
+  level-design.schema.json
 src/
   game/
     game-types.ts
@@ -35,7 +58,7 @@ src/
     persistence.ts
     game-ui.ts
     generated/
-      survival-run-config.ts
+      level-design-config.ts
 scripts/
   validate-game-config.mjs
   game-dev.mjs
@@ -56,13 +79,13 @@ Browser regressions remain under `tests/` and gain focused run-flow scripts as m
 
 ## Live balance configuration
 
-`config/survival-run.json` is the human-editable source of truth. It already contains all agreed sizes, level counts, scoring values, calibration bounds, prices, upgrade parameters, hazard parameters, conveyor values, and UI timings.
+`config/level-design.json` is the human-editable source of truth. It already contains all agreed sizes, level counts, scoring values, calibration bounds, prices, upgrade parameters, hazard parameters, conveyor values, and UI timings.
 
 Implementation requirements:
 
-1. Add `survival-run.schema.json` with bounds, required keys, and enums.
+1. Add `level-design.schema.json` with bounds, required keys, and enums.
 2. Validate the JSON before TypeScript compilation and report exact failing property paths.
-3. Generate `src/game/generated/survival-run-config.ts`; never hand-edit that file.
+3. Generate `src/game/generated/level-design-config.ts`; never hand-edit that file.
 4. Import numeric game balance only from the generated config.
 5. Production builds embed the validated config so deployment and standalone HTML remain offline-safe.
 6. Add `npm run game:dev` to watch source and JSON changes, rebuild, and reload the current local page.
@@ -179,7 +202,7 @@ User checkpoints must test the real preview on both phone and desktop when the s
 
 Build:
 
-- Add JSON Schema for `config/survival-run.json`.
+- Add JSON Schema for `config/level-design.json`.
 - Validate before every build.
 - Generate typed, immutable TypeScript config.
 - Add JSON watch/rebuild/live-reload development command.

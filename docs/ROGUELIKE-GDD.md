@@ -165,7 +165,7 @@ The multiplier ranges from 1× to 1.5×. A soft timer at or below zero gives 1×
 
 ## 7. Live balance source
 
-`config/survival-run.json` is the source of truth for every tunable numeric value:
+`config/level-design.json` is the source of truth for every tunable numeric value:
 
 - Bubble-size presets.
 - Level sheet counts and sizes.
