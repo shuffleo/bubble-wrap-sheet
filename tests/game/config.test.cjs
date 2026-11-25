@@ -116,3 +116,13 @@ test('production and standalone HTML embed the complete same revision',()=>{
  assert.deepEqual(production.config,config);
  assert.deepEqual(standalone.config,config);
 });
+
+test('production and standalone HTML embed the tuning schema',()=>{
+ const schema=JSON.parse(fs.readFileSync(schemaPath,'utf8'));
+ for(const file of ['dist/index.html','standalone.html']){
+  const html=fs.readFileSync(path.join(root,file),'utf8');
+  const match=html.match(/<script id="level-design-schema" type="application\/json">(.*?)<\/script>/s);
+  assert.ok(match,`${file} is missing its embedded schema`);
+  assert.deepEqual(JSON.parse(match[1]),schema);
+ }
+});

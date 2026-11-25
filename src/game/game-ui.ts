@@ -33,6 +33,7 @@ export function createGameUi(route:GameRoute,onFreePop:()=>void):GameUiHandle {
 
  function ensureRoot(){
   if(root)return root;
+  noIndex();
   root=document.createElement('div');root.id='game-root';root.dataset.screen='mode-select';
   document.body.dataset.gameMode='survival';
   document.body.append(root,live);
