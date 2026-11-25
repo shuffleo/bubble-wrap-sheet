@@ -15,6 +15,9 @@ This plan implements `docs/ROGUELIKE-GDD.md` without coupling game rules to WebG
 ## Proposed source scaffold
 
 ```text
+config/
+  survival-run.json
+  survival-run.schema.json
 src/
   game/
     game-types.ts
@@ -31,8 +34,14 @@ src/
     conveyor.ts
     persistence.ts
     game-ui.ts
+    generated/
+      survival-run-config.ts
+scripts/
+  validate-game-config.mjs
+  game-dev.mjs
 tests/
   game/
+    config.test.cjs
     game-reducer.test.cjs
     scoring.test.cjs
     calibration.test.cjs
@@ -44,6 +53,39 @@ tests/
 ```
 
 Browser regressions remain under `tests/` and gain focused run-flow scripts as milestones land.
+
+## Live balance configuration
+
+`config/survival-run.json` is the human-editable source of truth. It already contains all agreed sizes, level counts, scoring values, calibration bounds, prices, upgrade parameters, hazard parameters, conveyor values, and UI timings.
+
+Implementation requirements:
+
+1. Add `survival-run.schema.json` with bounds, required keys, and enums.
+2. Validate the JSON before TypeScript compilation and report exact failing property paths.
+3. Generate `src/game/generated/survival-run-config.ts`; never hand-edit that file.
+4. Import numeric game balance only from the generated config.
+5. Production builds embed the validated config so deployment and standalone HTML remain offline-safe.
+6. Add `npm run game:dev` to watch source and JSON changes, rebuild, and reload the current local page.
+7. Add a development-only Tuning Drawer at `?game=1&tuning=show`.
+8. Generate the drawer's fields from the schema. Session edits apply immediately without restarting the run when safe.
+9. Mark values that require a level restart, sheet restart, or new run.
+10. Provide **Export JSON** so browser tuning can replace the checked-in config after review.
+
+The Tuning Drawer cannot silently write repository files. Exported JSON must be reviewed and committed normally.
+
+### No-magic-number rule
+
+Game code may contain mathematical constants intrinsic to an algorithm, but no balance value. Sheet counts, sizes, durations, thresholds, ratios, score values, multipliers, prices, effect strengths, and UI timings all come from the JSON configuration.
+
+Tests load the same configuration and verify:
+
+- Every numeric value is finite and within schema bounds.
+- All referenced size and upgrade IDs exist.
+- Prices exist for both categories.
+- Shop counts do not exceed the unique upgrade pool.
+- Hazard weights are positive.
+- Timed levels have valid timer parameters.
+- Conveyor stages are ordered and fit inside its duration.
 
 ## Core contracts
 
@@ -115,207 +157,368 @@ interface BubbleGameAdapter {
 
 Implementation should expose only the minimum methods required by the game. The adapter translates engine callbacks into game events and avoids making renderer internals part of the rules API.
 
-## Milestone 0: deterministic foundations
+## Delivery protocol
 
-### Build
+Development proceeds as small vertical slices, not one large implementation.
+
+For every slice:
+
+1. Implement only the named behavior.
+2. Add focused unit and browser coverage.
+3. Run the existing Free Pop regression suite.
+4. Commit and push the slice.
+5. Update the Netlify deploy preview.
+6. At designated checkpoints, stop and give the user a short test script.
+7. Do not begin the next checkpoint group until the user confirms, reports issues, or explicitly asks to continue autonomously.
+
+User checkpoints must test the real preview on both phone and desktop when the slice affects touch, keyboard, responsive layout, audio, haptics, hold behavior, or hidden-tab recovery.
+
+## Stage A: config and deterministic foundations
+
+### Slice A1: config pipeline
+
+Build:
+
+- Add JSON Schema for `config/survival-run.json`.
+- Validate before every build.
+- Generate typed, immutable TypeScript config.
+- Add JSON watch/rebuild/live-reload development command.
+- Add tests for references, bounds, and ordering.
+
+Exit:
+
+- Editing one JSON number changes generated config after reload.
+- Invalid JSON or out-of-range values fail with an exact property path.
+- Production and standalone builds embed the same revision.
+
+### Slice A2: nine bubble-size presets
+
+Build:
+
+- Refactor size labels and values to consume generated config.
+- Add XXXS, XXS, XXL, and XXXL to the existing XS–XL set.
+- Preserve the current default S.
+- Confirm engine clamps support 24–148 pixels.
+
+Tests:
+
+- All nine values sanitize and render.
+- Unknown values are rejected.
+- Free Pop size changes still reset safely.
+- Small and large extremes retain valid hit targets and finite geometry.
+
+### Slice A3: pure game foundations
+
+Build:
 
 - Add seeded RNG with serializable state.
-- Add a pausable monotonic game clock based on `performance.now()`.
-- Define run, encounter, pop, upgrade, hazard, and shop types.
-- Add config objects for levels, prices, timers, and effects.
-- Add a pure reducer for legal phase transitions.
+- Add a pausable monotonic game clock.
+- Define game types and legal phase reducer.
+- Add fixture states for UI development.
 
-### Tests
+Tests:
 
-- Same seed produces identical shops, hazards, and target choices.
-- Hidden/paused time does not advance game time.
-- Invalid phase transitions are rejected.
-- Run reset removes all transient state.
+- Same seed produces identical choices.
+- Hidden/paused time does not advance.
+- Illegal transitions are rejected.
+- Reset removes all transient state.
 
-### Exit criteria
+## Stage B: UI before gameplay
 
-- No visible product change.
-- Pure modules compile and reach full branch coverage for transition rules.
+This stage deliberately uses fixture data. No encounter functionality is required yet.
 
-## Milestone 1: mode shell and event instrumentation
+### Slice B1: mode selection
 
-### Build
+Build:
 
-- Add start screen with Free Pop and Survival Run.
-- Preserve current startup path under Free Pop.
-- Add game HUD container and mode-specific CSS.
-- Add explicit manual-pop event details to the engine.
-- Lock score category on first manual pop.
-- Track active gesture, Clean Sweep, Hot Key, combo, and manual velocity.
-- Add local category high-score persistence.
+- Add a minimal entry screen with Free Pop and Survival Run.
+- Keep Free Pop behavior unchanged.
+- Add local high-score placeholders for both categories.
+- Add route/query support for opening a screen directly during development.
 
-### Tests
+### Slice B2: responsive HUD
 
-- Free Pop behavior and current browser suite remain unchanged.
-- Touch locks Touch category; keyboard/mouse locks Keyboard & Pointer.
-- Input changes do not change category mid-run.
-- Manual and assisted events cannot be confused.
-- Clean Sweep starts on the third qualifying bubble.
-- Hot Key rotates targets only after a successful highlighted pop.
+Build:
 
-### Exit criteria
+- Render fixture level, score, sheet count, timer, combo, velocity, multiplier, upgrades, and hazard.
+- Define compact phone and expanded desktop layouts.
+- Add danger-zone, soft-timer-expired, paused, and hidden-HUD states.
+- Add accessible live-region strategy without announcing every pop.
 
-- Level 1 is playable end to end.
-- Score uses base and skill bonuses.
-- Free Pop remains visually and behaviorally compatible.
+### Slice B3: shop and result screens
 
-## Milestone 2: levels 1–3 and calibration
+Build:
 
-### Build
+- Render two fixture offers, prices, disabled/affordable states, reroll, buy, and skip.
+- Render run-won and run-lost summaries.
+- Render level score breakdown and purchase history.
+- Use mock actions only.
 
-- Add sheet-count encounter controller.
-- Force game sheet bubble sizes independently from saved Free Pop settings.
-- Implement level 1 onboarding prompts.
-- Implement level 2 soft timer, KPI display, and remaining-time payout.
-- Capture robust active-window calibration from level 2.
-- Implement level 3 deadline calculation and clamp.
-- Add run loss and retry flow.
-- Pause all game time on visibility loss.
+### Slice B4: Tuning Drawer
 
-### Tests
+Build:
 
-- Level 1 never fails and never calibrates.
-- Level 2 continues after timer expiry.
-- Idle and transition time do not affect calibration.
-- Level 3 deadline uses actual eligible count and calibrated manual rate.
-- Timeout ends the run.
-- Backgrounding cannot expire a timer.
-- Mobile audio recovery does not consume game time.
+- Add development-only `?game=1&tuning=show`.
+- Generate fields from schema groups.
+- Apply session overrides immediately when safe.
+- Label changes requiring sheet, level, or run restart.
+- Export the complete merged JSON.
+- Show config revision and validation status.
 
-### Exit criteria
+### User checkpoint 1: visual shell
 
-- A no-shop run can progress through level 3.
-- Touch and Keyboard & Pointer produce separate result records.
+Stop and ask the user to test:
 
-## Milestone 3: scoring, shops, and upgrades
+- Mode selector hierarchy and copy.
+- Free Pop still opening and behaving normally.
+- HUD legibility on phone and desktop.
+- Shop offer density and upgrade descriptions.
+- Result screen usefulness.
+- All nine sizes in Free Pop.
+- Tuning Drawer editing, restart labels, and JSON export.
 
-### Build
+Do not wire gameplay until this checkpoint is approved.
 
-- Implement the complete scoring pipeline.
-- Add fixed category price schedules.
-- Add two-offer shop and one paid reroll.
-- Exclude owned upgrades and rejected reroll offers.
-- Implement deterministic proc queue and source rules.
-- Implement all nine upgrades.
-- Add active-upgrade HUD and exact effect copy.
+## Stage C: level 1 and basic scoring
 
-### Tests
+### Slice C1: engine game adapter
 
-- Score ordering matches base, additive bonuses, then multipliers.
-- Assisted score is fixed at 2 and never multiplied.
-- No assisted effect triggers any upgrade.
-- Proc order is stable for a fixed seed.
-- Purchases and rerolls cannot make score negative.
-- At most one item can be bought per shop.
-- Unique upgrades never reappear.
-- Second Wind triggers exactly once.
-- Bubble Insurance affects clearance but not miss penalty.
+Build:
 
-### Exit criteria
+- Add typed manual, assisted, hazard, and system pop sources.
+- Add bounded engine adapter methods.
+- Lock run category on the first manual pop.
+- Keep Free Pop callbacks backward-compatible.
 
-- Shops appear after levels 2 and 3.
-- Every upgrade has a focused unit test and visible HUD feedback.
+### Slice C2: level-1 state machine
 
-## Milestone 4: hazard level
+Build:
 
-### Build
+- Start, intro, active sheet, sheet transition, completion, and retry states.
+- Force 2 M sheets from config.
+- Disable shops, hazards, timers, and upgrades.
+- Add onboarding prompts.
 
-- Add equal seeded selection among four hazards.
-- Add hazard announcement before level 4.
-- Add hazard-specific deadline workload allowance.
-- Implement Double Layer state and visuals.
-- Implement Memory Foam warning and reinflation.
-- Implement Hardened Bubble hold, decay, keyboard hold, and progress UI.
-- Implement Drunken Bob global rolls, failed-roll feedback, and pity.
-- Add shop 3 after victory.
+### Slice C3: base skill scoring
 
-### Tests
+Build one mechanic at a time:
 
-- Hazard distribution is deterministic and approximately equal over many seeds.
-- Double Layer requires two hits and an assist removes one.
-- Memory Foam never steals an already-completed sheet.
-- Reinflated bubbles cannot be farmed for score.
-- Hardened progress fills, decays, and pauses combo.
-- Drunken Bob can hit popped bubbles but never fails progress more than 3 consecutive times.
-- Drunken Bob disables spatial skill bonuses.
+1. Base 10-point manual scoring.
+2. Clean Sweep gesture tracking.
+3. Hot Key selection and rotation.
+4. Combo grace and HUD.
+5. Local category high-score write.
 
-### Exit criteria
+Tests:
 
-- Each hazard is independently winnable without upgrades.
-- Three M sheets complete level 4 and open the final shop.
+- Manual and assisted sources cannot be confused.
+- Clean Sweep starts at configured crossing count.
+- Hot Key changes only after success.
+- Input changes do not change run category.
+- Held key repeat remains ignored.
 
-## Milestone 5: conveyor miniboss
+### User checkpoint 2: first playable loop
 
-### Build
+Ask the user to clear level 1 using:
 
-- Add moving bubble layout without using repeated sheet refresh.
-- Add world-position hit testing and screen-space keyboard grouping.
-- Add left-entry/right-exit spawn lifecycle.
-- Add speed stages at 0, 15, and 30 seconds.
-- Add cleanup window before 45 seconds.
-- Add miss penalties and clearance calculation.
-- Integrate Fat Finger, Rough Table, Static Discharge, and Bubble Insurance.
-- Add run-win and final breakdown screen.
+- Phone tap and drag.
+- Desktop pointer.
+- Desktop keyboard.
+- Mixed input after category lock.
 
-### Tests
+Collect feedback on HUD obstruction, score readability, skill feedback, sheet transitions, audio, and haptics before adding timers.
 
-- Every spawn receives the minimum interaction window.
-- Exit detection happens only after the complete hit area leaves.
-- Movement and spawning pause while hidden.
-- Keyboard groups follow current positions.
-- Rough Table prioritizes the closest bubble to exit.
-- Insured misses retain the score penalty and improve clearance.
-- Exactly 90% wins; below 90% loses.
+## Stage D: timers and pressure
 
-### Exit criteria
+### Slice D1: level 2 soft timer
 
-- A complete five-level run can win and record a high score.
-- A failed conveyor resets to level 1.
+Build:
 
-## Milestone 6: polish and balance
+- Five M sheets.
+- Soft par timer from category config.
+- Remaining-time payout.
+- Manual pops-per-second KPI.
+- Continue after zero without failure.
 
-### Build
+### Slice D2: calibration
 
-- Add final copy, onboarding, score breakdown, and hazard explanations.
-- Add reduced-motion behavior that preserves essential conveyor motion.
-- Add screen-reader state for layers and hold progress.
-- Add audio/haptic cues for skills, assists, warnings, purchases, and failure.
-- Tune benchmark pace, deadline clamps, prices, hold percentage, spawn rate, and speed.
-- Confirm layout at 320, 390, 520, 760, and desktop widths.
+Build:
 
-### Validation
+- Active-window sampling.
+- Exclude idle, transition, pause, hidden, and assisted time.
+- Clamp by category config.
+- Add a diagnostics panel in Tuning Drawer showing sampled windows and result.
+
+### Slice D3: level 3 hard deadline
+
+Build:
+
+- Five L sheets.
+- Calibrated deadline and clamp.
+- Danger-zone HUD.
+- Timeout loss and full run reset.
+- No upgrades yet, so base difficulty can be validated first.
+
+### User checkpoint 3: difficulty baseline
+
+Ask the user for repeated Touch and Keyboard & Pointer runs. Confirm:
+
+- Level 2 feels informative rather than punitive.
+- Calibrated level 3 is difficult but possible.
+- Pausing/backgrounding never consumes time.
+- Timer, danger treatment, and loss flow are readable.
+
+Tune JSON before building shops.
+
+## Stage E: shop and upgrades
+
+### Slice E1: real shop
+
+Build:
+
+- Two seeded random unowned offers.
+- Fixed category prices from JSON.
+- One score-paid reroll.
+- Buy at most one or skip.
+- Prevent negative score and repeated owned offers.
+
+### Slice E2: proc queue plus Fat Finger
+
+Build:
+
+- Deterministic pop resolution order.
+- Assisted score fixed at 2.
+- No assisted recursion.
+- Implement Fat Finger only.
+
+### User checkpoint 4: economy and first upgrade
+
+Ask the user to test offer quality, prices, reroll, spending pain, Fat Finger power, and assisted-pop feedback. Tune before adding more effects.
+
+### Slices E3–E10: one upgrade at a time
+
+Implement and test in this order:
+
+1. Rough Table.
+2. Knuckle Crack.
+3. Static Discharge.
+4. Velocity Buff.
+5. Deadline Fighter.
+6. Sure Hands.
+7. Second Wind.
+8. Bubble Insurance placeholder behavior, completed with the conveyor.
+
+Each slice gets:
+
+- One focused implementation commit.
+- Unit coverage for trigger, reset, score, and interactions.
+- HUD feedback.
+- Config-driven values only.
+
+### User checkpoint 5: complete build system
+
+Stop after the first four upgrades, and again after all nine. Ask the user to compare several seeded builds and tune prices/effect strengths through the JSON/Tuning Drawer.
+
+## Stage F: hazards, one by one
+
+### Slice F1: hazard selection and announcement
+
+- Equal seeded selection from config weights.
+- Level-4 intro and rule summary.
+- Three M sheets and hazard-adjusted deadline.
+
+### Slice F2: Double Layer
+
+- Two-hit state, visuals, accessible state, and assisted-layer removal.
+
+### Slice F3: Memory Foam
+
+- Warning, reinflation, completion cancellation, and anti-farming.
+
+### User checkpoint 6: first hazard pair
+
+Ask the user to validate visual clarity, deadlines, Fat Finger interactions, and whether reinflation feels pressuring rather than annoying.
+
+### Slice F4: Hardened Bubbles
+
+- Touch/pointer hold.
+- Keyboard hold.
+- Progress ring, 0.4-second decay, combo pause, and 30-point base.
+- Pointer-cancel and app-background safety.
+
+### User checkpoint 7: physical-phone hold
+
+Require a real-phone test before continuing. Confirm 1.5 seconds, finger jitter, haptics, audio, progress visibility, and release decay.
+
+### Slice F5: Drunken Bob
+
+- Global seeded rolls.
+- No-progress feedback.
+- Three-failure pity.
+- Skill-bonus suppression.
+- Visible lurch on selected target.
+
+### User checkpoint 8: chaos test
+
+Ask whether Drunken Bob is confusing in the intended way rather than merely frustrating. Tune pity, deadline allowance, feedback, or selection weight in JSON.
+
+## Stage G: conveyor, visuals before rules
+
+### Slice G1: non-interactive conveyor prototype
+
+- Moving M bubbles in one instanced draw.
+- Entry, travel, speed stages, exit, pooling, and reduced-motion treatment.
+- Fixture HUD only; no hit testing or score.
+
+### User checkpoint 9: conveyor look and pace
+
+Ask the user to review direction, density, speed stages, cleanup window, phone performance, and motion comfort before gameplay is attached.
+
+### Slice G2: conveyor input
+
+- Moving hit testing.
+- Touch/pointer popping.
+- Screen-space keyboard groups.
+- Miss detection and 10-point penalty.
+
+### Slice G3: completion and build interactions
+
+- 45-second game clock.
+- 90% result.
+- Fat Finger, Rough Table, Static Discharge, and Bubble Insurance.
+- Win/loss and final score screen.
+
+### User checkpoint 10: full run
+
+Ask for complete no-upgrade and upgraded runs in both categories. Tune spawn density, speed, threshold, penalties, insurance, and prices before polish.
+
+## Stage H: release polish
+
+Build:
+
+- Final copy and onboarding.
+- Audio and haptic cues.
+- Screen-reader states.
+- Reduced-motion audit.
+- Full responsive pass.
+- High-score persistence.
+- Balance and result diagnostics.
+
+Validation:
 
 - Full unit suite.
-- Full existing browser/deployment suite.
-- New Survival Run browser flow for touch and keyboard.
-- WebKit first-touch and background/foreground audio recovery.
-- Manual physical-phone pass for haptics, holds, hidden-tab pause, and conveyor.
+- Existing browser/deployment suite.
+- Survival Run touch and keyboard E2E.
+- WebKit audio recovery.
+- Physical-phone haptics, hold, background pause, and conveyor.
 - Ten no-upgrade runs per category and hazard.
 - Ten seeded build runs per category.
 
-### Exit criteria
+Exit:
 
-- Meets every balance gate in the GDD.
-- No regression in Free Pop.
-- No timer, audio, animation, or input lock survives a background/foreground cycle.
-
-## Suggested implementation order by file
-
-1. `game-types.ts`, `game-config.ts`, `game-rng.ts`, `game-clock.ts`
-2. `game-reducer.ts` and pure tests
-3. Bubble engine adapter and manual event metadata
-4. `scoring.ts`, Clean Sweep, Hot Key, combo, velocity
-5. `game-controller.ts` for levels 1–3
-6. `calibration.ts`
-7. `shops.ts`, `upgrades.ts`
-8. `hazards.ts`
-9. `conveyor.ts`
-10. `game-ui.ts`, persistence, polish, browser tests
+- Every GDD balance gate passes.
+- Free Pop has no regression.
+- No timer, audio, animation, or input lock survives background/foreground.
 
 ## Implementation risks
 
@@ -343,15 +546,19 @@ Moving bubbles add per-frame transforms and hit testing. Mitigation: reuse typed
 
 Wall clocks, audio clocks, and animation clocks can diverge. Mitigation: one pausable game clock is authoritative; audio never owns encounter timing.
 
+### Config drift
+
+Documentation, generated types, and runtime values can diverge. Mitigation: JSON is authoritative, generation is deterministic, schema validation runs before every build, and tests forbid unknown or missing IDs.
+
 ## First implementation slice
 
-The first code PR should stop after milestone 1:
+The first code PR stops after **Slice A1: config pipeline**:
 
-- Mode selection.
-- Level-1 state machine.
-- Category lock.
-- Typed manual/assisted pop events.
-- Base score, Clean Sweep, Hot Key, and combo HUD.
-- Free Pop regression coverage.
+- JSON Schema.
+- Build-time validation with property-path errors.
+- Generated typed config.
+- Config tests.
+- Watch/reload development command.
+- No gameplay or visible UI change.
 
-This is the smallest vertical slice that validates the game shell without committing to timer, shop, hazard, or conveyor architecture prematurely.
+The second code PR adds the nine size presets. The UI/HUD/shop mock work then proceeds through Stage B and stops at User checkpoint 1 before any gameplay is wired.

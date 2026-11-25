@@ -1,6 +1,6 @@
 # Bubble Wrap: Survival Run
 
-Status: Draft v0.1  
+Status: Draft v0.2
 Scope: Five-level MVP  
 Branch: `cursor/roguelike-2ece`
 
@@ -163,7 +163,26 @@ The multiplier ranges from 1× to 1.5×. A soft timer at or below zero gives 1×
 - Spending never affects an already-determined survival result.
 - Final rank uses the score remaining after all purchases and penalties.
 
-## 7. Fixed shop prices
+## 7. Live balance source
+
+`config/survival-run.json` is the source of truth for every tunable numeric value:
+
+- Bubble-size presets.
+- Level sheet counts and sizes.
+- Score values, combo windows, and multipliers.
+- Calibration bounds and challenge factors.
+- Shop offers, rerolls, prices, and upgrade strengths.
+- Hazard frequencies, durations, ratios, and pity limits.
+- Conveyor duration, speed stages, penalties, and clearance target.
+- UI transition and feedback timings.
+
+The prose in this GDD defines intent and behavior. If a numeric value differs, the JSON configuration controls the build.
+
+Development must provide a watched `game:dev` workflow: edit the JSON, receive schema validation with an exact property path, rebuild automatically, and reload the current game. Production builds validate and embed the same file so Netlify and `standalone.html` remain deterministic and offline-capable.
+
+Game modules may not duplicate balance literals. Tests load the same configuration and assert its bounds.
+
+## 8. Fixed shop prices
 
 Prices are provisional tuning constants and differ by run category.
 
@@ -195,13 +214,22 @@ Prices are provisional tuning constants and differ by run category.
 
 These values must be tuned against real viewport bubble counts before release.
 
-## 8. Run structure
+## 9. Run structure
 
 Bubble-size labels retain their current meaning:
 
+- XXXS means 24-pixel bubbles.
+- XXS means 32-pixel bubbles.
+- XS means 40-pixel bubbles.
+- S means 52-pixel bubbles.
 - M means 64-pixel bubbles.
 - L means 82-pixel bubbles.
+- XL means 100-pixel bubbles.
+- XXL means 124-pixel bubbles.
+- XXXL means 148-pixel bubbles.
 - Larger bubbles produce fewer eligible bubbles on the same viewport.
+
+All nine presets are available in Free Pop and to future game encounters. The five-level MVP currently uses M and L only.
 
 Actual bubble count remains responsive. Touch and Keyboard & Pointer scores are compared separately.
 
@@ -274,7 +302,7 @@ Clearance is:
 
 `(popped + insured misses) / total spawned`
 
-## 9. Shops
+## 10. Shops
 
 Shops appear after levels 2, 3, and 4.
 
@@ -287,7 +315,7 @@ Shops appear after levels 2, 3, and 4.
 - Purchased upgrades are unique and cannot level up or reappear.
 - The shop previews exact effects and current category price.
 
-## 10. Upgrade pool
+## 11. Upgrade pool
 
 ### Fat Finger
 
@@ -347,7 +375,7 @@ The first three conveyor misses:
 - Count as cleared for the final percentage.
 - Do not return to the belt.
 
-## 11. Shared proc rules
+## 12. Shared proc rules
 
 To avoid recursion and ambiguous scoring:
 
@@ -359,7 +387,7 @@ To avoid recursion and ambiguous scoring:
 - One bubble can resolve only once per frame.
 - Proc order is deterministic: manual score, manual counters, direct upgrade assists, passive assists, completion check.
 
-## 12. Hazards
+## 13. Hazards
 
 ### Double Layer
 
@@ -401,7 +429,7 @@ To avoid recursion and ambiguous scoring:
 - Successful manual pops have base value 10.
 - Selected targets visibly lurch before resolving.
 
-## 13. Conveyor rules
+## 14. Conveyor rules
 
 The conveyor is a distinct encounter layout, not repeated sheet refreshes.
 
@@ -415,7 +443,7 @@ The conveyor is a distinct encounter layout, not repeated sheet refreshes.
 - Drunken Bob is not active during the miniboss.
 - Visibility loss pauses movement, spawning, timers, audio, and combo.
 
-## 14. HUD and screens
+## 15. HUD and screens
 
 ### Start
 
@@ -459,7 +487,7 @@ When relevant show:
 - Manual, assisted, missed, and skill-pop counts
 - Retry and Free Pop
 
-## 15. Accessibility and platform behavior
+## 16. Accessibility and platform behavior
 
 - Game remains fully playable with touch, pointer, or keyboard.
 - No upgrade is required to complete the tuned base run.
@@ -471,7 +499,7 @@ When relevant show:
 - Hardened progress and Double Layer state receive screen-reader text.
 - Drunken Bob is announced before the encounter and never appears without warning.
 
-## 16. Persistence
+## 17. Persistence
 
 Persist locally:
 
@@ -488,7 +516,7 @@ Do not persist:
 - Calibration.
 - Permanent currency or power.
 
-## 17. Out of scope for the MVP
+## 18. Out of scope for the MVP
 
 - Levels beyond 5.
 - Meta-progression or unlock trees.
@@ -500,7 +528,7 @@ Do not persist:
 - Server persistence.
 - Monetization.
 
-## 18. Balance gates
+## 19. Balance gates
 
 Before implementation is considered release-ready:
 
