@@ -30,6 +30,7 @@ with sync_playwright() as pw:
  check('three real pop samples and a refill are predecoded before any gesture',p.evaluate('bubbleUI.audio.imported.length===3&&!!bubbleUI.audio.refillSample&&bubbleUI.audio.state==="locked"'))
  check('embedded sample names are the supplied files, not generated fixtures',p.evaluate('bubbleUI.audio.sampleReport.pops.map(p=>p.name).join(",")==="single 1.wav,single 2.wav,single 3.wav"'))
  check('main title, canonical and JSON-LD are in static HTML',p.evaluate('document.title==="Bubble Wrap - Satisfying Pops, Anywhere"&&document.querySelector("link[rel=canonical]").href==="https://bubblewrapsheet.netlify.app/"&&!!JSON.parse(document.querySelector("script[type=\\"application/ld+json\\"]").textContent)'))
+ check('validated level design is embedded for offline game startup',p.evaluate('(()=>{const node=document.getElementById("level-design-config");const value=JSON.parse(node.textContent);return value.revision===node.dataset.revision&&value.schemaVersion===1&&value.run.levelCount===5})()'))
  check('one shared WebGL canvas and draw call',p.evaluate('document.querySelectorAll("canvas").length===1&&bubbleUI.getStats().drawCalls===1'))
  q=poppoint(p);before=p.evaluate('bubbleUI.getStats().popped');p.keyboard.press('a');p.wait_for_timeout(80)
  check('mouse click then typing pops without a sheet focus outline',p.evaluate('getComputedStyle(document.getElementById("sheet")).outlineStyle==="none"'))

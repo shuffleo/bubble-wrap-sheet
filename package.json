@@ -5,8 +5,9 @@
   "description": "A tactile bubble-wrap sheet with bundled recorded audio, keyboard popping, and sliding sheet exchanges.",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "test": "npm run build && node --test tests/*.test.cjs",
+    "test": "npm run build && node --test tests/*.test.cjs tests/game/*.test.cjs",
     "dev": "node scripts/serve.mjs",
+    "game:dev": "node scripts/game-dev.mjs",
     "serve": "node scripts/serve.mjs",
     "test:browser": "python3 tests/release_browser.py",
     "atlas": "python3 scripts/build_atlas.py",
@@ -17,12 +18,13 @@
     "package": "python3 scripts/package_release.py"
   },
   "devDependencies": {
+    "ajv": "^8.20.0",
     "typescript": "5.8.3"
   },
   "peerDependencies": {
+    "bootstrap": "^5.3.6",
     "react": ">=19",
-    "react-dom": ">=19",
-    "bootstrap": "^5.3.6"
+    "react-dom": ">=19"
   },
   "peerDependenciesMeta": {
     "react": {

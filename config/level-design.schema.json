@@ -1,0 +1,514 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://bubblewrapsheet.netlify.app/schemas/level-design.schema.json",
+  "title": "Bubble Wrap Survival Run level design",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "revision",
+    "sizes",
+    "categories",
+    "scoring",
+    "run",
+    "calibration",
+    "upgrades",
+    "hazards",
+    "conveyor",
+    "ui"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "revision": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "sizes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["XXXS", "XXS", "XS", "S", "M", "L", "XL", "XXL", "XXXL"],
+      "properties": {
+        "XXXS": {"$ref": "#/definitions/bubbleSize"},
+        "XXS": {"$ref": "#/definitions/bubbleSize"},
+        "XS": {"$ref": "#/definitions/bubbleSize"},
+        "S": {"$ref": "#/definitions/bubbleSize"},
+        "M": {"$ref": "#/definitions/bubbleSize"},
+        "L": {"$ref": "#/definitions/bubbleSize"},
+        "XL": {"$ref": "#/definitions/bubbleSize"},
+        "XXL": {"$ref": "#/definitions/bubbleSize"},
+        "XXXL": {"$ref": "#/definitions/bubbleSize"}
+      }
+    },
+    "categories": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["touch", "keyboardPointer"],
+      "properties": {
+        "touch": {"$ref": "#/definitions/inputCategory"},
+        "keyboardPointer": {"$ref": "#/definitions/inputCategory"}
+      }
+    },
+    "scoring": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "normalBase",
+        "hardenedBase",
+        "assistedBase",
+        "skillBonus",
+        "sureHandsBonus",
+        "comboGraceMs",
+        "cleanSweepStartsAt",
+        "hotKeyTargetCount",
+        "remainingTimeMaxMultiplier",
+        "velocity",
+        "deadline"
+      ],
+      "properties": {
+        "normalBase": {"$ref": "#/definitions/nonNegativeInteger"},
+        "hardenedBase": {"$ref": "#/definitions/nonNegativeInteger"},
+        "assistedBase": {"$ref": "#/definitions/nonNegativeInteger"},
+        "skillBonus": {"$ref": "#/definitions/nonNegativeInteger"},
+        "sureHandsBonus": {"$ref": "#/definitions/nonNegativeInteger"},
+        "comboGraceMs": {"$ref": "#/definitions/milliseconds"},
+        "cleanSweepStartsAt": {"$ref": "#/definitions/positiveInteger"},
+        "hotKeyTargetCount": {"$ref": "#/definitions/positiveInteger"},
+        "remainingTimeMaxMultiplier": {"$ref": "#/definitions/multiplier"},
+        "velocity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "windowMs",
+            "activationPopsPerSecond",
+            "minimumMultiplier",
+            "maximumMultiplier",
+            "diminishingRate"
+          ],
+          "properties": {
+            "windowMs": {"$ref": "#/definitions/milliseconds"},
+            "activationPopsPerSecond": {"$ref": "#/definitions/positiveNumber"},
+            "minimumMultiplier": {"$ref": "#/definitions/multiplier"},
+            "maximumMultiplier": {"$ref": "#/definitions/multiplier"},
+            "diminishingRate": {"$ref": "#/definitions/positiveNumber"}
+          }
+        },
+        "deadline": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "dangerZoneFraction",
+            "dangerZoneMaxSeconds",
+            "minimumMultiplier",
+            "maximumMultiplier"
+          ],
+          "properties": {
+            "dangerZoneFraction": {"$ref": "#/definitions/ratio"},
+            "dangerZoneMaxSeconds": {"$ref": "#/definitions/positiveNumber"},
+            "minimumMultiplier": {"$ref": "#/definitions/multiplier"},
+            "maximumMultiplier": {"$ref": "#/definitions/multiplier"}
+          }
+        }
+      }
+    },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "levelCount",
+        "shopsAfterLevels",
+        "shopOfferCount",
+        "shopPurchaseLimit",
+        "shopRerollLimit",
+        "levels"
+      ],
+      "properties": {
+        "levelCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        },
+        "shopsAfterLevels": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/definitions/positiveInteger"},
+          "maxItems": 19
+        },
+        "shopOfferCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9
+        },
+        "shopPurchaseLimit": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9
+        },
+        "shopRerollLimit": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 20
+        },
+        "levels": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "name", "sheetCount", "bubbleSize", "timer"],
+            "properties": {
+              "id": {"$ref": "#/definitions/positiveInteger"},
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "sheetCount": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              },
+              "bubbleSize": {"$ref": "#/definitions/sizeName"},
+              "timer": {
+                "enum": ["none", "soft", "calibrated-hard", "conveyor"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "calibration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceLevel",
+        "activeWindowMs",
+        "minimumManualPopsPerWindow",
+        "sheetTransitionAllowanceSeconds",
+        "hardDeadlineChallengeFactor",
+        "hardDeadlineMinSeconds",
+        "hardDeadlineMaxSeconds"
+      ],
+      "properties": {
+        "sourceLevel": {"$ref": "#/definitions/positiveInteger"},
+        "activeWindowMs": {"$ref": "#/definitions/milliseconds"},
+        "minimumManualPopsPerWindow": {"$ref": "#/definitions/positiveInteger"},
+        "sheetTransitionAllowanceSeconds": {"$ref": "#/definitions/nonNegativeNumber"},
+        "hardDeadlineChallengeFactor": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        },
+        "hardDeadlineMinSeconds": {"$ref": "#/definitions/positiveNumber"},
+        "hardDeadlineMaxSeconds": {"$ref": "#/definitions/positiveNumber"}
+      }
+    },
+    "upgrades": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fatFinger",
+        "knuckleCrack",
+        "roughTable",
+        "staticDischarge",
+        "velocityBuff",
+        "deadlineFighter",
+        "sureHands",
+        "secondWind",
+        "bubbleInsurance"
+      ],
+      "properties": {
+        "fatFinger": {
+          "$ref": "#/definitions/neighbourUpgrade"
+        },
+        "knuckleCrack": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["manualComboInterval", "neighbourCount"],
+          "properties": {
+            "manualComboInterval": {"$ref": "#/definitions/positiveInteger"},
+            "neighbourCount": {"$ref": "#/definitions/positiveInteger"}
+          }
+        },
+        "roughTable": {
+          "$ref": "#/definitions/intervalUpgrade"
+        },
+        "staticDischarge": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["manualPopInterval"],
+          "properties": {
+            "manualPopInterval": {"$ref": "#/definitions/positiveInteger"}
+          }
+        },
+        "velocityBuff": {"$ref": "#/definitions/toggleUpgrade"},
+        "deadlineFighter": {"$ref": "#/definitions/toggleUpgrade"},
+        "sureHands": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["additionalSkillBonus"],
+          "properties": {
+            "additionalSkillBonus": {"$ref": "#/definitions/nonNegativeInteger"}
+          }
+        },
+        "secondWind": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["usesPerRun", "addedSeconds"],
+          "properties": {
+            "usesPerRun": {"$ref": "#/definitions/positiveInteger"},
+            "addedSeconds": {"$ref": "#/definitions/positiveNumber"}
+          }
+        },
+        "bubbleInsurance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["insuredMisses"],
+          "properties": {
+            "insuredMisses": {"$ref": "#/definitions/positiveInteger"}
+          }
+        }
+      }
+    },
+    "hazards": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "selectionWeights",
+        "doubleLayer",
+        "memoryFoam",
+        "hardenedBubbles",
+        "drunkenBob"
+      ],
+      "properties": {
+        "selectionWeights": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["doubleLayer", "memoryFoam", "hardenedBubbles", "drunkenBob"],
+          "properties": {
+            "doubleLayer": {"$ref": "#/definitions/positiveNumber"},
+            "memoryFoam": {"$ref": "#/definitions/positiveNumber"},
+            "hardenedBubbles": {"$ref": "#/definitions/positiveNumber"},
+            "drunkenBob": {"$ref": "#/definitions/positiveNumber"}
+          }
+        },
+        "doubleLayer": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["bubbleRatio", "layers", "deadlineWorkloadMultiplier"],
+          "properties": {
+            "bubbleRatio": {"$ref": "#/definitions/ratio"},
+            "layers": {
+              "type": "integer",
+              "minimum": 2,
+              "maximum": 10
+            },
+            "deadlineWorkloadMultiplier": {"$ref": "#/definitions/multiplier"}
+          }
+        },
+        "memoryFoam": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["intervalMs", "warningMs", "deadlineWorkloadMultiplier"],
+          "properties": {
+            "intervalMs": {"$ref": "#/definitions/milliseconds"},
+            "warningMs": {"$ref": "#/definitions/milliseconds"},
+            "deadlineWorkloadMultiplier": {"$ref": "#/definitions/multiplier"}
+          }
+        },
+        "hardenedBubbles": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "bubbleRatio",
+            "holdMs",
+            "releaseDecayMs",
+            "deadlineWorkloadMultiplier"
+          ],
+          "properties": {
+            "bubbleRatio": {"$ref": "#/definitions/ratio"},
+            "holdMs": {"$ref": "#/definitions/milliseconds"},
+            "releaseDecayMs": {"$ref": "#/definitions/milliseconds"},
+            "deadlineWorkloadMultiplier": {"$ref": "#/definitions/multiplier"}
+          }
+        },
+        "drunkenBob": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["maximumFailedRolls", "deadlineWorkloadMultiplier"],
+          "properties": {
+            "maximumFailedRolls": {"$ref": "#/definitions/nonNegativeInteger"},
+            "deadlineWorkloadMultiplier": {"$ref": "#/definitions/multiplier"}
+          }
+        }
+      }
+    },
+    "conveyor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "durationMs",
+        "cleanupWindowMs",
+        "clearanceTarget",
+        "missScorePenalty",
+        "speedStages"
+      ],
+      "properties": {
+        "durationMs": {"$ref": "#/definitions/milliseconds"},
+        "cleanupWindowMs": {"$ref": "#/definitions/nonNegativeMilliseconds"},
+        "clearanceTarget": {"$ref": "#/definitions/ratio"},
+        "missScorePenalty": {"$ref": "#/definitions/nonNegativeInteger"},
+        "speedStages": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["atMs", "multiplier"],
+            "properties": {
+              "atMs": {"$ref": "#/definitions/nonNegativeMilliseconds"},
+              "multiplier": {"$ref": "#/definitions/multiplier"}
+            }
+          }
+        }
+      }
+    },
+    "ui": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["levelIntroMs", "scorePulseMs", "hazardWarningMs", "resultCountUpMs"],
+      "properties": {
+        "levelIntroMs": {"$ref": "#/definitions/nonNegativeMilliseconds"},
+        "scorePulseMs": {"$ref": "#/definitions/nonNegativeMilliseconds"},
+        "hazardWarningMs": {"$ref": "#/definitions/nonNegativeMilliseconds"},
+        "resultCountUpMs": {"$ref": "#/definitions/nonNegativeMilliseconds"}
+      }
+    }
+  },
+  "definitions": {
+    "nonNegativeNumber": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1000000
+    },
+    "positiveNumber": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 1000000
+    },
+    "nonNegativeInteger": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1000000
+    },
+    "positiveInteger": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000000
+    },
+    "nonNegativeMilliseconds": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 3600000
+    },
+    "milliseconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3600000
+    },
+    "ratio": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 1
+    },
+    "multiplier": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 100
+    },
+    "bubbleSize": {
+      "type": "integer",
+      "minimum": 24,
+      "maximum": 160
+    },
+    "sizeName": {
+      "enum": ["XXXS", "XXS", "XS", "S", "M", "L", "XL", "XXL", "XXXL"]
+    },
+    "upgradePrices": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fatFinger",
+        "knuckleCrack",
+        "roughTable",
+        "staticDischarge",
+        "velocityBuff",
+        "deadlineFighter",
+        "sureHands",
+        "secondWind",
+        "bubbleInsurance"
+      ],
+      "properties": {
+        "fatFinger": {"$ref": "#/definitions/nonNegativeInteger"},
+        "knuckleCrack": {"$ref": "#/definitions/nonNegativeInteger"},
+        "roughTable": {"$ref": "#/definitions/nonNegativeInteger"},
+        "staticDischarge": {"$ref": "#/definitions/nonNegativeInteger"},
+        "velocityBuff": {"$ref": "#/definitions/nonNegativeInteger"},
+        "deadlineFighter": {"$ref": "#/definitions/nonNegativeInteger"},
+        "sureHands": {"$ref": "#/definitions/nonNegativeInteger"},
+        "secondWind": {"$ref": "#/definitions/nonNegativeInteger"},
+        "bubbleInsurance": {"$ref": "#/definitions/nonNegativeInteger"}
+      }
+    },
+    "inputCategory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "softParSecondsPerBubble",
+        "calibrationMinPopsPerSecond",
+        "calibrationMaxPopsPerSecond",
+        "rerollPrice",
+        "upgradePrices"
+      ],
+      "properties": {
+        "softParSecondsPerBubble": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 60
+        },
+        "calibrationMinPopsPerSecond": {"$ref": "#/definitions/positiveNumber"},
+        "calibrationMaxPopsPerSecond": {"$ref": "#/definitions/positiveNumber"},
+        "rerollPrice": {"$ref": "#/definitions/nonNegativeInteger"},
+        "upgradePrices": {"$ref": "#/definitions/upgradePrices"}
+      }
+    },
+    "neighbourUpgrade": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["neighbourCount"],
+      "properties": {
+        "neighbourCount": {"$ref": "#/definitions/positiveInteger"}
+      }
+    },
+    "intervalUpgrade": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["intervalMs"],
+      "properties": {
+        "intervalMs": {"$ref": "#/definitions/milliseconds"}
+      }
+    },
+    "toggleUpgrade": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled"],
+      "properties": {
+        "enabled": {"type": "boolean"}
+      }
+    }
+  }
+}

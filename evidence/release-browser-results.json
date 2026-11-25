@@ -20,6 +20,10 @@
     "passed": true
   },
   {
+    "test": "validated level design is embedded for offline game startup",
+    "passed": true
+  },
+  {
     "test": "one shared WebGL canvas and draw call",
     "passed": true
   },

@@ -11,6 +11,7 @@ dist/
 index.html
 standalone.html
 src/components/bubble-ui/core/bubble-bundled-data.ts
+src/game/generated/level-design-config.ts
 backups/*.html
 
 # Preserve the exact pre-change backup in version control.
