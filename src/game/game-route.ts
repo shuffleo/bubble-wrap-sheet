@@ -2,7 +2,7 @@ export type GameScreen='mode-select'|'level-intro'|'hud'|'shop'|'run-won'|'run-l
 export interface GameRoute {
  enabled:boolean;
  screen:GameScreen;
- hudState:'normal'|'danger'|'paused'|'hidden';
+ hudState:'normal'|'danger'|'soft-expired'|'paused'|'hidden';
  category:'touch'|'keyboard-pointer';
  tuning:boolean;
 }
@@ -19,7 +19,7 @@ export function readGameRoute(search:string):GameRoute {
  const screens:GameScreen[]=['mode-select','level-intro','hud','shop','run-won','run-lost'];
  const screen=enabled&&requested&&screens.includes(requested as GameScreen)?requested as GameScreen:'mode-select';
  const requestedHud=single(params,'hud');
- const hudStates:GameRoute['hudState'][]=['normal','danger','paused','hidden'];
+ const hudStates:GameRoute['hudState'][]=['normal','danger','soft-expired','paused','hidden'];
  const hudState=enabled&&requestedHud&&hudStates.includes(requestedHud as GameRoute['hudState'])?requestedHud as GameRoute['hudState']:'normal';
  const category=enabled&&single(params,'category')==='keyboard-pointer'?'keyboard-pointer':'touch';
  const tuning=enabled&&single(params,'tuning')==='show';
