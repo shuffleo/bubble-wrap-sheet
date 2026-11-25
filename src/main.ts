@@ -3,6 +3,8 @@ import {bindPreferenceStorage} from './components/bubble-ui/core/bubble-preferen
 import {bindBubbleKeyboard} from './components/bubble-ui/core/bubble-keyboard-input';
 import {BubbleEngine} from './components/bubble-ui/core/bubble-engine';
 import {createPanel,readSavedSettings} from './components/bubble-ui/core/bubble-panel';
+import {readGameRoute} from './game/game-route';
+import {createGameUi,type GameUiHandle} from './game/game-ui';
 function start(){
  const canvas=document.querySelector<HTMLCanvasElement>('#material')!,sheet=document.getElementById('sheet')!;
  const reset=document.getElementById('reset') as HTMLButtonElement;
@@ -20,7 +22,10 @@ function start(){
  const update=()=>{const s=engine.getStats();reset.disabled=engine.refreshing;reset.dataset.empty=String(s.popped===0);sheet.setAttribute('aria-busy',String(engine.refreshing));sound.setAttribute('aria-pressed',String(!engine.audio.muted));sound.dataset.muted=String(engine.audio.muted);sound.title=engine.audio.muted?'Unmute sound':'Mute sound';count.textContent=String(s.popped).padStart(3,'0');total.textContent=String(s.total);document.getElementById('progress')!.style.width=`${s.total?s.popped/s.total*100:0}%`;status.textContent=`${s.popped} of ${s.total} bubbles popped. Cut-edge bubbles are excluded.`;};engine.addEventListener('change',update);update();
  const freshSheet=()=>{handle.reset();};reset.addEventListener('click',event=>{freshSheet();if(event.detail>0)focusSheetAfterPointer(sheet);});
  sound.addEventListener('click',event=>{const muted=!engine.audio.muted;engine.setMuted(muted);sound.setAttribute('aria-pressed',String(!muted));sound.dataset.muted=String(muted);sound.title=muted?'Unmute sound':'Mute sound';if(event.detail>0)focusSheetAfterPointer(sheet);});
+ const gameUi=createGameUi(readGameRoute(location.search),()=>sheet.focus());
+ document.getElementById('game-open')!.addEventListener('click',()=>gameUi.openModeSelect());
  engine.addEventListener('contextlost',()=>{status.textContent='Graphics paused. Waiting for context restoration.';});engine.addEventListener('contextrestored',update);
  (window as unknown as {bubbleUI:BubbleEngine}).bubbleUI=engine;
+ (window as unknown as {bubbleGameUI:GameUiHandle}).bubbleGameUI=gameUi;
 }
 start();
