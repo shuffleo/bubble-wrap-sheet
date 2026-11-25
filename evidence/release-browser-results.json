@@ -160,7 +160,7 @@
     "passed": true
   },
   {
-    "test": "68 sidebar controls include both refresh modes",
+    "test": "68 sidebar controls include both refresh modes and nine sizes",
     "passed": true
   },
   {

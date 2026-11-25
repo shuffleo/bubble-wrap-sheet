@@ -53,7 +53,7 @@ main{position:absolute;inset:100px var(--edge) 104px;background:transparent;z-in
 .audit-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.audit-head h2{font-size:16px;font-weight:500}.audit-head button{color:#ccc;background:#161616;border:1px solid #444;border-radius:5px;padding:7px 12px}.audit-note{font-size:12px;line-height:1.6;color:#999;max-width:850px}.audit-tabs{display:flex;flex-wrap:wrap;gap:7px;margin:14px 0}.audit-tabs button[aria-pressed=true]{border-color:#aaa;color:#fff}#crop-image{display:block;width:100%;height:auto;border:1px solid #242424}
 
 .control-row.size-row{display:block;padding:5px 0 3px}.size-row>label{display:none}
-.sizes{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;padding:5px;border:1px solid #292929;border-radius:12px;background:#080808;width:100%}
+.sizes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;padding:5px;border:1px solid #292929;border-radius:12px;background:#080808;width:100%}
 .sizes button{min-width:0;height:44px;border:1px solid transparent;border-radius:8px;background:transparent;color:#999;font:12px 'Courier New',monospace;letter-spacing:.3px;transition:background .15s,color .15s}
 .sizes button:hover{background:#1b1b1b;color:#ddd}.sizes button[aria-pressed=true]{background:#e4e4e4;border-color:#eee;color:#111}
 @media(max-width:760px){.brand-name{display:none}.brand .fidget{display:block;width:44px;height:44px;border-color:transparent}}

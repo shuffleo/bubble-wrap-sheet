@@ -112,7 +112,7 @@ with sync_playwright() as pw:
  populations=[]
  for width,height in [(1440,960),(390,844),(320,568),(844,390)]:
   page.set_viewport_size({'width':width,'height':height});page.wait_for_timeout(100)
-  for size in [40,52,64,82,100]:
+ for size in [24,32,40,52,64,82,100,124,148]:
    page.evaluate('(bubbleSize)=>bubbleUI.setSettings({bubbleSize})',size);page.wait_for_timeout(35)
    m=maps(page);counts=[g['total'] for g in m];n=page.evaluate('bubbleUI.getStats().total');assigned=[i for g in m for i in g['indices']]
    populations.append({'width':width,'height':height,'diameter':size,'total':n,'min':min(counts),'max':max(counts),'empty':sum(v==0 for v in counts),'valid':max(counts)-min(counts)<=1 and len(assigned)==len(set(assigned))==n})

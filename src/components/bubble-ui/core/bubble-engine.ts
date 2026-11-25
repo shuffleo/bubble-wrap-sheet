@@ -2,7 +2,7 @@ import {sheetEase} from './bubble-refresh';
 import type {RefillTimeline} from './bubble-audio';
 import {freshSeedSettings} from './bubble-random';
 import {buildKeyboardMapping,pickUnpopped,type KeyboardMapping} from './bubble-keyboard';
-import {DEFAULTS,sanitizeSettings,type Settings} from './bubble-settings';
+import {BUBBLE_SIZE_MAX,BUBBLE_SIZE_MIN,DEFAULTS,sanitizeSettings,type Settings} from './bubble-settings';
 import {SheetMotion} from './bubble-motion';
 import {atlasURL,collapsedAtlasURL} from './bubble-atlas';
 import {vertexShader,fragmentShader} from './bubble-shader';
@@ -111,7 +111,7 @@ export class BubbleEngine extends EventTarget {
   const ss=surface?[this.surfaces.get(surface)].filter((s):s is Surface=>!!s):Array.from(this.surfaces.values()).reverse();
   for(const s of ss){if(this.refreshing&&s.config.layout!=='single')continue;const rest=s.config.layout==='single'?{x:screenX,y:screenY}:this.motion.inverse(s.rect,screenX,screenY),x=rest.x,y=rest.y;if(!this.inside(s,x,y))continue;
    if(s.config.layout==='single'){const i=this.points.findIndex(p=>p.surface===s.id);if(i>=0&&Math.hypot(x-this.points[i].x,y-this.points[i].y)<this.points[i].radius*1.06)return i;continue;}
-   const pitch=Math.max(24,Math.min(160,s.config.bubbleSize??52))+Math.max(0,s.config.gap??4),dy=pitch*Math.sqrt(3)/2,row=Math.round((y-s.rect.top-pitch*.5)/dy);
+   const pitch=Math.max(BUBBLE_SIZE_MIN,Math.min(BUBBLE_SIZE_MAX,s.config.bubbleSize??52))+Math.max(0,s.config.gap??4),dy=pitch*Math.sqrt(3)/2,row=Math.round((y-s.rect.top-pitch*.5)/dy);
    for(let dr=-1;dr<=1;dr++){const r=row+dr,col=Math.round((x-s.rect.left-pitch*.5-(r&1)*pitch*.5)/pitch);for(let dc=-1;dc<=1;dc++){const i=this.coordMap.get(`${s.id}:${r}:${col+dc}`);if(i!==undefined){const p=this.points[i];if(p.eligible&&Math.hypot(x-p.x,y-p.y)<p.radius*1.06)return i;}}}
   }return -1;
  }

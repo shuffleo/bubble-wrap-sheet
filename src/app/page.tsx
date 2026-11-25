@@ -27,7 +27,7 @@ function Playground(){
     <button id="sound" type="button" className="action icon-action" aria-label="Sound" title={muted?'Unmute sound':'Mute sound'} aria-pressed={!muted} data-muted={String(muted)} onClick={event=>{toggleSound();if(event.detail>0)focusSheetAfterPointer(document.getElementById("sheet")!);}}><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m11 5-6 4H2v6h3l6 4Z" />{muted?<path d="m16 9 5 6m0-6-5 6" />:<path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14" />}</svg></button>
    </div>
   </footer>
-  <p id="instructions" className="sr-only">Click, tap or drag to pop. Re-tap popped bubbles to crinkle them. Drag the sheet corners to bend. The four QWERTY rows pop one random bubble per press. Space refreshes; Enter on the focused sheet pops the next bubble. Held keys do not repeat. Open the URL with ?panel=show for controls and the key map. Choose XS through XL in material controls to start a new sheet at that size. Cut-edge bubbles stay flat and are excluded from the counter.</p>
+  <p id="instructions" className="sr-only">Click, tap or drag to pop. Re-tap popped bubbles to crinkle them. Drag the sheet corners to bend. The four QWERTY rows pop one random bubble per press. Space refreshes; Enter on the focused sheet pops the next bubble. Held keys do not repeat. Open the URL with ?panel=show for controls and the key map. Choose any size from XXXS through XXXL in material controls to start a new sheet at that size. Cut-edge bubbles stay flat and are excluded from the counter.</p>
   <p className="sr-only" role="status" aria-live="polite">{stats.popped} of {stats.total} bubbles popped.</p>
  </>;
 }

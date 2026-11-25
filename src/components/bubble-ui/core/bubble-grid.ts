@@ -1,4 +1,5 @@
 import type {BubblePoint} from './bubble-physics';
+import {BUBBLE_SIZE_MAX,BUBBLE_SIZE_MIN} from './bubble-settings';
 export interface Rect {left:number;top:number;width:number;height:number;}
 export interface SurfaceConfig {layout?:'grid'|'single';bubbleSize?:number;gap?:number;mode?:'poppable'|'spring-return';cornerRadius?:number;cornerVariation?:number;edgeRoughness?:number;edgeScale?:number;edgeSeed?:number;onPop?:(count:number)=>void;onAllPopped?:()=>void;}
 export function hash(n:number){const v=Math.sin(n*127.1+311.7)*43758.5453123;return v-Math.floor(v);}
@@ -29,7 +30,7 @@ export function materialVariant(row:number,col:number,collapsed=false):number{
  return (collapsed?collapsedOrder:inflatedOrder)[((n%320)+320)%320];
 }
 export function makeGrid(rect:Rect,id:string,config:SurfaceConfig):BubblePoint[]{
- const size=Math.max(24,Math.min(160,config.bubbleSize??52));
+ const size=Math.max(BUBBLE_SIZE_MIN,Math.min(BUBBLE_SIZE_MAX,config.bubbleSize??52));
  const pitch=size+Math.max(0,config.gap??6),dy=pitch*Math.sqrt(3)/2;const pts:BubblePoint[]=[];
  if(config.layout==='single')return [{x:rect.left+rect.width/2,y:rect.top+rect.height/2,radius:Math.min(size/2,rect.width/2-1,rect.height/2-1),row:0,col:0,key:`${id}:0:0`,surface:id,mode:config.mode??'spring-return',eligible:true,cut:false,visible:true}];
  const rows=Math.ceil(rect.height/dy)+1,cols=Math.ceil(rect.width/pitch)+1;

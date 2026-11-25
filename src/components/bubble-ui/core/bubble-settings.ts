@@ -1,9 +1,16 @@
 /** Serializable, bounded controls. Imported presets are validated, never eval'd. */
+import {LEVEL_DESIGN} from '../../../game/generated/level-design-config';
+
+export const BUBBLE_SIZE_OPTIONS:Record<string,number>={...LEVEL_DESIGN.sizes};
+export const BUBBLE_SIZE_VALUES=Object.values(BUBBLE_SIZE_OPTIONS);
+export const BUBBLE_SIZE_MIN=Math.min(...BUBBLE_SIZE_VALUES);
+export const BUBBLE_SIZE_MAX=Math.max(...BUBBLE_SIZE_VALUES);
+
 // User material preset; S size and the uploaded old build's motion response.
 // Motion profiles change only pressure/collapse/reveal settings. Corner hit areas stay enabled,
 // but their decoration is removed in CSS (showHandles controls input, not paint).
 export const DEFAULTS={
- "bubbleSize": 52,
+ "bubbleSize": Number(LEVEL_DESIGN.sizes.S),
  "gap": 4,
  "cornerRadius": 21,
  "cornerVariation": 0.75,
@@ -95,7 +102,7 @@ export const GROUPS:{title:string;open?:boolean;controls:Control[]}[]=[
   {key:'refreshMode',label:'Refresh mode',options:{'Slide in/out':1,'Refresh insitu':0},hint:'Slide: old sheet exits right, a fresh sheet enters from the left. Insitu preserves the previous wave refill.'},
   {key:'slideMinimum',label:'Minimum slide time',min:.4,max:1.1,step:.01,hint:'Minimum duration in seconds for sparse or empty sheets. The sound excerpt and slide share one clock. Full-sheet refresh plays the complete recording.'},
   {key:'slideFlex',label:'Travel flex',min:0,max:32,step:1,hint:'Subtle flexible curl during travel; 0 keeps the sheet flat.'}]},
- {title:'Bubble size',open:true,controls:[{key:'bubbleSize',label:'Size',options:{XS:40,S:52,M:64,L:82,XL:100},hint:'Changing size starts a fresh sheet. Default S is 52 pixels.'}]},
+ {title:'Bubble size',open:true,controls:[{key:'bubbleSize',label:'Size',options:BUBBLE_SIZE_OPTIONS,hint:'Nine sizes from XXXS to XXXL. Changing size starts a fresh sheet. Default S is 52 pixels.'}]},
  {title:'Press & pop feel',open:true,controls:[
   {key:'pressSpeed',label:'Press tempo',min:.25,max:2,step:.05,hint:'1 = old build. Lower = slower pressure buildup while holding; quick taps use Collapse tempo.'},
   {key:'collapseSpeed',label:'Collapse tempo',min:.2,max:2,step:.05,hint:'1 = old build. Try 0.65 for a slower, elastic collapse on clicks, taps and keys. No input delay is added.'},
@@ -157,7 +164,7 @@ export function sanitizeSettings(input:unknown,base:Settings=DEFAULTS):Settings 
   if(!Object.prototype.hasOwnProperty.call(DEFAULTS,key))continue;
   const k=key as SettingKey;if(typeof DEFAULTS[k]==='boolean'){if(typeof value==='boolean')(out as unknown as Record<string,unknown>)[k]=value;continue;}
   if(typeof value!=='number'||!Number.isFinite(value))continue;
-  if(k==='bubbleSize'){if([40,52,64,82,100].includes(value))out.bubbleSize=value;continue;}
+  if(k==='bubbleSize'){if(BUBBLE_SIZE_VALUES.includes(value))out.bubbleSize=value;continue;}
   const c=ranges.get(k);if(!c)continue;
   const next=c.options?(Object.values(c.options).includes(value)?value:DEFAULTS[k]):Math.max(c.min??-Infinity,Math.min(c.max??Infinity,value));
   (out as unknown as Record<string,unknown>)[k]=next;

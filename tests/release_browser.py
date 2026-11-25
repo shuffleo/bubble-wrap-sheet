@@ -89,7 +89,7 @@ with sync_playwright() as pw:
  p.set_viewport_size({'width':1000,'height':740});load(p,'?panel=show');p.wait_for_selector('#settings-panel.show')
  check('URL opt-in opens the existing library sidebar, with no icon',p.locator('#settings-panel.show').count()==1 and p.locator('#settings-toggle').count()==0)
  check('debug URL is noindexed while canonical stays at the public root',p.evaluate('document.querySelector("meta[name=robots]").content==="noindex,follow"&&document.querySelector("link[rel=canonical]").href==="https://bubblewrapsheet.netlify.app/"'))
- check('68 sidebar controls include both refresh modes',p.locator('[data-control]').count()==68 and p.locator('#setting-refreshMode option').count()==2)
+ check('68 sidebar controls include both refresh modes and nine sizes',p.locator('[data-control]').count()==68 and p.locator('#setting-refreshMode option').count()==2 and p.locator('[data-size]').count()==9)
  check('sidebar correctly reports bundled sound availability and requested credit',p.locator('#sound-credit').inner_text().find('Anthousai')>=0 and 'Recorded' in p.locator('#sound-credit-status').inner_text())
  p.locator('#control-search').fill('qwerty');before=p.evaluate('bubbleUI.getStats().popped');p.locator('#control-search').press('a');check('typing in controls does not pop bubbles',p.evaluate('bubbleUI.getStats().popped')==before)
  p.locator('#control-search').fill('');p.locator('#setting-refreshMode').select_option('0');p.screenshot(path=str(E/'release-controls.png'))

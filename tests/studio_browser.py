@@ -16,7 +16,7 @@ with sync_playwright() as pw:
  page.set_content((ROOT/'index.html').read_text(),wait_until='load');page.wait_for_function('window.bubbleUI&&bubbleUI.atlasReady===1');page.wait_for_timeout(300)
  check('Bootstrap Offcanvas is locally loaded',page.evaluate('typeof bootstrap.Offcanvas==="function"'))
  check('one canvas, two surfaces, one draw call',page.evaluate('document.querySelectorAll("canvas").length===1&&bubbleUI.getStats().surfaces===2&&bubbleUI.getStats().drawCalls===1'))
- check('61 controls and five sidebar size buttons',page.locator('[data-control]').count()==61 and page.locator('#settings-panel [data-size]').count()==5 and page.locator('header [data-size]').count()==0)
+ check('61 controls and nine sidebar size buttons',page.locator('[data-control]').count()==61 and page.locator('#settings-panel [data-size]').count()==9 and page.locator('header [data-size]').count()==0)
  check('page is pure black',page.evaluate('getComputedStyle(document.body).backgroundColor==="rgb(0, 0, 0)"'))
  point=page.evaluate('bubbleUI.inspect().find(p=>p.eligible&&p.mode==="poppable"&&p.x>220&&p.x<450&&p.y>240)')
  page.mouse.click(point['x'],point['y']);page.wait_for_function('bubbleUI.getStats().popped===1')
