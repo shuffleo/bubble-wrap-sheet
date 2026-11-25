@@ -1,6 +1,6 @@
-import {GAME_CONFIG} from './game-config';
+import {GAME_CONFIG,type UpgradeId} from './game-config';
 import {UPGRADE_COPY} from './game-copy';
-import {GAME_FIXTURES,type HudFixture} from './game-fixtures';
+import {GAME_FIXTURES,type HudFixture,type ResultFixture,type ShopFixture} from './game-fixtures';
 import {readGameHighScores} from './game-high-scores';
 import type {GameRoute,GameScreen} from './game-route';
 
@@ -27,6 +27,7 @@ function time(milliseconds:number):string {
 
 export function createGameUi(route:GameRoute,onFreePop:()=>void):GameUiHandle {
  let root:HTMLElement|null=null;
+ let shopState:ShopFixture|null=null;
  const live=document.createElement('p');
  live.id='game-live';live.className='sr-only';live.setAttribute('role','status');live.setAttribute('aria-live','polite');live.setAttribute('aria-atomic','true');
 
@@ -100,16 +101,68 @@ export function createGameUi(route:GameRoute,onFreePop:()=>void):GameUiHandle {
    ${fixture.hazard?`<p class="game-hud-hazard"><span class="game-label">Hazard</span>${fixture.hazard}</p>`:''}
    ${fixture.paused?'<div class="game-state-banner">Paused</div>':''}
    ${fixture.hidden?'<button class="game-hud-reveal" type="button" data-game-action="reveal-hud">Show HUD</button>':''}
-   <div class="game-hud-actions"><button type="button" data-game-action="mode">Modes</button></div>
+   <div class="game-hud-actions"><button type="button" data-game-action="shop">Shop preview</button><button type="button" data-game-action="mode">Modes</button></div>
   </section>`;
   node.querySelector<HTMLButtonElement>('[data-game-action=mode]')!.addEventListener('click',renderModeSelect);
+  node.querySelector<HTMLButtonElement>('[data-game-action=shop]')!.addEventListener('click',()=>renderShop(true));
   node.querySelector<HTMLButtonElement>('[data-game-action=reveal-hud]')?.addEventListener('click',()=>{route.hudState='normal';renderHud();});
   live.textContent=`Level ${fixture.level}, ${fixture.levelName}. ${time(fixture.timerRemainingMs)} remaining.`;
+ }
+
+ function cloneShop(source:ShopFixture):ShopFixture {
+  return {...source,offers:source.offers.map(offer=>({...offer}))};
+ }
+
+ function renderShop(reset=false){
+  if(reset||!shopState)shopState=cloneShop(route.category==='keyboard-pointer'?GAME_FIXTURES.shopKeyboard:GAME_FIXTURES.shop);
+  const fixture=shopState,node=ensureRoot();node.dataset.screen='shop';
+  const category=fixture.category==='touch'?GAME_CONFIG.categories.touch:GAME_CONFIG.categories.keyboardPointer;
+  node.innerHTML=`<div class="game-scrim"></div><section class="game-card game-shop-card" aria-labelledby="game-shop-heading">
+   <div class="game-screen-heading"><div><p class="game-eyebrow">After level 2</p><h2 id="game-shop-heading">Choose one edge</h2></div><div class="game-balance"><span>Available score</span><strong>${score(fixture.score)}</strong></div></div>
+   <p class="game-lede">Your score is also your spending power. Buy one upgrade, reroll once, or save everything.</p>
+   <div class="game-offers">${fixture.offers.map(offer=>{const copy=UPGRADE_COPY[offer.id];const status=offer.owned?'Owned':offer.affordable?'Affordable':'Need more score';return `<article class="game-offer" data-upgrade="${offer.id}" data-affordable="${offer.affordable}" data-owned="${offer.owned}"><div><span class="game-offer-status">${status}</span><h3>${copy.name}</h3><p>${copy.description}</p></div><button type="button" data-game-buy="${offer.id}" ${offer.affordable&&!offer.owned?'':'disabled'}>Buy <b>${score(offer.price)}</b></button></article>`;}).join('')}</div>
+   <div class="game-shop-actions"><button class="game-button game-button-secondary" type="button" data-game-action="reroll" ${fixture.rerollUsed||fixture.score<fixture.rerollPrice?'disabled':''}>${fixture.rerollUsed?'Reroll used':`Reroll · ${score(fixture.rerollPrice)}`}</button><button class="game-button" type="button" data-game-action="skip">Continue</button></div>
+  </section>`;
+  for(const button of Array.from(node.querySelectorAll<HTMLButtonElement>('[data-game-buy]')))button.addEventListener('click',()=>{
+   const id=button.dataset.gameBuy as UpgradeId,offer=fixture.offers.find(candidate=>candidate.id===id);
+   if(!offer||!offer.affordable||offer.owned)return;
+   fixture.score-=offer.price;offer.owned=true;offer.affordable=false;
+   for(const other of fixture.offers)other.affordable=fixture.score>=other.price&&!other.owned;
+   renderShop();
+  });
+  node.querySelector<HTMLButtonElement>('[data-game-action=reroll]')!.addEventListener('click',()=>{
+   if(fixture.rerollUsed||fixture.score<fixture.rerollPrice)return;
+   fixture.score-=fixture.rerollPrice;fixture.rerollUsed=true;
+   const ids:UpgradeId[]=['knuckleCrack','roughTable'];
+   fixture.offers=ids.map(id=>({id,price:category.upgradePrices[id],affordable:fixture.score>=category.upgradePrices[id],owned:false}));
+   renderShop();
+  });
+  node.querySelector<HTMLButtonElement>('[data-game-action=skip]')!.addEventListener('click',renderHud);
+  live.textContent=`Shop opened with ${score(fixture.score)} score available.`;
+ }
+
+ function renderResult(fixture:ResultFixture){
+  const node=ensureRoot();node.dataset.screen=fixture.outcome==='won'?'run-won':'run-lost';
+  const title=fixture.outcome==='won'?'Run cleared':'Run over';
+  node.innerHTML=`<div class="game-scrim"></div><section class="game-card game-result-card" aria-labelledby="game-result-heading">
+   <p class="game-eyebrow">${fixture.outcome==='won'?'Survival complete':`Reached level ${fixture.reachedLevel}`}</p><h2 id="game-result-heading">${title}</h2>
+   <div class="game-result-score"><span>Final score</span><strong>${score(fixture.finalScore)}</strong><small>${fixture.category==='touch'?'Touch':'Keyboard & Pointer'}</small></div>
+   <div class="game-result-grid"><div><span>Manual pops</span><strong>${fixture.manualPops}</strong></div><div><span>Assisted pops</span><strong>${fixture.assistedPops}</strong></div><div><span>Upgrades bought</span><strong>${fixture.purchaseHistory.length}</strong></div></div>
+   <ol class="game-level-breakdown">${fixture.levelScores.map(row=>`<li><span>Level ${row.level} · ${GAME_CONFIG.run.levels[row.level-1].name}</span><strong>${score(row.score)}</strong></li>`).join('')}</ol>
+   <div class="game-purchase-history"><span class="game-label">Build</span>${fixture.purchaseHistory.length?fixture.purchaseHistory.map(id=>`<span>${UPGRADE_COPY[id].name}</span>`).join(''):'<span>No upgrades</span>'}</div>
+   <div class="game-inline-actions"><button class="game-button game-button-secondary" type="button" data-game-action="free">Free Pop</button><button class="game-button" type="button" data-game-action="retry">Retry run</button></div>
+  </section>`;
+  node.querySelector<HTMLButtonElement>('[data-game-action=free]')!.addEventListener('click',close);
+  node.querySelector<HTMLButtonElement>('[data-game-action=retry]')!.addEventListener('click',renderLevelIntro);
+  live.textContent=`${title}. Final score ${fixture.finalScore}.`;
  }
 
  function showScreen(screen:GameScreen){
   if(screen==='level-intro'){renderLevelIntro();return;}
   if(screen==='hud'){renderHud();return;}
+  if(screen==='shop'){renderShop(true);return;}
+  if(screen==='run-won'){renderResult(GAME_FIXTURES.runWon);return;}
+  if(screen==='run-lost'){renderResult(GAME_FIXTURES.runLost);return;}
   renderModeSelect();
  }
 
