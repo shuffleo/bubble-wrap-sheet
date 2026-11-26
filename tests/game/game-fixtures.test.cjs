@@ -10,13 +10,15 @@ test('every upgrade and hazard has player-facing copy',()=>{
  for(const entry of [...Object.values(UPGRADE_COPY),...Object.values(HAZARD_COPY)]){
   assert.ok(entry.name.length>2);
   assert.ok(entry.description.length>10);
+  if('icon' in entry)assert.ok(entry.icon.length>2);
  }
 });
 
 test('HUD fixture references valid level and upgrade data',()=>{
  const hud=GAME_FIXTURES.hud;
  assert.equal(hud.levelName,GAME_CONFIG.run.levels[hud.level-1].name);
- assert.ok(hud.sheet<=hud.sheets);
+ assert.ok(hud.goalCurrent<=hud.goalTarget);
+ assert.equal(hud.velocityHistory.length,30);
  assert.ok(hud.timerRemainingMs<=hud.timerTotalMs);
  for(const id of hud.upgrades)assert.ok(Object.hasOwn(GAME_CONFIG.upgrades,id));
 });
@@ -24,7 +26,8 @@ test('HUD fixture references valid level and upgrade data',()=>{
 test('shop fixtures use category prices and valid affordability flags',()=>{
  for(const fixture of [GAME_FIXTURES.shop,GAME_FIXTURES.shopKeyboard]){
   const category=fixture.category==='touch'?GAME_CONFIG.categories.touch:GAME_CONFIG.categories.keyboardPointer;
-  assert.equal(fixture.rerollPrice,category.rerollPrice);
+  assert.ok(fixture.rerollsUsed<=fixture.rerollLimit);
+  assert.equal(fixture.rerollLimit,GAME_CONFIG.run.shopRerollLimit);
   for(const offer of fixture.offers){
    assert.equal(offer.price,category.upgradePrices[offer.id]);
    assert.equal(offer.affordable,fixture.score>=offer.price&&!offer.owned);

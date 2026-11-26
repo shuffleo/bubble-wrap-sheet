@@ -10,16 +10,20 @@ export interface HudFixture {
  level:LevelId;
  levelName:string;
  score:number;
- sheet:number;
- sheets:number;
+ goalLabel:string;
+ goalCurrent:number;
+ goalTarget:number;
+ goalUnit:string;
  timerKind:'soft'|'hard';
  timerRemainingMs:number;
  timerTotalMs:number;
  combo:number;
  popsPerSecond:number;
+ velocityHistory:number[];
  velocityMultiplier:number;
  deadlineMultiplier:number;
  upgrades:UpgradeId[];
+ activeUpgradeValues:Partial<Record<UpgradeId,string>>;
  hazard:string|null;
  dangerZone:boolean;
  softTimerExpired:boolean;
@@ -37,8 +41,9 @@ export interface ShopOfferFixture {
 export interface ShopFixture {
  category:RunCategory;
  score:number;
- rerollPrice:number;
- rerollUsed:boolean;
+ rerollsUsed:number;
+ rerollLimit:number;
+ ownedUpgrades:UpgradeId[];
  offers:ShopOfferFixture[];
 }
 
@@ -64,16 +69,20 @@ export const GAME_FIXTURES={
   level:3,
   levelName:GAME_CONFIG.run.levels[2].name,
   score:touch.upgradePrices.fatFinger+touch.rerollPrice,
-  sheet:2,
-  sheets:GAME_CONFIG.run.levels[2].sheetCount,
+  goalLabel:'Clear sheets',
+  goalCurrent:2,
+  goalTarget:GAME_CONFIG.run.levels[2].sheetCount,
+  goalUnit:'sheets',
   timerKind:'hard',
   timerRemainingMs:dangerTimerMs,
   timerTotalMs:hardTimerMs,
   combo:GAME_CONFIG.scoring.cleanSweepStartsAt+2,
   popsPerSecond:touch.calibrationMinPopsPerSecond+1,
+  velocityHistory:[0.8,1.2,1.1,1.7,2.4,2.1,2.8,3.4,3.1,3.8,4.2,4.8,4.4,5.1,5.6,5.2,4.9,5.8,6.2,5.7,6.5,6.8,6.1,6.9,7.4,7.1,7.8,7.2,6.7,7],
   velocityMultiplier:GAME_CONFIG.scoring.velocity.minimumMultiplier,
   deadlineMultiplier:GAME_CONFIG.scoring.deadline.minimumMultiplier,
   upgrades:['fatFinger','velocityBuff'],
+  activeUpgradeValues:{velocityBuff:'2×'},
   hazard:null,
   dangerZone:true,
   softTimerExpired:false,
@@ -83,8 +92,9 @@ export const GAME_FIXTURES={
  shop:{
   category:'touch',
   score:touch.upgradePrices.fatFinger,
-  rerollPrice:touch.rerollPrice,
-  rerollUsed:false,
+  rerollsUsed:0,
+  rerollLimit:GAME_CONFIG.run.shopRerollLimit,
+  ownedUpgrades:[],
   offers:[
    {id:'fatFinger',price:touch.upgradePrices.fatFinger,affordable:true,owned:false},
    {id:'velocityBuff',price:touch.upgradePrices.velocityBuff,affordable:true,owned:false}
@@ -93,8 +103,9 @@ export const GAME_FIXTURES={
  shopKeyboard:{
   category:'keyboard-pointer',
   score:keyboard.upgradePrices.bubbleInsurance,
-  rerollPrice:keyboard.rerollPrice,
-  rerollUsed:true,
+  rerollsUsed:1,
+  rerollLimit:GAME_CONFIG.run.shopRerollLimit,
+  ownedUpgrades:[],
   offers:[
    {id:'sureHands',price:keyboard.upgradePrices.sureHands,affordable:false,owned:false},
    {id:'bubbleInsurance',price:keyboard.upgradePrices.bubbleInsurance,affordable:true,owned:false}

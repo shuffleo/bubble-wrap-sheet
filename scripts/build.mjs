@@ -2,6 +2,7 @@ import {execFileSync} from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import {createRequire} from 'node:module';
+import {buildSync} from 'esbuild';
 import {generateLevelDesign} from './level-design-config.mjs';
 const require=createRequire(import.meta.url);
 let tsc;try{tsc=require.resolve('typescript/bin/tsc');}catch{const globalRoot=execFileSync('npm',['root','-g'],{encoding:'utf8'}).trim();tsc=path.join(globalRoot,'typescript/bin/tsc');}
@@ -13,6 +14,7 @@ const mods=[];
 function walk(dir){for(const item of fs.readdirSync(dir,{withFileTypes:true})){const p=path.join(dir,item.name);if(item.isDirectory())walk(p);else if(item.name.endsWith('.js')){const id=path.relative('.compiled',p).replaceAll(path.sep,'/').slice(0,-3);mods.push(`${JSON.stringify(id)}:function(require,module,exports){\n${fs.readFileSync(p,'utf8')}\n}`);}}}
 walk('.compiled');
 const bundle=`(()=>{const modules={${mods.join(',\n')}};const cache={};function load(id){if(cache[id])return cache[id].exports;if(!modules[id])throw new Error('Missing module '+id);const module={exports:{}};cache[id]=module;const req=(q)=>{if(!q.startsWith('.'))return load(q);const parts=id.split('/');parts.pop();for(const p of q.split('/')){if(p==='..')parts.pop();else if(p!=='.')parts.push(p);}return load(parts.join('/'));};modules[id](req,module,module.exports);return module.exports;}load('main');})();`;
+const gameVendorBundle=buildSync({entryPoints:['scripts/game-vendor-entry.mjs'],bundle:true,platform:'browser',format:'iife',minify:true,write:false,target:'es2020'}).outputFiles[0].text;
 const settings=require(path.resolve('.compiled/components/bubble-ui/core/bubble-settings.js'));
 fs.writeFileSync('presets/default-preset.json',JSON.stringify({version:3,settings:settings.DEFAULTS},null,2)+'\n');
 const site=JSON.parse(fs.readFileSync('site.config.json','utf8'));
@@ -54,7 +56,9 @@ const levelDesignJson=JSON.stringify(levelDesign).replaceAll('&','\\u0026').repl
 const levelDesignElement=`<script id="level-design-config" type="application/json" data-revision="${esc(levelDesign.revision)}">${levelDesignJson}</script>`;
 const levelDesignSchemaJson=JSON.stringify(JSON.parse(fs.readFileSync('config/level-design.schema.json','utf8'))).replaceAll('&','\\u0026').replaceAll('<','\\u003c').replaceAll('>','\\u003e');
 const levelDesignSchemaElement=`<script id="level-design-schema" type="application/json">${levelDesignSchemaJson}</script>`;
-const html=fs.readFileSync('index.template.html','utf8').replace('<!--__METADATA__-->',()=>metadata).replace('<!--__LEVEL_DESIGN__-->',()=>levelDesignElement).replace('<!--__LEVEL_DESIGN_SCHEMA__-->',()=>levelDesignSchemaElement).replace('/*__VENDOR__*/',()=>fs.readFileSync('vendor/bootstrap-5.3.6.bundle.min.js','utf8').replaceAll('</script','<\\/script')).replace('/*__BUNDLE__*/',()=>bundle.replaceAll('</script','<\\/script'));
+const materialSymbolsFont=fs.readFileSync('node_modules/material-symbols/material-symbols-rounded.woff2').toString('base64');
+const materialSymbolsCss=`@font-face{font-family:"Material Symbols Rounded";font-style:normal;font-weight:100 700;font-display:block;src:url(data:font/woff2;base64,${materialSymbolsFont}) format("woff2")}.material-symbols-rounded{font-family:"Material Symbols Rounded";font-weight:600;font-style:normal;font-size:24px;line-height:1;letter-spacing:normal;text-transform:none;display:inline-block;white-space:nowrap;word-wrap:normal;direction:ltr;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;font-feature-settings:"liga";font-variation-settings:"FILL" 1,"wght" 600,"GRAD" 0,"opsz" 24}`;
+const html=fs.readFileSync('index.template.html','utf8').replace('<!--__METADATA__-->',()=>metadata).replace('<!--__LEVEL_DESIGN__-->',()=>levelDesignElement).replace('<!--__LEVEL_DESIGN_SCHEMA__-->',()=>levelDesignSchemaElement).replace('/*__MATERIAL_SYMBOLS__*/',()=>materialSymbolsCss).replace('/*__VENDOR__*/',()=>fs.readFileSync('vendor/bootstrap-5.3.6.bundle.min.js','utf8').replaceAll('</script','<\\/script')).replace('/*__GAME_VENDOR__*/',()=>gameVendorBundle.replaceAll('</script','<\\/script')).replace('/*__BUNDLE__*/',()=>bundle.replaceAll('</script','<\\/script'));
 fs.writeFileSync('index.html',html);console.log(`Built self-contained index.html (${Math.round(html.length/1024)} KiB).`);
 
 // Ready-to-upload site: no source files or originals are published accidentally.
