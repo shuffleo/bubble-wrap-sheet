@@ -41,9 +41,14 @@ with sync_playwright() as pw:
  check('Survival Run opens the level intro fixture',page.locator('#game-root[data-screen="level-intro"]').count()==1)
  page.locator('[data-game-action=continue]').click()
  check('level intro continues to the responsive HUD',page.locator('#game-root[data-screen="hud"] .game-hud-goal').count()==1)
- check('Survival Run hides the Free Pop title and icon',page.locator('.brand').evaluate('(node)=>getComputedStyle(node).visibility')=='hidden')
- check('HUD prioritises score, velocity history, and goal progress',page.locator('.game-hud-score number-flow,.game-velocity-chart,.game-hud-goal').count()==3)
- check('HUD overflow menu contains all fixture destinations',page.locator('.game-overflow').click() is None and page.locator('.game-overflow-menu button').count()==4)
+ page.wait_for_function('getComputedStyle(document.querySelector(".brand")).display==="none" && bubbleUI.inspect().every(point=>point.mode!=="spring-return")')
+ check('Survival Run removes the title and spring-return bubble',page.evaluate('getComputedStyle(document.querySelector(".brand")).display==="none" && bubbleUI.inspect().every(point=>point.mode!=="spring-return")'))
+ check('HUD prioritises score, velocity history, and goal progress',page.locator('.game-hud-score number-flow,.game-velocity-chart canvas,.game-hud-goal').count()==3)
+ check('goal count is primary and its unit is the caption', page.locator('.game-hud-goal strong number-flow').evaluate_all('nodes=>nodes.map(node=>node.getAttribute("aria-label"))')==['2','5'] and page.locator('.game-hud-goal small').inner_text()=='sheets popped')
+ check('countdown has no status caption','Active time' not in page.locator('.game-hud-timer').inner_text())
+ check('owned upgrades share one bottom-centre panel',page.locator('.game-upgrade-panel').count()==1 and page.locator('.game-upgrade-popover strong').count()==2)
+ check('HUD overflow menu contains sheet controls and fixture destinations',page.locator('.game-overflow').click() is None and page.locator('.game-overflow-menu button').count()==6)
+ check('refresh and mute are menu options rather than corner buttons',page.locator('#sound,#reset').evaluate_all('nodes=>nodes.every(node=>getComputedStyle(node).display==="none")') and page.locator('[data-game-action=refresh],[data-game-action=mute]').count()==2)
  check('game chrome uses bundled Material Symbols',page.locator('.game-hud .material-symbols-rounded').count()>=5)
 
  load(page,'?game=1&screen=hud&hud=danger')
@@ -52,7 +57,7 @@ with sync_playwright() as pw:
 
  page.set_viewport_size({'width':390,'height':844})
  load(page,'?game=1&screen=hud&hud=soft-expired')
- check('soft timer fixture explains that play continues','Par spent' in page.locator('.game-hud-timer').inner_text())
+ check('soft timer keeps the countdown without a status caption',page.locator('.game-hud-timer number-flow').evaluate_all('nodes=>nodes.map(node=>node.getAttribute("aria-label"))')==['0','0'] and 'Par spent' not in page.locator('.game-hud-timer').inner_text())
  check('mobile HUD stays inside the viewport',page.evaluate('document.documentElement.scrollWidth<=innerWidth'))
 
  page.set_viewport_size({'width':1100,'height':760})
@@ -77,7 +82,7 @@ with sync_playwright() as pw:
 
  load(page,'?game=1&tuning=show')
  check('tuning drawer is gated by the exact development route',page.locator('#tuning-drawer').count()==1)
- check('Tweakpane and Number Flow are bundled for offline use',page.evaluate('Boolean(window.GameVendors?.Pane && customElements.get("number-flow"))'))
+ check('Tweakpane, Number Flow, and uPlot are bundled for offline use',page.evaluate('Boolean(window.GameVendors?.Pane && window.GameVendors?.uPlot && customElements.get("number-flow"))'))
  check('schema generates a broad editable field set',page.locator('#tuning-pane-host .tp-lblv').count()>80)
  labels=page.locator('#tuning-pane-host .tp-lblv_l').all_inner_texts()
  check('restart policy labels cover live and deferred changes',any('Applies now' in label for label in labels) and any('New run' in label for label in labels))

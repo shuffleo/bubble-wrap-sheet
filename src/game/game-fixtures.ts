@@ -72,7 +72,7 @@ export const GAME_FIXTURES={
   goalLabel:'Clear sheets',
   goalCurrent:2,
   goalTarget:GAME_CONFIG.run.levels[2].sheetCount,
-  goalUnit:'sheets',
+  goalUnit:'sheets popped',
   timerKind:'hard',
   timerRemainingMs:dangerTimerMs,
   timerTotalMs:hardTimerMs,

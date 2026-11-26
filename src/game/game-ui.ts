@@ -3,7 +3,7 @@ import {UPGRADE_COPY} from './game-copy';
 import {formatGameCurrency,formatGameNumber,rerollPrice,roundGameValue,scoreAfterShopSkip,shopInterest} from './economy';
 import {GAME_FIXTURES,type HudFixture,type ResultFixture,type ShopFixture} from './game-fixtures';
 import {readGameHighScores} from './game-high-scores';
-import {animatedNumber} from './game-vendors';
+import {animatedNumber,mountVelocityChart,type VelocityChart} from './game-vendors';
 import {createTuningDrawer} from './tuning/tuning-drawer';
 import type {GameRoute,GameScreen} from './game-route';
 
@@ -50,17 +50,18 @@ function hydrateNumbers(container:ParentNode):void {
  }
 }
 
-function sparkline(values:readonly number[]):string {
- if(values.length<2)return '';
- const width=180,height=38,max=Math.max(...values,1),step=width/(values.length-1);
- const points=values.map((value,index)=>`${(index*step).toFixed(1)},${(height-(value/max)*(height-3)).toFixed(1)}`).join(' ');
- return `<svg class="game-velocity-chart" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" role="img" aria-label="Pop velocity over the last 30 seconds"><polyline points="${points}"/></svg>`;
+function setMode(mode:'survival'|'select'|null){
+ if(mode)document.body.dataset.gameMode=mode;
+ else delete document.body.dataset.gameMode;
+ window.dispatchEvent(new Event('resize'));
 }
 
 export function createGameUi(route:GameRoute,onFreePop:()=>void):GameUiHandle {
  let root:HTMLElement|null=null;
  let shopState:ShopFixture|null=null;
  let runScore:number|null=null;
+ let velocityChart:VelocityChart|null=null;
+ let sheetObserver:MutationObserver|null=null;
  const live=document.createElement('p');
  live.id='game-live';live.className='sr-only';live.setAttribute('role','status');live.setAttribute('aria-live','polite');live.setAttribute('aria-atomic','true');
 
@@ -72,15 +73,40 @@ export function createGameUi(route:GameRoute,onFreePop:()=>void):GameUiHandle {
   return root;
  }
 
+ function clearVelocityChart(){velocityChart?.destroy();velocityChart=null;}
+ function closeMenu(container:ParentNode){const menu=container.querySelector<HTMLDetailsElement>('.game-overflow');if(menu)menu.open=false;}
+ function syncSheetMenu(container:ParentNode){
+  const refresh=container.querySelector<HTMLButtonElement>('[data-game-action=refresh]');
+  const mute=container.querySelector<HTMLButtonElement>('[data-game-action=mute]');
+  const reset=document.getElementById('reset') as HTMLButtonElement|null;
+  const sound=document.getElementById('sound') as HTMLButtonElement|null;
+  if(refresh&&reset)refresh.disabled=reset.disabled;
+  if(mute&&sound){
+   const muted=sound.dataset.muted==='true';
+   const label=mute.querySelector<HTMLElement>('[data-mute-label]');
+   const icon=mute.querySelector<HTMLElement>('.material-symbols-rounded');
+   if(label)label.textContent=muted?'Unmute':'Mute';
+   if(icon)icon.textContent=muted?'volume_off':'volume_up';
+   mute.setAttribute('aria-pressed',String(!muted));
+  }
+ }
+ function watchSheetMenu(container:ParentNode){
+  sheetObserver?.disconnect();
+  const reset=document.getElementById('reset'),sound=document.getElementById('sound');
+  if(!reset&&!sound)return;
+  sheetObserver=new MutationObserver(()=>syncSheetMenu(container));
+  if(reset)sheetObserver.observe(reset,{attributes:true,attributeFilter:['disabled']});
+  if(sound)sheetObserver.observe(sound,{attributes:true,attributeFilter:['data-muted']});
+ }
  function close(){
-  root?.remove();live.remove();root=null;delete document.body.dataset.gameMode;onFreePop();
+  clearVelocityChart();sheetObserver?.disconnect();sheetObserver=null;root?.remove();live.remove();root=null;setMode(null);onFreePop();
  }
 
  function renderModeSelect(){
   noIndex();
   const scores=readGameHighScores();
   const node=ensureRoot();node.dataset.screen='mode-select';
-  document.body.dataset.gameMode='select';
+  clearVelocityChart();setMode('select');
   node.innerHTML=`<div class="game-scrim"></div><section class="game-card game-mode-card" aria-labelledby="game-mode-heading">
    <p class="game-eyebrow">Bubble Wrap</p>
    <h2 id="game-mode-heading">Choose how to pop</h2>
@@ -100,7 +126,7 @@ export function createGameUi(route:GameRoute,onFreePop:()=>void):GameUiHandle {
 
  function renderLevelIntro(){
   const level=GAME_CONFIG.run.levels[0],node=ensureRoot();node.dataset.screen='level-intro';
-  document.body.dataset.gameMode='survival';
+  clearVelocityChart();setMode('survival');
   node.innerHTML=`<div class="game-scrim"></div><section class="game-card game-intro-card" aria-labelledby="game-intro-heading">
    <p class="game-eyebrow">Level ${level.id} of ${GAME_CONFIG.run.levelCount}</p>
    <h2 id="game-intro-heading">${level.name}</h2>
@@ -127,27 +153,35 @@ export function createGameUi(route:GameRoute,onFreePop:()=>void):GameUiHandle {
 
  function renderHud(){
   const fixture=hudFixture(),node=ensureRoot();node.dataset.screen='hud';
-  document.body.dataset.gameMode='survival';
+  clearVelocityChart();setMode('survival');
   const timer=timerParts(fixture.timerRemainingMs);
+  const progress=fixture.goalTarget>0?Math.min(100,fixture.goalCurrent/fixture.goalTarget*100):0;
   node.innerHTML=`<section class="game-hud" aria-label="Survival Run status" data-danger="${fixture.dangerZone}" data-paused="${fixture.paused}" data-hidden="${fixture.hidden}">
    <div class="game-hud-score"><span class="game-label">Score</span><strong>${numberSlot(fixture.score,{currency:true})}</strong></div>
-   <div class="game-hud-velocity"><div><span class="game-label">Pop / s</span><strong>${numberSlot(fixture.popsPerSecond)}</strong>${fixture.upgrades.includes('velocityBuff')?`<small>${numberSlot(fixture.velocityMultiplier)}× score</small>`:'<small>Last 30 seconds</small>'}</div>${sparkline(fixture.velocityHistory)}</div>
-   <div class="game-hud-goal"><span class="game-label">Level ${numberSlot(fixture.level)}</span><strong>${fixture.goalLabel}</strong><span>${numberSlot(fixture.goalCurrent)} / ${numberSlot(fixture.goalTarget)} ${fixture.goalUnit}</span><i aria-hidden="true"><b style="width:${Math.min(100,fixture.goalCurrent/fixture.goalTarget*100)}%"></b></i></div>
-   <div class="game-hud-timer" aria-label="${time(fixture.timerRemainingMs)} remaining"><span class="game-label">${fixture.timerKind==='soft'?'Target':'Time left'}</span><strong>${numberSlot(timer.minutes,{minimumIntegerDigits:2})}<span class="game-timer-colon">:</span>${numberSlot(timer.seconds,{minimumIntegerDigits:2})}</strong><small>${fixture.softTimerExpired?'Par spent — keep popping':fixture.dangerZone?'Danger zone':'Active time'}</small></div>
-   <div class="game-hud-build" aria-label="Current upgrades">${fixture.upgrades.map(id=>{const copy=UPGRADE_COPY[id],active=fixture.activeUpgradeValues[id];return `<button type="button" class="game-upgrade" data-upgrade="${id}" data-active="${Boolean(active)}" aria-label="${copy.name}: ${copy.description}"><span class="material-symbols-rounded" aria-hidden="true">${copy.icon}</span>${active?`<b>${active}</b>`:''}<span class="game-upgrade-popover" role="tooltip"><strong>${copy.name}</strong><span>${copy.description}</span></span></button>`;}).join('')}</div>
+   <div class="game-hud-velocity"><div class="game-velocity-readout"><span class="game-label">Pop / s</span><strong>${numberSlot(fixture.popsPerSecond)}</strong>${fixture.upgrades.includes('velocityBuff')?`<small>${numberSlot(fixture.velocityMultiplier)}×</small>`:''}</div><div class="game-velocity-chart" role="img" aria-label="Pop velocity over the last 30 seconds"></div></div>
+   <div class="game-hud-goal"><span class="game-label">Level ${numberSlot(fixture.level)}</span><strong>${numberSlot(fixture.goalCurrent)}<span class="game-goal-sep">/</span>${numberSlot(fixture.goalTarget)}</strong><small>${fixture.goalUnit}</small><i aria-hidden="true"><b style="width:${progress}%"></b></i></div>
+   <div class="game-hud-timer" aria-label="${time(fixture.timerRemainingMs)} remaining"><span class="game-label">${fixture.timerKind==='soft'?'Target':'Time left'}</span><strong>${numberSlot(timer.minutes,{minimumIntegerDigits:2})}<span class="game-timer-colon">:</span>${numberSlot(timer.seconds,{minimumIntegerDigits:2})}</strong></div>
+   ${fixture.upgrades.length?`<div class="game-hud-build"><button type="button" class="game-upgrade-panel" aria-label="Owned upgrades"><span class="game-upgrade-icons">${fixture.upgrades.map(id=>{const copy=UPGRADE_COPY[id],active=fixture.activeUpgradeValues[id];return `<span class="game-upgrade" data-upgrade="${id}" data-active="${Boolean(active)}"><span class="material-symbols-rounded" aria-hidden="true">${copy.icon}</span>${active?`<b>${active}</b>`:''}</span>`;}).join('')}</span><span class="game-upgrade-popover" role="tooltip">${fixture.upgrades.map(id=>{const copy=UPGRADE_COPY[id];return `<span class="game-upgrade-note"><strong>${copy.name}</strong><span>${copy.description}</span></span>`;}).join('')}</span></button></div>`:''}
    ${fixture.hazard?`<p class="game-hud-hazard"><span class="game-label">Hazard</span>${fixture.hazard}</p>`:''}
    ${fixture.paused?'<div class="game-state-banner">Paused</div>':''}
    ${fixture.hidden?'<button class="game-hud-reveal" type="button" data-game-action="reveal-hud">Show HUD</button>':''}
-   <details class="game-overflow"><summary class="game-icon-button" aria-label="More game options"><span class="material-symbols-rounded" aria-hidden="true">more_horiz</span></summary><div class="game-overflow-menu"><button type="button" data-game-action="shop"><span class="material-symbols-rounded" aria-hidden="true">storefront</span>Shop preview</button><button type="button" data-game-action="mode"><span class="material-symbols-rounded" aria-hidden="true">sports_esports</span>Modes</button><button type="button" data-game-action="run-won"><span class="material-symbols-rounded" aria-hidden="true">emoji_events</span>Run won</button><button type="button" data-game-action="tuning"><span class="material-symbols-rounded" aria-hidden="true">tune</span>Tuning panel</button></div></details>
+   <details class="game-overflow"><summary class="game-icon-button" aria-label="More game options"><span class="material-symbols-rounded" aria-hidden="true">more_horiz</span></summary><div class="game-overflow-menu"><button type="button" data-game-action="refresh"><span class="material-symbols-rounded" aria-hidden="true">refresh</span>Refresh sheet</button><button type="button" data-game-action="mute" aria-pressed="true"><span class="material-symbols-rounded" aria-hidden="true">volume_up</span><span data-mute-label>Mute</span></button><button type="button" data-game-action="shop"><span class="material-symbols-rounded" aria-hidden="true">storefront</span>Shop preview</button><button type="button" data-game-action="mode"><span class="material-symbols-rounded" aria-hidden="true">sports_esports</span>Modes</button><button type="button" data-game-action="run-won"><span class="material-symbols-rounded" aria-hidden="true">emoji_events</span>Run won</button><button type="button" data-game-action="tuning"><span class="material-symbols-rounded" aria-hidden="true">tune</span>Tuning panel</button></div></details>
   </section>`;
   hydrateNumbers(node);
+  const chartHost=node.querySelector<HTMLElement>('.game-velocity-chart');
+  if(chartHost)velocityChart=mountVelocityChart(chartHost,fixture.velocityHistory);
+  const panel=node.querySelector<HTMLButtonElement>('.game-upgrade-panel');
+  panel?.addEventListener('click',()=>{const open=panel.dataset.open!=='true';panel.dataset.open=String(open);panel.setAttribute('aria-expanded',String(open));});
+  syncSheetMenu(node);watchSheetMenu(node);
+  node.querySelector<HTMLDetailsElement>('.game-overflow')!.addEventListener('toggle',()=>syncSheetMenu(node));
+  node.querySelector<HTMLButtonElement>('[data-game-action=refresh]')!.addEventListener('click',()=>{document.getElementById('reset')?.click();closeMenu(node);});
+  node.querySelector<HTMLButtonElement>('[data-game-action=mute]')!.addEventListener('click',()=>{document.getElementById('sound')?.click();syncSheetMenu(node);closeMenu(node);});
   node.querySelector<HTMLButtonElement>('[data-game-action=mode]')!.addEventListener('click',renderModeSelect);
   node.querySelector<HTMLButtonElement>('[data-game-action=shop]')!.addEventListener('click',()=>renderShop(true));
   node.querySelector<HTMLButtonElement>('[data-game-action=run-won]')!.addEventListener('click',()=>renderResult(GAME_FIXTURES.runWon));
-  node.querySelector<HTMLButtonElement>('[data-game-action=tuning]')!.addEventListener('click',()=>{if(!document.getElementById('tuning-drawer'))createTuningDrawer();});
-  for(const upgrade of Array.from(node.querySelectorAll<HTMLButtonElement>('.game-upgrade')))upgrade.addEventListener('click',()=>{upgrade.dataset.open=String(upgrade.dataset.open!=='true');});
+  node.querySelector<HTMLButtonElement>('[data-game-action=tuning]')!.addEventListener('click',()=>{closeMenu(node);if(!document.getElementById('tuning-drawer'))createTuningDrawer();});
   node.querySelector<HTMLButtonElement>('[data-game-action=reveal-hud]')?.addEventListener('click',()=>{route.hudState='normal';renderHud();});
-  live.textContent=`Level ${fixture.level}. ${fixture.goalLabel}: ${fixture.goalCurrent} of ${fixture.goalTarget}. ${time(fixture.timerRemainingMs)} remaining.`;
+  live.textContent=`Level ${fixture.level}. ${fixture.goalCurrent} of ${fixture.goalTarget} ${fixture.goalUnit}. ${time(fixture.timerRemainingMs)} remaining.`;
  }
 
  function cloneShop(source:ShopFixture):ShopFixture {
@@ -157,7 +191,7 @@ export function createGameUi(route:GameRoute,onFreePop:()=>void):GameUiHandle {
  function renderShop(reset=false){
   if(reset||!shopState)shopState=cloneShop(route.category==='keyboard-pointer'?GAME_FIXTURES.shopKeyboard:GAME_FIXTURES.shop);
   const fixture=shopState,node=ensureRoot();node.dataset.screen='shop';
-  document.body.dataset.gameMode='survival';
+  clearVelocityChart();setMode('survival');
   const category=fixture.category==='touch'?GAME_CONFIG.categories.touch:GAME_CONFIG.categories.keyboardPointer;
   const currentRerollPrice=rerollPrice(fixture.category,fixture.rerollsUsed,fixture.ownedUpgrades);
   const rerollsRemaining=Math.max(0,fixture.rerollLimit-fixture.rerollsUsed);
@@ -191,7 +225,7 @@ export function createGameUi(route:GameRoute,onFreePop:()=>void):GameUiHandle {
 
  function renderResult(fixture:ResultFixture){
   const node=ensureRoot();node.dataset.screen=fixture.outcome==='won'?'run-won':'run-lost';
-  document.body.dataset.gameMode='survival';
+  clearVelocityChart();setMode('survival');
   const title=fixture.outcome==='won'?'Run cleared':'Run over';
   node.innerHTML=`<div class="game-scrim"></div><section class="game-card game-result-card" aria-labelledby="game-result-heading">
    <p class="game-eyebrow">${fixture.outcome==='won'?'Survival complete':`Reached level ${fixture.reachedLevel}`}</p><h2 id="game-result-heading">${title}</h2>
