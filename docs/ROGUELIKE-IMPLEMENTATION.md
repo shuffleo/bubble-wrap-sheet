@@ -263,11 +263,11 @@ Build:
 
 Build:
 
-- Hide the Free Pop title and spring-return icon while Survival Run is active.
-- Put animated `$` score at top left, `pop/s` plus a 30-second sparkline at top centre, and goal/progress plus level number at top right.
-- Put the countdown at bottom left, with colon and danger-zone blink states.
-- Put icon-only upgrades at bottom right with hover/focus/tap explanations and active values.
-- Put preview/navigation actions in a Material Symbols overflow menu beside sound.
+- Hide the Free Pop title and remove the spring-return bubble from the WebGL scene while Survival Run is active.
+- Put animated `$` score at top left, a small uPlot `pop/s` chart at top centre, and the goal count in large type with its unit caption underneath at top right.
+- Put the countdown at bottom left, with colon and danger-zone blink states and no status caption.
+- Group owned upgrades into one bottom-centre panel. One popover explains every owned upgrade, and an active value sits beside its icon.
+- Put refresh, mute, and preview/navigation actions in one Material Symbols overflow menu.
 - Define compact phone and expanded desktop layouts.
 - Add danger-zone, soft-timer-expired, paused, and hidden-HUD states.
 - Add accessible live-region strategy without announcing every pop.
@@ -319,6 +319,38 @@ Before Stage C, revise the visual shell and economy contract:
 - Allow three rerolls with config-driven geometric price growth unless Flat Rate is owned.
 - Keep danger-zone seconds editable in Tweakpane.
 - Preserve direct fixture routes as visual regression tools after live gameplay wiring begins.
+
+### Checkpoint 1 HUD follow-up
+
+Apply these visual corrections on phone and desktop before continuing gameplay:
+
+- `display: none` on the spring-return control, then relayout, so its canvas bubble disappears. Visibility hiding is not sufficient.
+- Reduce game-UI line height slightly and keep the HUD compact.
+- Remove the caption under the countdown.
+- Fold refresh and mute into the overflow menu.
+- Replace the hand-drawn sparkline with bundled uPlot, smaller and top-centred.
+- Use one bottom-centre upgrade panel and one combined explanation.
+- Make the goal counter the large white text and the unit, such as “sheets popped”, the smaller caption.
+
+### Designed follow-ups — do not implement yet
+
+Record these mechanics in the GDD only until a later slice is explicitly requested. Do not add them to `level-design.json` before that slice.
+
+#### Drag resistance and Muscular Finger
+
+- The initial press target pops normally.
+- Each later bubble entered by that drag uses the Hardened Bubbles hold accumulator for a proposed 180 ms.
+- Leaving the bubble or releasing the pointer cancels its partial hold.
+- Muscular Finger reduces the drag hold by a proposed 70 ms and does not change the 1.5-second hardened hold.
+- Keep the resistance subtle.
+
+#### Fuzzy Keyboard
+
+- Base mapping remains one bubble group per key.
+- Fuzzy Keyboard adds the neighbouring key on each side of the same keyboard row, chosen from the bubble's sheet position.
+- Each owned-upgrade bubble answers to three keys.
+- One press still pops one unpopped bubble.
+- Free Pop does not gain overlapping keys.
 
 ## Stage C: level 1 and basic scoring
 
@@ -452,6 +484,8 @@ Implement and test in this order:
 9. Rate-hike Cycle.
 10. Priority Banking.
 11. Flat Rate.
+
+Do not start Muscular Finger or Fuzzy Keyboard in this sequence. They stay design-only until requested, then become their own slices after the original twelve.
 
 Each slice gets:
 

@@ -413,6 +413,27 @@ Rerolls remain at their base category price instead of increasing after each use
 - Does not refund earlier rerolls.
 - The three-reroll limit still applies.
 
+### Designed, not yet scheduled
+
+These two upgrades are part of the design and are not in `level-design.json` or the shop until their implementation slices are explicitly started.
+
+#### Muscular Finger
+
+Normal dragging is slightly resisted. The bubble under the initial press still pops normally. Every later bubble entered by the same drag must be held for `dragHoldMs` before it pops. Leaving that bubble or lifting the pointer cancels its partial hold. This reuses the Hardened Bubbles hold accumulator, with a much shorter duration and no change to score.
+
+- Proposed base hold: 180 ms.
+- Muscular Finger reduces that hold by 70 ms, to 110 ms.
+- It does not change the 1.5-second Hardened Bubbles hold.
+- The effect should feel like slight resistance, not a second hardened-bubble rule.
+- Proposed prices: Touch 900; Keyboard & Pointer 2,250.
+
+#### Fuzzy Keyboard
+
+Without the upgrade, each bubble belongs to exactly one keyboard key. Fuzzy Keyboard also accepts the nearest key on each side in the same keyboard row, so each bubble answers to three keys. Those neighbours follow the bubble's position on the sheet: a bubble in one horizontal band also answers to the keys covering the adjacent bands. One key press still pops only one unpopped bubble. Overlapping key membership exists only while this upgrade is owned. Free Pop keeps the one-key mapping.
+
+- Proposed extra keys: 1 on each side, 3 total.
+- Proposed prices: Touch 750; Keyboard & Pointer 1,875.
+
 ## 12. Shared proc rules
 
 To avoid recursion and ambiguous scoring:
@@ -492,16 +513,17 @@ The conveyor is a distinct encounter layout, not repeated sheet refreshes.
 
 ### Encounter HUD
 
-The sheet remains the visual focus. The page title and spring-return icon are hidden during Survival Run.
+The sheet remains the visual focus. During Survival Run, remove the page title and the spring-return bubble from both the DOM and the WebGL scene. Hiding only the control leaves the rendered bubble in a corner.
 
 - **Top left:** current `$` score. Pop gains update immediately with a continuous digit transition.
-- **Top centre:** one primary KPI, `pop/s`, plus a compact 30-second velocity history line. Without Velocity Buff it is informational; with the upgrade it becomes the scoring multiplier input.
-- **Top right:** level number, goal, and progress. Goal types include sheets cleared, bubbles cleared, and conveyor clearance percentage. The level name is omitted.
-- **Bottom left:** time remaining. The colon blinks once per second; the whole countdown blinks in the configured danger-zone window.
-- **Bottom right:** owned-upgrade icons. Hover, focus, or tap expands an icon into a short explanation. While an effect is active, its current value appears beside the icon.
-- Deadline Fighter does not occupy a permanent top-row chip; its active value appears on its upgrade control.
+- **Top centre:** one small `pop/s` readout and a 30-second velocity chart drawn with bundled uPlot. Keep it narrow and at the top. Without Velocity Buff it is informational; with the upgrade, its current multiplier appears beside the readout.
+- **Top right:** level number, then the goal count in the largest white type, then a smaller unit caption such as “sheets popped” or “bubbles popped”. The level name is omitted.
+- **Bottom left:** time remaining only. The colon blinks once per second; the whole countdown blinks in the configured danger-zone window. Do not add a status caption under the time.
+- **Bottom centre:** one compact panel containing every owned upgrade. Hover, focus, or tap opens one explanation covering every upgrade in that panel. While an effect is active, its current value appears beside its icon.
+- Deadline Fighter does not occupy a permanent top-row chip; its active value appears on its upgrade icon.
 - Combo, Hot Key, hazard, and onboarding feedback appear contextually rather than competing with the primary KPI.
-- A Material Symbols overflow button beside the sound button contains Shop preview, Modes, Run won preview, and Tuning panel actions.
+- Game type uses a tighter line height than body copy so the HUD stays compact on a phone.
+- One Material Symbols overflow button at the bottom right contains Refresh sheet, Mute, Shop preview, Modes, Run won preview, and Tuning panel. Refresh and mute are not separate corner buttons during Survival Run.
 
 ### Shop
 
