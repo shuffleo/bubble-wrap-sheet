@@ -1,0 +1,11 @@
+---
+description: Copy the Netlify deploy preview URL from the pull request and keep its double hyphen
+alwaysApply: true
+---
+
+When a person needs a link to test this app, copy the deploy preview URL from the current pull request. Do not build the hostname yourself.
+
+1. Read the pull request. Use the Deploy Preview link in the Netlify comment, or the `target_url` on the `netlify/.../deploy-preview` commit status.
+2. Before sending it, check the hostname character by character. The preview name and the site name are separated by two hyphens: `deploy-preview-3--bubblewrapsheet.netlify.app`. One hyphen is a different hostname and Netlify reports it as site not found.
+3. Paste the URL in inline code or a fenced block so Markdown cannot turn `--` into a dash.
+4. `https://bubblewrapsheet.netlify.app/` is production. Do not send it as the preview.
