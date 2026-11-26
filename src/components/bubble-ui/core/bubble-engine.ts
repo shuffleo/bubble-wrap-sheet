@@ -11,9 +11,18 @@ import {BubbleAudio} from './bubble-audio';
 import {makeGrid,hash,materialVariant,boundaryDistance,type Rect,type SurfaceConfig} from './bubble-grid';
 export interface BubbleStats {popped:number;total:number;drawCalls:number;instances:number;surfaces:number;dpr:number;audio:string;activePointers:number;frames:number;}
 export interface SurfaceHandle {reset:(immediate?:boolean)=>void;update:(options:SurfaceConfig)=>void;dispose:()=>void;}
+export type ManualPopInput='touch'|'mouse'|'pen'|'keyboard';
+export type ManualPopSource={type:'manual';input:ManualPopInput;gestureId:string};
+export type AutomatedPopSource=
+ |{type:'assisted';upgrade:string}
+ |{type:'hazard';hazard:string}
+ |{type:'system';reason:string};
+export type BubblePopSource=ManualPopSource|AutomatedPopSource;
+export interface BubblePopDetail {index:number;key:string;surface:string;source:BubblePopSource;}
+export interface GameBubbleSnapshot {index:number;surface:string;eligible:boolean;popped:boolean;}
 interface SheetExchange {old:Float32Array[];oldCount:number;timeline:RefillTimeline;progress:number;distance:number;slide:boolean;}
 interface Surface {completed:boolean;id:string;node:HTMLElement;config:SurfaceConfig;rect:Rect;off:()=>void;}
-interface Pointer {id:number;surface:string;x:number;y:number;startX:number;startY:number;index:number;visited:Set<number>;gentle:boolean;}
+interface Pointer {id:number;surface:string;x:number;y:number;startX:number;startY:number;index:number;visited:Set<number>;gentle:boolean;input:ManualPopInput;gestureId:string;}
 let engineId=0;
 const activeCanvas=new WeakMap<HTMLCanvasElement,BubbleEngine>();
 const activeDocument=new WeakMap<Document,BubbleEngine>();
@@ -28,6 +37,7 @@ export class BubbleEngine extends EventTarget {
  private surfaces=new Map<string,Surface>();private pointers=new Map<number,Pointer>();private observer:ResizeObserver;
  private keyboard:KeyboardMapping=buildKeyboardMapping([]);private keyboardHints:HTMLDivElement|null=null;private hintNodes=new Map<number,HTMLElement>();
  private points:BubblePoint[]=[];private physics=new BubblePhysics([],()=>{});private coordMap=new Map<string,number>();
+ private pendingPopSources=new Map<number,BubblePopSource>();
  private exchange:SheetExchange|null=null;private currentAttributes:Float32Array[]=[];private renderInstances=0;
  get refreshing(){return this.exchange!==null;}
  private frame=0;private last=0;private destroyed=false;private dirty=true;private dpr=1;private frames=0;private lost=false;private queued=false;
@@ -79,7 +89,7 @@ export class BubbleEngine extends EventTarget {
   if(config.layout==='single')config={...config,edgeRoughness:0,cornerVariation:0};
   const id=`surface-${++engineId}`;const rect=node.getBoundingClientRect();const surface:Surface={completed:false,id,node,config:{...config},rect,off:()=>{}};this.surfaces.set(id,surface);
   const down=(e:PointerEvent)=>this.pointerDown(e,id),move=(e:PointerEvent)=>this.pointerMove(e,id),up=(e:PointerEvent)=>this.pointerUp(e,false),cancel=(e:PointerEvent)=>this.pointerUp(e,true);
-  const key=(e:KeyboardEvent)=>{if(e.target!==node||e.repeat||(this.refreshing&&surface.config.layout!=='single'))return;if(e.key==='Enter'||(e.key===' '&&surface.config.mode==='spring-return')){if(node.tagName!=='BUTTON')e.preventDefault();this.audio.unlock();const index=this.points.findIndex((p,i)=>p.surface===id&&p.eligible&&!this.physics.isPopped[i]);if(index>=0){if(surface.config.mode==='spring-return')this.physics.press(index);else this.physics.pop(index);this.wake();}}};
+  const key=(e:KeyboardEvent)=>{if(e.target!==node||e.repeat||(this.refreshing&&surface.config.layout!=='single'))return;if(e.key==='Enter'||(e.key===' '&&surface.config.mode==='spring-return')){if(node.tagName!=='BUTTON')e.preventDefault();this.audio.unlock();const index=this.points.findIndex((p,i)=>p.surface===id&&p.eligible&&!this.physics.isPopped[i]);if(index>=0){if(surface.config.mode==='spring-return')this.physics.press(index);else this.popWithSource(index,{type:'manual',input:'keyboard',gestureId:`key:${e.code||e.key}`});this.wake();}}};
   const keyup=(e:KeyboardEvent)=>{if((e.key===' '||e.key==='Enter')&&surface.config.mode==='spring-return'){this.points.forEach((p,i)=>{if(p.surface===id)this.physics.release(i);});this.wake();}};
   node.addEventListener('pointerdown',down);node.addEventListener('pointermove',move);node.addEventListener('pointerup',up);node.addEventListener('pointercancel',cancel);node.addEventListener('lostpointercapture',cancel);node.addEventListener('keydown',key);node.addEventListener('keyup',keyup);
   const detachHaptics=this.audio.feedback.attach(node);
@@ -116,17 +126,19 @@ export class BubbleEngine extends EventTarget {
   }return -1;
  }
  private retap(i:number){if(this.points[i]?.cut)return;this.physics.jiggle(i);const p=this.points[i];this.motion.impulse(p.x,p.y,1);this.audio.crinkle();this.audio.feedback.pulse(7);}
- private pointerDown(e:PointerEvent,surface:string){if(this.refreshing&&this.surfaces.get(surface)?.config.layout!=='single')return;if(e.button!==0&&e.pointerType!=='touch')return;this.audio.unlock();const s=this.surfaces.get(surface)!;const haptic=e.target instanceof HTMLElement&&e.target.hasAttribute('data-bubble-haptic-tap');if(!haptic){try{s.node.setPointerCapture(e.pointerId);}catch{}}const i=this.hitTest(e.clientX,e.clientY,surface);const p:Pointer={id:e.pointerId,surface,x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,index:i,visited:new Set(),gentle:e.pointerType==='pen'&&e.pressure<.65};if(i>=0){p.visited.add(i);if(this.physics.isPopped[i])this.retap(i);else this.physics.press(i,p.gentle?e.pressure:1);}this.pointers.set(e.pointerId,p);this.wake();}
+ private popWithSource(index:number,source:BubblePopSource):boolean {this.pendingPopSources.set(index,source);const popped=this.physics.pop(index);if(!popped)this.pendingPopSources.delete(index);return popped;}
+ private stagePopSource(index:number,source:BubblePopSource):void {if(index>=0&&!this.physics.isPopped[index])this.pendingPopSources.set(index,source);}
+ private pointerDown(e:PointerEvent,surface:string){if(this.refreshing&&this.surfaces.get(surface)?.config.layout!=='single')return;if(e.button!==0&&e.pointerType!=='touch')return;this.audio.unlock();const s=this.surfaces.get(surface)!;const haptic=e.target instanceof HTMLElement&&e.target.hasAttribute('data-bubble-haptic-tap');if(!haptic){try{s.node.setPointerCapture(e.pointerId);}catch{}}const i=this.hitTest(e.clientX,e.clientY,surface),input:ManualPopInput=e.pointerType==='touch'?'touch':e.pointerType==='pen'?'pen':'mouse',gestureId=`pointer:${e.pointerId}`;const p:Pointer={id:e.pointerId,surface,x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,index:i,visited:new Set(),gentle:e.pointerType==='pen'&&e.pressure<.65,input,gestureId};if(i>=0){p.visited.add(i);if(this.physics.isPopped[i])this.retap(i);else{this.stagePopSource(i,{type:'manual',input,gestureId});this.physics.press(i,p.gentle?e.pressure:1);}}this.pointers.set(e.pointerId,p);this.wake();}
  private pointerMove(e:PointerEvent,surface:string){
   const p=this.pointers.get(e.pointerId);if(!p)return;
-  if(p){if(!(e.target instanceof HTMLElement&&e.target.hasAttribute('data-bubble-haptic-tap')))e.preventDefault();const length=Math.hypot(e.clientX-p.x,e.clientY-p.y);if(length>1){const steps=Math.min(200,Math.max(1,Math.ceil(length/10)));for(let t=0;t<=steps;t++){const x=p.x+(e.clientX-p.x)*t/steps,y=p.y+(e.clientY-p.y)*t/steps;const i=this.hitTest(x,y,surface);if(i>=0&&!p.visited.has(i)){p.visited.add(i);if(this.physics.isPopped[i])this.retap(i);else if(!p.gentle)this.physics.pop(i);else this.physics.press(i,e.pressure);}}}p.x=e.clientX;p.y=e.clientY;p.index=this.hitTest(p.x,p.y,surface);}
+  if(p){if(!(e.target instanceof HTMLElement&&e.target.hasAttribute('data-bubble-haptic-tap')))e.preventDefault();const length=Math.hypot(e.clientX-p.x,e.clientY-p.y);if(length>1){const steps=Math.min(200,Math.max(1,Math.ceil(length/10)));for(let t=0;t<=steps;t++){const x=p.x+(e.clientX-p.x)*t/steps,y=p.y+(e.clientY-p.y)*t/steps;const i=this.hitTest(x,y,surface);if(i>=0&&!p.visited.has(i)){p.visited.add(i);if(this.physics.isPopped[i])this.retap(i);else if(!p.gentle)this.popWithSource(i,{type:'manual',input:p.input,gestureId:p.gestureId});else{this.stagePopSource(i,{type:'manual',input:p.input,gestureId:p.gestureId});this.physics.press(i,e.pressure);}}}}p.x=e.clientX;p.y=e.clientY;p.index=this.hitTest(p.x,p.y,surface);}
   this.wake();
  }
- private pointerUp(e:PointerEvent,cancelled:boolean){const p=this.pointers.get(e.pointerId);if(!p)return;this.pointers.delete(e.pointerId);if(!cancelled&&!p.gentle){for(const i of p.visited)this.physics.pop(i);}for(const i of p.visited){let held=false;for(const other of this.pointers.values())if(other.visited.has(i))held=true;if(!held)this.physics.release(i);}this.wake();}
- private cancelPointers(){for(const p of this.pointers.values())for(const i of p.visited)this.physics.release(i);this.pointers.clear();this.points.forEach((p,i)=>{if(!p.cut&&!this.physics.isPopped[i])this.physics.release(i);});for(let i=0;i<4;i++)this.motion.release(i);}
+ private pointerUp(e:PointerEvent,cancelled:boolean){const p=this.pointers.get(e.pointerId);if(!p)return;this.pointers.delete(e.pointerId);if(!cancelled&&!p.gentle){for(const i of p.visited)this.popWithSource(i,{type:'manual',input:p.input,gestureId:p.gestureId});}for(const i of p.visited){let held=false;for(const other of this.pointers.values())if(other.visited.has(i))held=true;if(!held){this.physics.release(i);if(!this.physics.isPopped[i])this.pendingPopSources.delete(i);}}this.wake();}
+ private cancelPointers(){for(const p of this.pointers.values())for(const i of p.visited){this.physics.release(i);if(!this.physics.isPopped[i])this.pendingPopSources.delete(i);}this.pointers.clear();this.points.forEach((p,i)=>{if(!p.cut&&!this.physics.isPopped[i]){this.physics.release(i);this.pendingPopSources.delete(i);}});for(let i=0;i<4;i++)this.motion.release(i);}
  private didPop(index:number){
   this.hintNodes.get(index)?.setAttribute('data-popped','true');
-  this.audio.pop();const point=this.points[index],surface=this.surfaces.get(point.surface);this.physics.jiggle(index);this.motion.impulse(point.x,point.y,.7);queueMicrotask(()=>{if(this.destroyed)return;this.notify();if(surface){let count=0,total=0;this.points.forEach((p,i)=>{if(p.surface===point.surface&&p.eligible){total++;count+=this.physics.isPopped[i];}});surface.config.onPop?.(count);if(count===total&&total>0&&!surface.completed){surface.completed=true;surface.config.onAllPopped?.();}}});
+  this.audio.pop();const point=this.points[index],surface=this.surfaces.get(point.surface),source=this.pendingPopSources.get(index)??{type:'system' as const,reason:'physics'};this.pendingPopSources.delete(index);this.physics.jiggle(index);this.motion.impulse(point.x,point.y,.7);this.dispatchEvent(new CustomEvent<BubblePopDetail>('bubblepop',{detail:{index,key:point.key,surface:point.surface,source}}));queueMicrotask(()=>{if(this.destroyed)return;this.notify();if(surface){let count=0,total=0;this.points.forEach((p,i)=>{if(p.surface===point.surface&&p.eligible){total++;count+=this.physics.isPopped[i];}});surface.config.onPop?.(count);if(count===total&&total>0&&!surface.completed){surface.completed=true;surface.config.onAllPopped?.();}}});
  }
  private notify(){if(this.queued)return;this.queued=true;queueMicrotask(()=>{this.queued=false;if(!this.destroyed)this.dispatchEvent(new CustomEvent('change',{detail:this.getStats()}));});}
  setMuted(muted:boolean){this.audio.unlock();this.audio.setMuted(muted);this.notify();}
@@ -212,9 +224,12 @@ export class BubbleEngine extends EventTarget {
   if(this.destroyed||this.lost||this.refreshing||!this.settings.keyboardEnabled)return -1;
   const group=this.keyboard.byCode.get(code);if(!group)return -1;
   const index=pickUnpopped(group.indices,this.physics.isPopped);if(index<0)return -1;
-  this.audio.unlock();if(!this.physics.pop(index))return -1;this.wake();
+  this.audio.unlock();if(!this.popWithSource(index,{type:'manual',input:'keyboard',gestureId:`key:${code}`}))return -1;this.wake();
   this.dispatchEvent(new CustomEvent('keypop',{detail:{code,label:group.label,index}}));return index;
  }
+ getGameBubbles():GameBubbleSnapshot[]{return this.points.flatMap((point,index)=>point.mode==='poppable'?[{index,surface:point.surface,eligible:point.eligible!==false&&!point.cut,popped:!!this.physics.isPopped[index]}]:[]);}
+ getGameNeighbours(index:number):number[]{if(!Number.isInteger(index)||index<0||index>=this.points.length)return[];const neighbours:number[]=[];for(let offset=0;offset<6;offset++){const candidate=this.physics.neighbors[index*6+offset];if(candidate>=0&&this.points[candidate]?.mode==='poppable'&&this.points[candidate].eligible!==false&&!this.points[candidate].cut)neighbours.push(candidate);}return neighbours;}
+ popForGame(index:number,source:AutomatedPopSource):boolean {if(this.destroyed||this.lost||this.refreshing||!Number.isInteger(index))return false;const point=this.points[index];if(!point||point.mode!=='poppable'||point.eligible===false||point.cut)return false;const popped=this.popWithSource(index,source);if(popped)this.wake();return popped;}
  getKeyboardMap(){return this.keyboard.groups.map(group=>({...group,indices:[...group.indices],total:group.indices.length,remaining:group.indices.reduce((sum,index)=>sum+(this.physics.isPopped[index]?0:1),0)}));}
  private refreshKeyboardHints(){
   if(!this.settings.showKeyLabels||!this.settings.keyboardEnabled){this.keyboardHints?.remove();this.keyboardHints=null;this.hintNodes.clear();return;}
