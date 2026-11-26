@@ -47,7 +47,7 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   if(!state||state.cleared)return;
   const step=noteSheetCleared(state);
   state=step.state;
-  if(step.kind==='next-sheet'){refreshGoal();engine.forceReset();return;}
+  if(step.kind==='next-sheet'){applySheet(state);refreshGoal();engine.forceReset();return;}
   const category=state.category??'touch';
   recordGameHighScore(category,state.session.run.score);
   showCleared();
@@ -78,15 +78,15 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   ensureRoot();
   document.body.dataset.gameMode='survival';
   root!.dataset.screen='level-intro';
-  root!.innerHTML=`<div class="game-scrim"></div><section class="game-card game-intro-card" aria-labelledby="level-one-heading"><p class="game-eyebrow">Level 1 of ${GAME_CONFIG.run.levelCount}</p><h2 id="level-one-heading">Orientation</h2><p class="game-lede">Clear ${state.sheets} ${state.size}-size sheets. No timer, no shop, no upgrades. A drag scores more from the third bubble, and the keyboard can light Hot Keys.</p><div class="game-inline-actions"><button class="game-button game-button-secondary" type="button" data-level-action="exit">Free Pop</button><button class="game-button" type="button" data-level-action="play">Play</button></div></section>`;
+  const level=GAME_CONFIG.run.levels[0];
+  root!.innerHTML=`<div class="game-scrim"></div><section class="game-card game-intro-card" aria-labelledby="level-one-heading"><p class="game-eyebrow">Level ${level.id} of ${GAME_CONFIG.run.levelCount}</p><h2 id="level-one-heading">${level.name}</h2><p class="game-lede">Clear ${state.sheets} ${state.size}-size sheets. No timer, no shop, no upgrades. A drag scores more from the third bubble, and the keyboard can light Hot Keys.</p><div class="game-inline-actions"><button class="game-button game-button-secondary" type="button" data-level-action="exit">Free Pop</button><button class="game-button" type="button" data-level-action="play">Play</button></div></section>`;
   root!.querySelector<HTMLButtonElement>('[data-level-action=exit]')!.addEventListener('click',()=>{stop();onExit();});
   root!.querySelector<HTMLButtonElement>('[data-level-action=play]')!.addEventListener('click',play);
   root!.querySelector<HTMLButtonElement>('[data-level-action=play]')!.focus();
  }
  function play(){
   if(!state)return;
-  const size=GAME_CONFIG.sizes[state.size as keyof typeof GAME_CONFIG.sizes];
-  engine.setSettings({bubbleSize:size});
+  applySheet(state);
   engine.setRefreshLocked(true);
   sheet.update({onAllPopped:onCleared});
   state=beginLevelOne(state,engine.getKeyboardMap().map(group=>group.code));
@@ -97,7 +97,7 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
  function showHud(){
   if(!state||!root)return;
   root.dataset.screen='hud';
-  root.innerHTML=`<section class="game-hud" aria-label="Level 1" data-danger="false" data-paused="false" data-hidden="false"><div class="game-hud-score"><span class="game-label">Score</span><strong data-live-score></strong><small data-live-combo hidden></small></div><div class="game-hud-velocity"><div class="game-velocity-readout"><strong data-live-rate></strong><span class="game-label">Pop / s</span></div><div class="game-velocity-chart" role="img" aria-label="Pop velocity over the last 30 seconds"></div></div><div class="game-hud-goal"><span class="game-label">Level 1</span><strong><span data-live-sheet></span><span class="game-goal-sep">/</span><span data-live-sheets></span></strong><small>sheets</small></div><p class="game-onboarding">Pop both sheets. From the third bubble in one drag, each pop scores more.</p></section>`;
+  root.innerHTML=`<section class="game-hud" aria-label="Level ${state.session.run.level}" data-danger="false" data-paused="false" data-hidden="false"><div class="game-hud-score"><span class="game-label">Score</span><strong data-live-score></strong><small data-live-combo hidden></small></div><div class="game-hud-velocity"><div class="game-velocity-readout"><strong data-live-rate></strong><span class="game-label">Pop / s</span></div><div class="game-velocity-chart" role="img" aria-label="Pop velocity over the last 30 seconds"></div></div><div class="game-hud-goal"><span class="game-label">Level ${state.session.run.level}</span><strong><span data-live-sheet></span><span class="game-goal-sep">/</span><span data-live-sheets></span></strong><small>sheets</small></div><p class="game-onboarding">Pop all ${state.sheets} sheets. From the third bubble in one drag, each pop scores more.</p></section>`;
   mountNumber(root.querySelector('[data-live-score]'),state.session.run.score,true);
   mountNumber(root.querySelector('[data-live-rate]'),0,false);
   const sheetSlot=root.querySelector<HTMLElement>('[data-live-sheet]');
@@ -124,6 +124,12 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
  function refreshScore(){if(state)updateAnimatedNumber(root?.querySelector('[data-live=score]')??null,state.session.run.score);}
  function refreshCombo(){const slot=root?.querySelector<HTMLElement>('[data-live-combo]');if(!slot||!state)return;const visible=state.combo.count>1;slot.hidden=!visible;slot.textContent=visible?`${state.combo.count} combo`:'';}
  function refreshGoal(){const slot=root?.querySelector('.game-hud-goal strong number-flow');if(state)updateAnimatedNumber(slot??null,state.sheet);}
+ function applySheet(current:LevelOneState){
+  const plan=current.plans[current.sheet-1];
+  const sizeName=plan?.bubbleSize??current.size;
+  const size=GAME_CONFIG.sizes[sizeName as keyof typeof GAME_CONFIG.sizes];
+  if(engine.settings.bubbleSize!==size)engine.setSettings({bubbleSize:size});
+ }
  function ensureRoot(){if(!root){root=document.createElement('div');root.id='game-root';document.body.append(root);}}
  function mountNumber(slot:Element|null,value:number,currency:boolean){if(!slot)return;const node=animatedNumber(value,{currency});node.dataset.live=currency?'score':'rate';slot.replaceWith(node);}
 }

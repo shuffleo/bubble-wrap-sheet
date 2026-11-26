@@ -1,4 +1,5 @@
 import {GAME_CONFIG,levelDefinition} from './game-config';
+import {planLevelSheets,type SheetPlan} from './sheet-plan';
 import {initialSession,reduceSession} from './game-reducer';
 import {EMPTY_COMBO,categoryForManualInput,chooseHotKeys,scoreAssistedPop,scoreManualPop,type ComboState,type ScoreInputKind,type ScoreSkill} from './scoring';
 import type {GameRngState} from './game-rng';
@@ -9,6 +10,7 @@ export interface LevelOneState {
  sheet:number;
  sheets:number;
  size:string;
+ plans:readonly SheetPlan[];
  combo:ComboState;
  hotKeys:string[];
  category:RunCategory|null;
@@ -30,12 +32,16 @@ export interface ManualPopNotice {
 
 export function createLevelOne(seed:number):LevelOneState {
  const level=levelDefinition(1);
+ const plans=planLevelSheets(1);
  const selected=reduceSession(initialSession(seed),{type:'select-survival-run'});
+ const encounter=selected.state.run.encounter;
+ const session=encounter?{...selected.state,run:{...selected.state.run,encounter:{...encounter,sheetHazardIds:plans[0]?.hazardIds??[]}}}:selected.state;
  return {
-  session:selected.state,
+  session,
   sheet:1,
   sheets:level.sheetCount,
   size:level.bubbleSize,
+  plans,
   combo:EMPTY_COMBO,
   hotKeys:[],
   category:null,
@@ -104,10 +110,18 @@ export function noteSheetCleared(state:LevelOneState):{state:LevelOneState;kind:
  if(state.sheet<state.sheets){
   const advanced=reduceSession(state.session,{type:'begin-sheet-transition'});
   const finished=reduceSession(advanced.state,{type:'finish-sheet-transition'});
-  return {kind:'next-sheet',state:{...state,session:finished.state,sheet:state.sheet+1,gesture:null,combo:EMPTY_COMBO,prompt:false}};
+  const sheet=state.sheet+1;
+  return {kind:'next-sheet',state:placeOnSheet({...state,session:finished.state,gesture:null,combo:EMPTY_COMBO,prompt:false},sheet)};
  }
  const completed=reduceSession(state.session,{type:'complete-level'});
  return {kind:'cleared',state:{...state,session:completed.state,cleared:true,gesture:null,combo:EMPTY_COMBO,prompt:false}};
+}
+
+function placeOnSheet(state:LevelOneState,sheet:number):LevelOneState {
+ const plan=state.plans[sheet-1];
+ const encounter=state.session.run.encounter;
+ const session=encounter?{...state.session,run:{...state.session.run,encounter:{...encounter,sheetIndex:sheet-1,sheetHazardIds:plan?.hazardIds??[]}}}:state.session;
+ return {...state,session,sheet};
 }
 
 function nextGesture(current:LevelOneState['gesture'],id:string,index:number,neighbours:readonly number[]) {

@@ -448,6 +448,8 @@ To avoid recursion and ambiguous scoring:
 
 ## 13. Hazards
 
+The MVP selects at most one hazard for a level. Each sheet already has a plan with a hazard id list, and that list is empty. A later variant can put a different set on each new sheet of the same level by changing the planner only. The level loop, scoring, and sheet transition stay the same.
+
 ### Double Layer
 
 - 20% of eligible bubbles receive a second membrane.

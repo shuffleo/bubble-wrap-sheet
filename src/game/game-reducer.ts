@@ -18,7 +18,7 @@ function emptyStats(){return {manualPops:0,assistedPops:0,scoreEvents:0};}
 
 function encounterFor(level:LevelId):EncounterState {
  const definition=levelDefinition(level);
- return {levelId:level,sheetIndex:0,sheetCount:definition.sheetCount,bubblesRemaining:0,hazardId:null};
+ return {levelId:level,sheetIndex:0,sheetCount:definition.sheetCount,bubblesRemaining:0,hazardId:null,sheetHazardIds:[]};
 }
 
 function initialRun(seed:number):RunState {

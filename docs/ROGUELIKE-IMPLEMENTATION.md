@@ -12,6 +12,18 @@ This plan implements `docs/ROGUELIKE-GDD.md` without coupling game rules to WebG
 6. Keep Free Pop as the default compatibility path until Game mode is explicitly selected.
 7. Add behavior behind stable APIs; do not reach into engine private fields from the game layer.
 
+## Variant tests
+
+The MVP is one ruleset. Later comparisons, including a different hazard set on each new sheet of the same level, should be config or one planner change. They should not require a new level loop.
+
+- A number-only variant edits `config/level-design.json` and replays the same seed. Sheet counts, sizes, timers, prices, and score values already live there.
+- A seeded run is reproducible. Shops, hot keys, hazards, and assisted targets must draw from the run RNG, not `Math.random`.
+- `planLevelSheets` fixes every sheet when the level starts: size plus a hazard id list. Today every sheet uses the level size and an empty list. Per-sheet hazards replace that function only, then the existing sheet transition applies the plan.
+- The current sheet's hazard ids are stored on the encounter as `sheetHazardIds`. `hazardId` remains the level-scoped selection used by level 4 until a variant needs more than one.
+- Scoring, combo, Clean Sweep, and Hot Key stay pure functions of config and events. A mechanic variant is a new function or a config field, not a branch in the renderer.
+- The phase reducer does not grow a phase for each mechanic. Sheet content is data on the sheet plan.
+- Do not build a variant until a playtest asks for it. Add an extension point only when the current shape would force the level loop to be rewritten.
+
 ## Engine decision
 
 Use the existing `BubbleEngine` plus a custom, headless game-rules layer for the MVP. Do not add a general-purpose game engine, ECS, physics engine, or external state-machine runtime yet.

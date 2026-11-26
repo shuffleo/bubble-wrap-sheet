@@ -30,6 +30,7 @@ export interface EncounterState {
  sheetCount:number;
  bubblesRemaining:number;
  hazardId:string|null;
+ sheetHazardIds:readonly string[];
 }
 
 export interface RunStats {
