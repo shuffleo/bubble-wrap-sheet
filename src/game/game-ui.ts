@@ -57,7 +57,9 @@ function setMode(mode:'survival'|'select'|null){
  window.dispatchEvent(new Event('resize'));
 }
 
-export function createGameUi(route:GameRoute,onFreePop:()=>void):GameUiHandle {
+export interface GameUiOptions {onStartSurvival?:()=>void;}
+
+export function createGameUi(route:GameRoute,onFreePop:()=>void,options:GameUiOptions={}):GameUiHandle {
  let root:HTMLElement|null=null;
  let shopState:ShopFixture|null=null;
  let runScore:number|null=null;
@@ -122,7 +124,7 @@ export function createGameUi(route:GameRoute,onFreePop:()=>void):GameUiHandle {
   </section>`;
   hydrateNumbers(node);
   node.querySelector<HTMLButtonElement>('[data-game-action=free]')!.addEventListener('click',close);
-  node.querySelector<HTMLButtonElement>('[data-game-action=survival]')!.addEventListener('click',()=>renderLevelIntro());
+  node.querySelector<HTMLButtonElement>('[data-game-action=survival]')!.addEventListener('click',()=>{if(options.onStartSurvival&&!route.enabled){options.onStartSurvival();return;}renderLevelIntro();});
   live.textContent='Game mode selection opened.';
   node.querySelector<HTMLButtonElement>('[data-game-action=survival]')!.focus();
  }

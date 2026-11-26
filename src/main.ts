@@ -5,6 +5,7 @@ import {BubbleEngine} from './components/bubble-ui/core/bubble-engine';
 import {createPanel,readSavedSettings} from './components/bubble-ui/core/bubble-panel';
 import {readGameRoute} from './game/game-route';
 import {createGameUi,type GameUiHandle} from './game/game-ui';
+import {createSurvivalRun} from './game/survival-run';
 import {createTuningDrawer,type TuningDrawerHandle} from './game/tuning/tuning-drawer';
 function start(){
  const canvas=document.querySelector<HTMLCanvasElement>('#material')!,sheet=document.getElementById('sheet')!;
@@ -24,7 +25,9 @@ function start(){
  const freshSheet=()=>{handle.reset();};reset.addEventListener('click',event=>{freshSheet();if(event.detail>0)focusSheetAfterPointer(sheet);});
  sound.addEventListener('click',event=>{const muted=!engine.audio.muted;engine.setMuted(muted);sound.setAttribute('aria-pressed',String(!muted));sound.dataset.muted=String(muted);sound.title=muted?'Unmute sound':'Mute sound';if(event.detail>0)focusSheetAfterPointer(sheet);});
  const gameRoute=readGameRoute(location.search);
- const gameUi=createGameUi(gameRoute,()=>sheet.focus());
+ const survival=createSurvivalRun(engine,handle,()=>sheet.focus());
+ let gameUi:GameUiHandle;
+ gameUi=createGameUi(gameRoute,()=>sheet.focus(),{onStartSurvival(){gameUi.close();survival.start();}});
  const tuningDrawer=gameRoute.tuning?createTuningDrawer():null;
  document.getElementById('game-open')!.addEventListener('click',()=>gameUi.openModeSelect());
  engine.addEventListener('contextlost',()=>{status.textContent='Graphics paused. Waiting for context restoration.';});engine.addEventListener('contextrestored',update);

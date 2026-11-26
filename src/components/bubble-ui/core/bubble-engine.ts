@@ -37,7 +37,7 @@ export class BubbleEngine extends EventTarget {
  private surfaces=new Map<string,Surface>();private pointers=new Map<number,Pointer>();private observer:ResizeObserver;
  private keyboard:KeyboardMapping=buildKeyboardMapping([]);private keyboardHints:HTMLDivElement|null=null;private hintNodes=new Map<number,HTMLElement>();
  private points:BubblePoint[]=[];private physics=new BubblePhysics([],()=>{});private coordMap=new Map<string,number>();
- private pendingPopSources=new Map<number,BubblePopSource>();
+ private pendingPopSources=new Map<number,BubblePopSource>();private refreshLocked=false;private hotCodes:Set<string>|null=null;private labelSnapshot:boolean|null=null;
  private exchange:SheetExchange|null=null;private currentAttributes:Float32Array[]=[];private renderInstances=0;
  get refreshing(){return this.exchange!==null;}
  private frame=0;private last=0;private destroyed=false;private dirty=true;private dpr=1;private frames=0;private lost=false;private queued=false;
@@ -156,8 +156,25 @@ export class BubbleEngine extends EventTarget {
  }
  /** Named legacy mode remains intact; the default physically exchanges sheets.
   * Both modes re-roll all seeds. Reentrant requests do not stack audio/meshes. */
+ setRefreshLocked(locked:boolean){this.refreshLocked=locked;}
+ /** Sheet exchange used by Survival Run while player-triggered refresh stays locked. */
+ forceReset(){const locked=this.refreshLocked;this.refreshLocked=false;this.reset();this.refreshLocked=locked;}
+ setHotKeys(codes:readonly string[]|null){
+  if(codes){
+   if(this.labelSnapshot===null)this.labelSnapshot=this.settings.showKeyLabels;
+   this.hotCodes=new Set(codes);
+   if(!this.settings.showKeyLabels)this.setSettings({showKeyLabels:true});
+   else this.applyHotKeys();
+  }else{
+   this.hotCodes=null;
+   const restore=this.labelSnapshot;this.labelSnapshot=null;
+   if(restore!==null&&this.settings.showKeyLabels!==restore)this.setSettings({showKeyLabels:restore});
+   else this.applyHotKeys();
+  }
+ }
+ private applyHotKeys(){for(const node of this.hintNodes.values()){if(!this.hotCodes){delete node.dataset.hot;continue;}node.dataset.hot=String(this.hotCodes.has(node.dataset.keyCode||''));}}
  reset(surface?:string,immediate=false){
-  if(this.destroyed||this.lost||(!immediate&&this.refreshing))return;
+  if(this.refreshLocked||this.destroyed||this.lost||(!immediate&&this.refreshing))return;
   if(immediate)this.finishRefresh(true,false);
   let popped=0,total=0;this.points.forEach((p,i)=>{if((!surface||p.surface===surface)&&p.mode==='poppable'&&p.eligible){total++;popped+=this.physics.isPopped[i];}});
   const slide=this.settings.refreshMode===1&&!immediate&&!this.reduced;
@@ -236,7 +253,7 @@ export class BubbleEngine extends EventTarget {
   if(!this.keyboardHints){this.keyboardHints=this.canvas.ownerDocument.createElement('div');this.keyboardHints.className='keyboard-hints';this.keyboardHints.setAttribute('aria-hidden','true');this.canvas.ownerDocument.body.append(this.keyboardHints);}
   this.keyboardHints.replaceChildren();this.hintNodes.clear();
   for(const [index,key]of this.keyboard.byPoint){const node=document.createElement('kbd');node.textContent=key.label;node.dataset.keyCode=key.code;node.dataset.pointIndex=String(index);this.hintNodes.set(index,node);this.keyboardHints.append(node);}
-  this.syncKeyboardHints();
+  this.applyHotKeys();this.syncKeyboardHints();
  }
  private syncKeyboardHints(){
   if(!this.keyboardHints)return;this.keyboardHints.hidden=this.refreshing;

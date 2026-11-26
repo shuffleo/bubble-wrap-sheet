@@ -70,7 +70,7 @@ main{inset:86px 12px 100px}.counter{gap:10px}.number{font-size:32px;min-width:58
 /* Optional mapping labels use DOM, never an additional canvas/context. */
 .keyboard-hints{position:fixed;inset:0;pointer-events:none;z-index:3;overflow:hidden;contain:strict}
 .keyboard-hints kbd{position:absolute;top:0;left:0;min-width:19px;height:21px;padding:3px 5px;text-align:center;font:12px/15px 'Courier New',monospace;background:#000b;color:#fff;border:1px solid #ffffff40;border-radius:5px;will-change:transform;pointer-events:none;text-shadow:0 1px 2px #000}
-.keyboard-hints kbd[data-popped=true]{opacity:.2}
+.keyboard-hints kbd[data-popped=true]{opacity:.2}.keyboard-hints kbd[data-hot=false]{opacity:.16}.keyboard-hints kbd[data-hot=true]{opacity:1;border-color:#fff;color:#fff}.game-onboarding{position:fixed;left:50%;top:max(86px,calc(env(safe-area-inset-top) + 70px));transform:translateX(-50%);width:min(440px,calc(100vw - 28px));margin:0;padding:7px 10px;border:1px solid #333;border-radius:10px;background:#0c0c0ce8;color:#ccc;font-size:12px;line-height:1.18;text-align:center;pointer-events:none}
 .keyboard-map{margin:12px 0 9px;display:flex;flex-direction:column;gap:4px}.keyboard-map-row{display:flex;gap:3px;justify-content:center}
 .keyboard-cell{width:20px;min-width:0;flex:0 1 20px;padding:5px 0 4px;background:#202020;border:1px solid #404040;border-radius:4px;text-align:center;color:#ddd}
 .keyboard-cell kbd{display:block;font:11px 'Courier New',monospace}.keyboard-cell small{display:block;margin-top:4px;font:9px 'Courier New',monospace;color:#aaa}
