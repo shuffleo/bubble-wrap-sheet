@@ -44,6 +44,21 @@ with sync_playwright() as pw:
  page.wait_for_function('getComputedStyle(document.querySelector(".brand")).display==="none" && bubbleUI.inspect().every(point=>point.mode!=="spring-return")')
  check('Survival Run removes the title and spring-return bubble',page.evaluate('getComputedStyle(document.querySelector(".brand")).display==="none" && bubbleUI.inspect().every(point=>point.mode!=="spring-return")'))
  check('HUD prioritises score, velocity history, and goal progress',page.locator('.game-hud-score number-flow,.game-velocity-chart canvas,.game-hud-goal').count()==3)
+ check('velocity readout leads with the rate and omits the multiplier',page.evaluate('''() => {
+   const row=document.querySelector('.game-velocity-readout');
+   return row.firstElementChild.tagName==='STRONG' && row.querySelector('.game-label').textContent==='Pop / s' && !row.querySelector('small');
+ }'''))
+ check('upgrade icons have no panel chrome',page.evaluate('''() => {
+   const panel=getComputedStyle(document.querySelector('.game-upgrade-panel'));
+   return panel.borderTopWidth==='0px' && (panel.backgroundColor==='rgba(0, 0, 0, 0)' || panel.backgroundColor==='transparent');
+ }'''))
+ page.locator('.game-upgrade-panel').click()
+ page.wait_for_function('document.querySelector(".game-hud-build").dataset.open==="true"')
+ page.mouse.click(180,420)
+ page.wait_for_function('document.querySelector(".game-hud-build").dataset.open!=="true"')
+ page.locator('.game-upgrade-panel').click()
+ page.locator('.game-upgrade-panel').click()
+ check('upgrade explanation closes from an empty tap and a second tap',page.evaluate('document.querySelector(".game-hud-build").dataset.open!=="true"'))
  check('velocity trace fits its top-bar slot',page.evaluate('''() => {
    const host=document.querySelector('.game-velocity-chart');
    const canvas=host.querySelector('canvas');

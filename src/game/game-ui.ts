@@ -63,6 +63,7 @@ export function createGameUi(route:GameRoute,onFreePop:()=>void):GameUiHandle {
  let runScore:number|null=null;
  let velocityChart:VelocityChart|null=null;
  let unbindVelocity:()=>void=()=>{};
+ let unbindUpgrade:()=>void=()=>{};
  let sheetObserver:MutationObserver|null=null;
  const live=document.createElement('p');
  live.id='game-live';live.className='sr-only';live.setAttribute('role','status');live.setAttribute('aria-live','polite');live.setAttribute('aria-atomic','true');
@@ -75,7 +76,7 @@ export function createGameUi(route:GameRoute,onFreePop:()=>void):GameUiHandle {
   return root;
  }
 
- function clearVelocityChart(){unbindVelocity();unbindVelocity=()=>{};velocityChart?.destroy();velocityChart=null;}
+ function clearVelocityChart(){unbindVelocity();unbindVelocity=()=>{};unbindUpgrade();unbindUpgrade=()=>{};velocityChart?.destroy();velocityChart=null;}
  function closeMenu(container:ParentNode){const menu=container.querySelector<HTMLDetailsElement>('.game-overflow');if(menu)menu.open=false;}
  function syncSheetMenu(container:ParentNode){
   const refresh=container.querySelector<HTMLButtonElement>('[data-game-action=refresh]');
@@ -160,10 +161,10 @@ export function createGameUi(route:GameRoute,onFreePop:()=>void):GameUiHandle {
   const progress=fixture.goalTarget>0?Math.min(100,fixture.goalCurrent/fixture.goalTarget*100):0;
   node.innerHTML=`<section class="game-hud" aria-label="Survival Run status" data-danger="${fixture.dangerZone}" data-paused="${fixture.paused}" data-hidden="${fixture.hidden}">
    <div class="game-hud-score"><span class="game-label">Score</span><strong>${numberSlot(fixture.score,{currency:true})}</strong></div>
-   <div class="game-hud-velocity"><div class="game-velocity-readout"><span class="game-label">Pop / s</span><strong>${numberSlot(fixture.popsPerSecond)}</strong>${fixture.upgrades.includes('velocityBuff')?`<small>${numberSlot(fixture.velocityMultiplier)}×</small>`:''}</div><div class="game-velocity-chart" role="img" aria-label="Pop velocity over the last 30 seconds"></div></div>
+   <div class="game-hud-velocity"><div class="game-velocity-readout"><strong>${numberSlot(fixture.popsPerSecond)}</strong><span class="game-label">Pop / s</span></div><div class="game-velocity-chart" role="img" aria-label="Pop velocity over the last 30 seconds"></div></div>
    <div class="game-hud-goal"><span class="game-label">Level ${numberSlot(fixture.level)}</span><strong>${numberSlot(fixture.goalCurrent)}<span class="game-goal-sep">/</span>${numberSlot(fixture.goalTarget)}</strong><small>${fixture.goalUnit}</small><i aria-hidden="true"><b style="width:${progress}%"></b></i></div>
    <div class="game-hud-timer" aria-label="${time(fixture.timerRemainingMs)} remaining"><span class="game-label">${fixture.timerKind==='soft'?'Target':'Time left'}</span><strong>${numberSlot(timer.minutes,{minimumIntegerDigits:2})}<span class="game-timer-colon">:</span>${numberSlot(timer.seconds,{minimumIntegerDigits:2})}</strong></div>
-   ${fixture.upgrades.length?`<div class="game-hud-build"><button type="button" class="game-upgrade-panel" aria-label="Owned upgrades"><span class="game-upgrade-icons">${fixture.upgrades.map(id=>{const copy=UPGRADE_COPY[id],active=fixture.activeUpgradeValues[id];return `<span class="game-upgrade" data-upgrade="${id}" data-active="${Boolean(active)}"><span class="material-symbols-rounded" aria-hidden="true">${copy.icon}</span>${active?`<b>${active}</b>`:''}</span>`;}).join('')}</span><span class="game-upgrade-popover" role="tooltip">${fixture.upgrades.map(id=>{const copy=UPGRADE_COPY[id];return `<span class="game-upgrade-note"><strong>${copy.name}</strong><span>${copy.description}</span></span>`;}).join('')}</span></button></div>`:''}
+   ${fixture.upgrades.length?`<div class="game-hud-build"><button type="button" class="game-upgrade-panel" aria-expanded="false" aria-label="Owned upgrades"><span class="game-upgrade-icons">${fixture.upgrades.map(id=>{const copy=UPGRADE_COPY[id],active=fixture.activeUpgradeValues[id];return `<span class="game-upgrade" data-upgrade="${id}" data-active="${Boolean(active)}"><span class="material-symbols-rounded" aria-hidden="true">${copy.icon}</span>${active?`<b>${active}</b>`:''}</span>`;}).join('')}</span></button><div class="game-upgrade-popover" role="tooltip">${fixture.upgrades.map(id=>{const copy=UPGRADE_COPY[id];return `<span class="game-upgrade-note"><strong>${copy.name}</strong><span>${copy.description}</span></span>`;}).join('')}</div></div>`:''}
    ${fixture.hazard?`<p class="game-hud-hazard"><span class="game-label">Hazard</span>${fixture.hazard}</p>`:''}
    ${fixture.paused?'<div class="game-state-banner">Paused</div>':''}
    ${fixture.hidden?'<button class="game-hud-reveal" type="button" data-game-action="reveal-hud">Show HUD</button>':''}
@@ -186,8 +187,16 @@ export function createGameUi(route:GameRoute,onFreePop:()=>void):GameUiHandle {
    };
    if(!attach())requestAnimationFrame(()=>attach());
   }
-  const panel=node.querySelector<HTMLButtonElement>('.game-upgrade-panel');
-  panel?.addEventListener('click',()=>{const open=panel.dataset.open!=='true';panel.dataset.open=String(open);panel.setAttribute('aria-expanded',String(open));});
+  const build=node.querySelector<HTMLElement>('.game-hud-build');
+  const panel=build?.querySelector<HTMLButtonElement>('.game-upgrade-panel');
+  if(build&&panel){
+   const setOpen=(open:boolean)=>{build.dataset.open=String(open);panel.setAttribute('aria-expanded',String(open));};
+   const onPanelClick=(event:Event)=>{event.stopPropagation();setOpen(build.dataset.open!=='true');};
+   const onOutside=(event:Event)=>{if(build.dataset.open!=='true')return;const target=event.target;if(target instanceof Node&&build.contains(target))return;setOpen(false);};
+   panel.addEventListener('click',onPanelClick);
+   document.addEventListener('pointerdown',onOutside);
+   unbindUpgrade=()=>{panel.removeEventListener('click',onPanelClick);document.removeEventListener('pointerdown',onOutside);};
+  }
   syncSheetMenu(node);watchSheetMenu(node);
   node.querySelector<HTMLDetailsElement>('.game-overflow')!.addEventListener('toggle',()=>syncSheetMenu(node));
   node.querySelector<HTMLButtonElement>('[data-game-action=refresh]')!.addEventListener('click',()=>{document.getElementById('reset')?.click();closeMenu(node);});
