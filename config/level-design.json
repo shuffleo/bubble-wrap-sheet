@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "revision": "gdd-v0.2",
+  "revision": "gdd-v0.3",
   "sizes": {
     "XXXS": 24,
     "XXS": 32,
@@ -27,7 +27,10 @@
         "deadlineFighter": 850,
         "sureHands": 750,
         "secondWind": 650,
-        "bubbleInsurance": 500
+        "bubbleInsurance": 500,
+        "rateHikeCycle": 950,
+        "priorityBanking": 650,
+        "flatRate": 600
       }
     },
     "keyboardPointer": {
@@ -44,7 +47,10 @@
         "deadlineFighter": 2125,
         "sureHands": 1875,
         "secondWind": 1625,
-        "bubbleInsurance": 1250
+        "bubbleInsurance": 1250,
+        "rateHikeCycle": 2375,
+        "priorityBanking": 1625,
+        "flatRate": 1500
       }
     }
   },
@@ -81,7 +87,7 @@
     ],
     "shopOfferCount": 2,
     "shopPurchaseLimit": 1,
-    "shopRerollLimit": 1,
+    "shopRerollLimit": 3,
     "levels": [
       {
         "id": 1,
@@ -119,6 +125,15 @@
         "timer": "conveyor"
       }
     ]
+  },
+  "economy": {
+    "decimalPlaces": 2,
+    "shopInterestRate": 0.02,
+    "shopInterestCap": {
+      "touch": 500,
+      "keyboardPointer": 1250
+    },
+    "rerollPriceGrowthMultiplier": 1.5
   },
   "calibration": {
     "sourceLevel": 2,
@@ -158,6 +173,15 @@
     },
     "bubbleInsurance": {
       "insuredMisses": 3
+    },
+    "rateHikeCycle": {
+      "interestRate": 0.05
+    },
+    "priorityBanking": {
+      "interestCapMultiplier": 2
+    },
+    "flatRate": {
+      "enabled": true
     }
   },
   "hazards": {

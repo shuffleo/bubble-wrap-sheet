@@ -163,6 +163,13 @@ The multiplier ranges from 1× to 1.5×. A soft timer at or below zero gives 1×
 - Spending never affects an already-determined survival result.
 - Final rank uses the score remaining after all purchases and penalties.
 
+### Numeric display and settlement
+
+- Every score, price, percentage, multiplier, interest payout, and derived game value rounds **up** to at most two decimal places.
+- Whole values omit `.00`; values with one meaningful decimal do not gain a redundant trailing zero.
+- Currency and score values display with a `$` prefix.
+- Internal calculations may retain precision until a value is settled or displayed.
+
 ## 7. Live balance source
 
 `config/level-design.json` is the source of truth for every tunable numeric value:
@@ -197,6 +204,9 @@ Prices are provisional tuning constants and differ by run category.
 - Static Discharge: 700
 - Second Wind: 650
 - Bubble Insurance: 500
+- Rate-hike Cycle: 950
+- Priority Banking: 650
+- Flat Rate: 600
 - Reroll: 250
 
 ### Keyboard & Pointer
@@ -210,6 +220,9 @@ Prices are provisional tuning constants and differ by run category.
 - Static Discharge: 1,750
 - Second Wind: 1,625
 - Bubble Insurance: 1,250
+- Rate-hike Cycle: 2,375
+- Priority Banking: 1,625
+- Flat Rate: 1,500
 - Reroll: 625
 
 These values must be tuned against real viewport bubble counts before release.
@@ -308,12 +321,16 @@ Shops appear after levels 2, 3, and 4.
 
 - Show two random unowned upgrades.
 - The player may buy at most one.
-- The player may skip.
-- Before buying, the player may pay for one reroll.
+- Buying dismisses the shop immediately.
+- The player may skip and earn interest on the score they kept.
+- Base skip interest is 2%, capped at the category-specific maximum in `level-design.json`.
+- Before buying, the player may pay for up to three rerolls.
+- Each reroll costs 1.5× the preceding reroll, rounded up to two decimals.
 - Reroll replaces both offers.
 - When the pool permits, reroll cannot repeat either rejected offer.
 - Purchased upgrades are unique and cannot level up or reappear.
 - The shop previews exact effects and current category price.
+- Interest is awarded after the player confirms **Skip**, before the next level.
 
 ## 11. Upgrade pool
 
@@ -374,6 +391,27 @@ The first three conveyor misses:
 - Still deduct 10 score.
 - Count as cleared for the final percentage.
 - Do not return to the belt.
+
+### Rate-hike Cycle
+
+Raises shop-skip interest from 2% to 5%.
+
+- Applies from the next shop onward.
+- Does not retroactively change interest already paid.
+
+### Priority Banking
+
+Doubles the maximum interest payout per shop.
+
+- Uses the category-specific base cap.
+- Stacks with Rate-hike Cycle.
+
+### Flat Rate
+
+Rerolls remain at their base category price instead of increasing after each use.
+
+- Does not refund earlier rerolls.
+- The three-reroll limit still applies.
 
 ## 12. Shared proc rules
 
@@ -454,28 +492,24 @@ The conveyor is a distinct encounter layout, not repeated sheet refreshes.
 
 ### Encounter HUD
 
-Always show:
+The sheet remains the visual focus. The page title and spring-return icon are hidden during Survival Run.
 
-- Level and title
-- Current score
-- Sheets remaining or conveyor clearance
-- Active upgrades
-
-When relevant show:
-
-- Timer and danger zone
-- Manual pops per second
-- Combo state
-- Velocity and deadline multipliers
-- Hot Key targets
-- Hazard name and short rule
+- **Top left:** current `$` score. Pop gains update immediately with a continuous digit transition.
+- **Top centre:** one primary KPI, `pop/s`, plus a compact 30-second velocity history line. Without Velocity Buff it is informational; with the upgrade it becomes the scoring multiplier input.
+- **Top right:** level number, goal, and progress. Goal types include sheets cleared, bubbles cleared, and conveyor clearance percentage. The level name is omitted.
+- **Bottom left:** time remaining. The colon blinks once per second; the whole countdown blinks in the configured danger-zone window.
+- **Bottom right:** owned-upgrade icons. Hover, focus, or tap expands an icon into a short explanation. While an effect is active, its current value appears beside the icon.
+- Deadline Fighter does not occupy a permanent top-row chip; its active value appears on its upgrade control.
+- Combo, Hot Key, hazard, and onboarding feedback appear contextually rather than competing with the primary KPI.
+- A Material Symbols overflow button beside the sound button contains Shop preview, Modes, Run won preview, and Tuning panel actions.
 
 ### Shop
 
-- Current score
-- Two offers with exact effects and prices
-- One reroll action and price
-- Skip
+- Current `$` score
+- Two offers with exact effects and `$` prices
+- Up to three progressively more expensive rerolls, with rerolls remaining shown below the action
+- **Skip**, with the current interest rate and capped payout explained below
+- Buying dismisses the shop immediately
 
 ### Run end
 
@@ -498,6 +532,9 @@ When relevant show:
 - Hazard states use shape, motion, labels, and contrast rather than color alone.
 - Hardened progress and Double Layer state receive screen-reader text.
 - Drunken Bob is announced before the encounter and never appears without warning.
+- Game icons use filled, rounded Google Material Symbols at weight 600 and retain accessible text labels.
+- Tuning controls use Tweakpane with enlarged text and touch targets; native labels remain readable at browser zoom and on narrow screens.
+- Animated numbers respect reduced-motion preferences and remain exposed as ordinary readable text to assistive technology.
 
 ## 17. Persistence
 

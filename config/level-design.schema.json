@@ -11,6 +11,7 @@
     "categories",
     "scoring",
     "run",
+    "economy",
     "calibration",
     "upgrades",
     "hazards",
@@ -139,12 +140,12 @@
         "shopOfferCount": {
           "type": "integer",
           "minimum": 1,
-          "maximum": 9
+          "maximum": 12
         },
         "shopPurchaseLimit": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 9
+          "maximum": 12
         },
         "shopRerollLimit": {
           "type": "integer",
@@ -177,6 +178,41 @@
               }
             }
           }
+        }
+      }
+    },
+    "economy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decimalPlaces",
+        "shopInterestRate",
+        "shopInterestCap",
+        "rerollPriceGrowthMultiplier"
+      ],
+      "properties": {
+        "decimalPlaces": {
+          "type": "integer",
+          "const": 2
+        },
+        "shopInterestRate": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        },
+        "shopInterestCap": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["touch", "keyboardPointer"],
+          "properties": {
+            "touch": {"$ref": "#/definitions/nonNegativeNumber"},
+            "keyboardPointer": {"$ref": "#/definitions/nonNegativeNumber"}
+          }
+        },
+        "rerollPriceGrowthMultiplier": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 10
         }
       }
     },
@@ -218,7 +254,10 @@
         "deadlineFighter",
         "sureHands",
         "secondWind",
-        "bubbleInsurance"
+        "bubbleInsurance",
+        "rateHikeCycle",
+        "priorityBanking",
+        "flatRate"
       ],
       "properties": {
         "fatFinger": {
@@ -270,6 +309,25 @@
           "properties": {
             "insuredMisses": {"$ref": "#/definitions/positiveInteger"}
           }
+        },
+        "rateHikeCycle": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["interestRate"],
+          "properties": {
+            "interestRate": {"$ref": "#/definitions/ratio"}
+          }
+        },
+        "priorityBanking": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["interestCapMultiplier"],
+          "properties": {
+            "interestCapMultiplier": {"$ref": "#/definitions/multiplier"}
+          }
+        },
+        "flatRate": {
+          "$ref": "#/definitions/toggleUpgrade"
         }
       }
     },
@@ -450,7 +508,10 @@
         "deadlineFighter",
         "sureHands",
         "secondWind",
-        "bubbleInsurance"
+        "bubbleInsurance",
+        "rateHikeCycle",
+        "priorityBanking",
+        "flatRate"
       ],
       "properties": {
         "fatFinger": {"$ref": "#/definitions/nonNegativeInteger"},
@@ -461,7 +522,10 @@
         "deadlineFighter": {"$ref": "#/definitions/nonNegativeInteger"},
         "sureHands": {"$ref": "#/definitions/nonNegativeInteger"},
         "secondWind": {"$ref": "#/definitions/nonNegativeInteger"},
-        "bubbleInsurance": {"$ref": "#/definitions/nonNegativeInteger"}
+        "bubbleInsurance": {"$ref": "#/definitions/nonNegativeInteger"},
+        "rateHikeCycle": {"$ref": "#/definitions/nonNegativeInteger"},
+        "priorityBanking": {"$ref": "#/definitions/nonNegativeInteger"},
+        "flatRate": {"$ref": "#/definitions/nonNegativeInteger"}
       }
     },
     "inputCategory": {

@@ -263,16 +263,21 @@ Build:
 
 Build:
 
-- Render fixture level, score, sheet count, timer, combo, velocity, multiplier, upgrades, and hazard.
+- Hide the Free Pop title and spring-return icon while Survival Run is active.
+- Put animated `$` score at top left, `pop/s` plus a 30-second sparkline at top centre, and goal/progress plus level number at top right.
+- Put the countdown at bottom left, with colon and danger-zone blink states.
+- Put icon-only upgrades at bottom right with hover/focus/tap explanations and active values.
+- Put preview/navigation actions in a Material Symbols overflow menu beside sound.
 - Define compact phone and expanded desktop layouts.
 - Add danger-zone, soft-timer-expired, paused, and hidden-HUD states.
 - Add accessible live-region strategy without announcing every pop.
+- Use Number Flow's vanilla custom element and continuous plugin for changing numbers; retain a text fallback.
 
 ### Slice B3: shop and result screens
 
 Build:
 
-- Render two fixture offers, prices, disabled/affordable states, reroll, buy, and skip.
+- Render two fixture offers, `$` prices, disabled/affordable states, three escalating rerolls, immediate buy dismissal, skip interest, and remaining-reroll captions.
 - Render run-won and run-lost summaries.
 - Render level score breakdown and purchase history.
 - Use mock actions only.
@@ -281,12 +286,13 @@ Build:
 
 Build:
 
-- Add development-only `?game=1&tuning=show`.
+- Add development-only `?game=1&tuning=show` using locally bundled Tweakpane.
 - Generate fields from schema groups.
 - Apply session overrides immediately when safe.
 - Label changes requiring sheet, level, or run restart.
 - Export the complete merged JSON.
 - Show config revision and validation status.
+- Increase Tweakpane labels, values, rows, and touch targets for browser zoom and narrow screens.
 
 ### User checkpoint 1: visual shell
 
@@ -301,6 +307,18 @@ Stop and ask the user to test:
 - Tuning Drawer editing, restart labels, and JSON export.
 
 Do not wire gameplay until this checkpoint is approved.
+
+### Checkpoint 1 feedback revision
+
+Before Stage C, revise the visual shell and economy contract:
+
+- Use filled Rounded Google Material Symbols at weight 600 for every game icon.
+- Use currency prefixes and ceil-to-two-decimal formatting without redundant `.00`.
+- Add Rate-hike Cycle, Priority Banking, and Flat Rate, bringing the unique pool to twelve.
+- Skipping a shop pays capped interest; buying closes immediately.
+- Allow three rerolls with config-driven geometric price growth unless Flat Rate is owned.
+- Keep danger-zone seconds editable in Tweakpane.
+- Preserve direct fixture routes as visual regression tools after live gameplay wiring begins.
 
 ## Stage C: level 1 and basic scoring
 
@@ -401,8 +419,9 @@ Build:
 
 - Two seeded random unowned offers.
 - Fixed category prices from JSON.
-- One score-paid reroll.
-- Buy at most one or skip.
+- Three score-paid rerolls with config-driven escalating prices.
+- Buy at most one and dismiss immediately, or skip for capped interest.
+- Apply Rate-hike Cycle, Priority Banking, and Flat Rate to the economy calculation.
 - Prevent negative score and repeated owned offers.
 
 ### Slice E2: proc queue plus Fat Finger
@@ -418,7 +437,7 @@ Build:
 
 Ask the user to test offer quality, prices, reroll, spending pain, Fat Finger power, and assisted-pop feedback. Tune before adding more effects.
 
-### Slices E3–E10: one upgrade at a time
+### Slices E3–E13: one upgrade at a time
 
 Implement and test in this order:
 
@@ -430,6 +449,9 @@ Implement and test in this order:
 6. Sure Hands.
 7. Second Wind.
 8. Bubble Insurance placeholder behavior, completed with the conveyor.
+9. Rate-hike Cycle.
+10. Priority Banking.
+11. Flat Rate.
 
 Each slice gets:
 
@@ -440,7 +462,7 @@ Each slice gets:
 
 ### User checkpoint 5: complete build system
 
-Stop after the first four upgrades, and again after all nine. Ask the user to compare several seeded builds and tune prices/effect strengths through the JSON/Tuning Drawer.
+Stop after the first four upgrades, and again after all twelve. Ask the user to compare several seeded builds and tune prices/effect strengths through the JSON/Tuning Drawer.
 
 ## Stage F: hazards, one by one
 

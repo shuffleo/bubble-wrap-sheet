@@ -76,7 +76,7 @@ test('all numeric tuning leaves are finite',()=>{
 
 test('categories price every unique upgrade and shop limits fit the pool',()=>{
  const upgrades=Object.keys(config.upgrades).sort();
- assert.equal(upgrades.length,9);
+ assert.equal(upgrades.length,12);
  for(const category of Object.values(config.categories))assert.deepEqual(Object.keys(category.upgradePrices).sort(),upgrades);
  assert.ok(config.run.shopOfferCount<=upgrades.length);
  assert.ok(config.run.shopPurchaseLimit<=config.run.shopOfferCount);
