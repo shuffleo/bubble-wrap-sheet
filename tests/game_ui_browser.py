@@ -44,6 +44,14 @@ with sync_playwright() as pw:
  page.wait_for_function('getComputedStyle(document.querySelector(".brand")).display==="none" && bubbleUI.inspect().every(point=>point.mode!=="spring-return")')
  check('Survival Run removes the title and spring-return bubble',page.evaluate('getComputedStyle(document.querySelector(".brand")).display==="none" && bubbleUI.inspect().every(point=>point.mode!=="spring-return")'))
  check('HUD prioritises score, velocity history, and goal progress',page.locator('.game-hud-score number-flow,.game-velocity-chart canvas,.game-hud-goal').count()==3)
+ check('velocity trace fits its top-bar slot',page.evaluate('''() => {
+   const host=document.querySelector('.game-velocity-chart');
+   const canvas=host.querySelector('canvas');
+   const score=document.querySelector('.game-hud-score').getBoundingClientRect();
+   const velocity=document.querySelector('.game-hud-velocity').getBoundingClientRect();
+   const goal=document.querySelector('.game-hud-goal').getBoundingClientRect();
+   return canvas.clientWidth>=host.clientWidth-2 && canvas.clientHeight>=24 && score.right<=velocity.left+1 && velocity.right<=goal.left+1;
+ }'''))
  check('goal count is primary and its unit is the caption', page.locator('.game-hud-goal strong number-flow').evaluate_all('nodes=>nodes.map(node=>node.getAttribute("aria-label"))')==['2','5'] and page.locator('.game-hud-goal small').inner_text()=='sheets popped')
  check('countdown has no status caption','Active time' not in page.locator('.game-hud-timer').inner_text())
  check('owned upgrades share one bottom-centre panel',page.locator('.game-upgrade-panel').count()==1 and page.locator('.game-upgrade-popover strong').count()==2)
@@ -59,6 +67,17 @@ with sync_playwright() as pw:
  load(page,'?game=1&screen=hud&hud=soft-expired')
  check('soft timer keeps the countdown without a status caption',page.locator('.game-hud-timer number-flow').evaluate_all('nodes=>nodes.map(node=>node.getAttribute("aria-label"))')==['0','0'] and 'Par spent' not in page.locator('.game-hud-timer').inner_text())
  check('mobile HUD stays inside the viewport',page.evaluate('document.documentElement.scrollWidth<=innerWidth'))
+ check('mobile velocity trace stays between the score and goal',page.evaluate('''() => {
+   const score=document.querySelector('.game-hud-score').getBoundingClientRect();
+   const velocity=document.querySelector('.game-hud-velocity').getBoundingClientRect();
+   const goal=document.querySelector('.game-hud-goal').getBoundingClientRect();
+   return score.right<=velocity.left+1 && velocity.right<=goal.left+1 && velocity.width<=140;
+ }'''))
+ before=page.locator('.game-velocity-readout strong number-flow').get_attribute('aria-label')
+ point=page.evaluate('bubbleUI.inspect().find(p=>p.mode==="poppable"&&p.eligible&&!p.popped&&p.y>160)')
+ page.mouse.click(point['x'],point['y'])
+ page.wait_for_function('(before)=>document.querySelector(".game-velocity-readout strong number-flow")?.getAttribute("aria-label")!==before',arg=before)
+ check('manual pops update the velocity readout',page.locator('.game-velocity-readout strong number-flow').get_attribute('aria-label')!=before)
 
  page.set_viewport_size({'width':1100,'height':760})
  load(page,'?game=1&screen=shop')
@@ -82,7 +101,7 @@ with sync_playwright() as pw:
 
  load(page,'?game=1&tuning=show')
  check('tuning drawer is gated by the exact development route',page.locator('#tuning-drawer').count()==1)
- check('Tweakpane, Number Flow, and uPlot are bundled for offline use',page.evaluate('Boolean(window.GameVendors?.Pane && window.GameVendors?.uPlot && customElements.get("number-flow"))'))
+ check('Tweakpane, Number Flow, and Smoothie Charts are bundled for offline use',page.evaluate('Boolean(window.GameVendors?.Pane && window.GameVendors?.SmoothieChart && window.GameVendors?.TimeSeries && customElements.get("number-flow"))'))
  check('schema generates a broad editable field set',page.locator('#tuning-pane-host .tp-lblv').count()>80)
  labels=page.locator('#tuning-pane-host .tp-lblv_l').all_inner_texts()
  check('restart policy labels cover live and deferred changes',any('Applies now' in label for label in labels) and any('New run' in label for label in labels))

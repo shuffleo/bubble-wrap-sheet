@@ -3,7 +3,8 @@ import {UPGRADE_COPY} from './game-copy';
 import {formatGameCurrency,formatGameNumber,rerollPrice,roundGameValue,scoreAfterShopSkip,shopInterest} from './economy';
 import {GAME_FIXTURES,type HudFixture,type ResultFixture,type ShopFixture} from './game-fixtures';
 import {readGameHighScores} from './game-high-scores';
-import {animatedNumber,mountVelocityChart,type VelocityChart} from './game-vendors';
+import {animatedNumber,updateAnimatedNumber} from './game-vendors';
+import {bindVelocityPops,mountVelocityChart,type VelocityChart} from './velocity-chart';
 import {createTuningDrawer} from './tuning/tuning-drawer';
 import type {GameRoute,GameScreen} from './game-route';
 
@@ -61,6 +62,7 @@ export function createGameUi(route:GameRoute,onFreePop:()=>void):GameUiHandle {
  let shopState:ShopFixture|null=null;
  let runScore:number|null=null;
  let velocityChart:VelocityChart|null=null;
+ let unbindVelocity:()=>void=()=>{};
  let sheetObserver:MutationObserver|null=null;
  const live=document.createElement('p');
  live.id='game-live';live.className='sr-only';live.setAttribute('role','status');live.setAttribute('aria-live','polite');live.setAttribute('aria-atomic','true');
@@ -73,7 +75,7 @@ export function createGameUi(route:GameRoute,onFreePop:()=>void):GameUiHandle {
   return root;
  }
 
- function clearVelocityChart(){velocityChart?.destroy();velocityChart=null;}
+ function clearVelocityChart(){unbindVelocity();unbindVelocity=()=>{};velocityChart?.destroy();velocityChart=null;}
  function closeMenu(container:ParentNode){const menu=container.querySelector<HTMLDetailsElement>('.game-overflow');if(menu)menu.open=false;}
  function syncSheetMenu(container:ParentNode){
   const refresh=container.querySelector<HTMLButtonElement>('[data-game-action=refresh]');
@@ -169,7 +171,21 @@ export function createGameUi(route:GameRoute,onFreePop:()=>void):GameUiHandle {
   </section>`;
   hydrateNumbers(node);
   const chartHost=node.querySelector<HTMLElement>('.game-velocity-chart');
-  if(chartHost)velocityChart=mountVelocityChart(chartHost,fixture.velocityHistory);
+  if(chartHost){
+   const readout=node.querySelector<HTMLElement>('.game-velocity-readout strong number-flow');
+   velocityChart=mountVelocityChart(chartHost,fixture.velocityHistory,{
+    rateWindowMs:GAME_CONFIG.scoring.velocity.windowMs,
+    running:!fixture.paused&&!fixture.hidden,
+    onRate:rate=>updateAnimatedNumber(readout,rate)
+   });
+   const attach=()=>{
+    const engine=(window as unknown as {bubbleUI?:EventTarget}).bubbleUI;
+    if(!engine||!velocityChart)return false;
+    unbindVelocity=bindVelocityPops(velocityChart,engine);
+    return true;
+   };
+   if(!attach())requestAnimationFrame(()=>attach());
+  }
   const panel=node.querySelector<HTMLButtonElement>('.game-upgrade-panel');
   panel?.addEventListener('click',()=>{const open=panel.dataset.open!=='true';panel.dataset.open=String(open);panel.setAttribute('aria-expanded',String(open));});
   syncSheetMenu(node);watchSheetMenu(node);

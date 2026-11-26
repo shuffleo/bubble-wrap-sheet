@@ -10,22 +10,23 @@ interface PaneInstance {
  dispose():void;
 }
 
-interface VelocityPlot {
- destroy():void;
- ctx:CanvasRenderingContext2D;
- bbox:{top:number;height:number};
+export interface TimeSeriesLike {
+ append(timestamp:number,value:number):void;
+}
+
+export interface SmoothieChartLike {
+ options:{millisPerPixel:number};
+ addTimeSeries(series:TimeSeriesLike,presentation?:object):void;
+ streamTo(canvas:HTMLCanvasElement,delayMillis?:number):void;
+ stop():void;
 }
 
 interface GameVendorBundle {
  Pane:new(options?:{container?:HTMLElement})=>PaneInstance;
  continuous:unknown;
- uPlot:{
-  new(options:Record<string,unknown>,data:number[][],target:HTMLElement):VelocityPlot;
-  paths:{spline?:()=>unknown};
- };
+ TimeSeries:new(options?:{resetBounds?:boolean;resetBoundsInterval?:number})=>TimeSeriesLike;
+ SmoothieChart:new(options?:object)=>SmoothieChartLike;
 }
-
-export interface VelocityChart {destroy():void;}
 
 declare global {
  interface Window {GameVendors?:GameVendorBundle;}
@@ -44,32 +45,6 @@ export function animatedNumber(value:number,{currency=false,continuous=true,mini
  element.setAttribute('aria-label',currency?`$${value}`:String(value));
  element.update(value);
  return element;
-}
-
-export function mountVelocityChart(host:HTMLElement,values:readonly number[]):VelocityChart {
- const samples=values.length>1?values:[0,values[0]??0];
- const uPlot=gameVendors().uPlot;
- const width=Math.max(108,Math.round(host.clientWidth||132));
- const height=28;
- const plot=new uPlot({
-  width,height,pxAlign:false,
-  padding:[3,1,2,1],
-  cursor:{show:false,points:{show:false},drag:{setScale:false,x:false,y:false}},
-  legend:{show:false},
-  axes:[{show:false,size:0,stroke:'transparent'},{show:false,size:0,stroke:'transparent'}],
-  scales:{x:{time:false},y:{range:(_plot:unknown,_min:number,max:number)=>[0,Math.max(1,max*1.12)]}},
-  series:[{},{
-   stroke:'#f3f3f3',width:1.7,points:{show:false},
-   paths:uPlot.paths.spline?.(),
-   fill:(self:VelocityPlot)=>{
-    const gradient=self.ctx.createLinearGradient(0,self.bbox.top,0,self.bbox.top+self.bbox.height);
-    gradient.addColorStop(0,'rgba(255,255,255,.38)');
-    gradient.addColorStop(1,'rgba(255,255,255,0)');
-    return gradient;
-   }
-  }]
- },[samples.map((_value,index)=>index),samples.map(value=>value)],host);
- return {destroy:()=>plot.destroy()};
 }
 
 export function updateAnimatedNumber(element:Element|null,value:number):void {

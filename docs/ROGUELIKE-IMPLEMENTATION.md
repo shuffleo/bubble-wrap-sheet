@@ -264,7 +264,7 @@ Build:
 Build:
 
 - Hide the Free Pop title and remove the spring-return bubble from the WebGL scene while Survival Run is active.
-- Put animated `$` score at top left, a small uPlot `pop/s` chart at top centre, and the goal count in large type with its unit caption underneath at top right.
+- Put animated `$` score at top left, a small Smoothie Charts `pop/s` trace at top centre, and the goal count in large type with its unit caption underneath at top right.
 - Put the countdown at bottom left, with colon and danger-zone blink states and no status caption.
 - Group owned upgrades into one bottom-centre panel. One popover explains every owned upgrade, and an active value sits beside its icon.
 - Put refresh, mute, and preview/navigation actions in one Material Symbols overflow menu.
@@ -328,7 +328,7 @@ Apply these visual corrections on phone and desktop before continuing gameplay:
 - Reduce game-UI line height slightly and keep the HUD compact.
 - Remove the caption under the countdown.
 - Fold refresh and mute into the overflow menu.
-- Replace the hand-drawn sparkline with bundled uPlot, smaller and top-centred.
+- Draw the 30-second pop/s trace with bundled Smoothie Charts, sized to the top bar and updated by manual pops.
 - Use one bottom-centre upgrade panel and one combined explanation.
 - Make the goal counter the large white text and the unit, such as “sheets popped”, the smaller caption.
 
