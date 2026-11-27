@@ -36,6 +36,26 @@ with sync_playwright() as pw:
  check('engine emits a typed manual pointer source',page.evaluate("gamePopEvents[0]?.source.type==='manual'&&gamePopEvents[0]?.source.input==='mouse'"))
  page.evaluate('(index)=>bubbleUI.setHazardWarning(index)',point['index'])
  check('Memory Foam warning and reinflation restore a popped bubble',page.evaluate('(index)=>bubbleUI.inspectHazardState().warningIndex===index&&bubbleUI.reinflateForGame(index)&&!bubbleUI.getGameBubbles().find(b=>b.index===index).popped',point['index']))
+ page.evaluate('(index)=>{bubbleUI.setGameBubbleHolds([index],1500,400);bubbleUI.popForGame(index,{type:"manual",input:"keyboard",gestureId:"key:KeyA"});}',point['index'])
+ page.wait_for_timeout(250)
+ check('Hardened bubbles expose partial hold progress before popping',page.evaluate('(index)=>{const bubble=bubbleUI.getGameBubbles().find(item=>item.index===index);return bubble.hardened&&bubble.holdProgress>0&&!bubble.popped}',point['index']))
+ page.evaluate('bubbleUI.releaseKey("KeyA")')
+ page.wait_for_timeout(500)
+ check('Hardened hold progress decays after release',page.evaluate('(index)=>bubbleUI.getGameBubbles().find(item=>item.index===index).holdProgress===0',point['index']))
+ redirected=page.evaluate('''() => {
+  const cells=bubbleUI.getGameBubbles().filter(b=>b.eligible&&!b.popped);
+  const source=cells[0],target=cells[1];
+  bubbleUI.setGameManualTargetResolver(()=>target.index);
+  bubbleUI.popForGame(source.index,{type:'manual',input:'mouse',gestureId:'bob-smoke'});
+  bubbleUI.setGameManualTargetResolver(null);
+  return {source:source.index,target:target.index};
+ }''')
+ check('Drunken Bob resolver redirects input globally and lurches the target',page.evaluate('(pair)=>!bubbleUI.getGameBubbles().find(b=>b.index===pair.source).popped&&bubbleUI.getGameBubbles().find(b=>b.index===pair.target).popped',redirected))
+ page.evaluate('bubbleUI.startGameConveyor(1000);bubbleUI.spawnGameConveyor(.5);bubbleUI.setGameConveyorSpeed(1)')
+ conveyor_x=page.evaluate('bubbleUI.inspect().find(p=>p.conveyorVisible).x')
+ page.wait_for_timeout(120)
+ check('conveyor bubbles move through the shared instanced renderer',page.evaluate('(x)=>{const point=bubbleUI.inspect().find(p=>p.conveyorVisible);return point&&point.x>x&&bubbleUI.getStats().drawCalls===1}',conveyor_x))
+ page.evaluate('bubbleUI.endGameConveyor(false)')
  page.locator('#game-open').click()
  page.wait_for_selector('#game-root[data-screen="mode-select"]')
  check('entry button opens both mode choices',page.locator('[data-game-action=free],[data-game-action=survival]').count()==2)
@@ -262,13 +282,34 @@ with sync_playwright() as pw:
   page.evaluate('(index)=>bubbleUI.popForGame(index,{type:"manual",input:"mouse",gestureId:"bob-roll"})',source['index'])
   page.wait_for_function('(count)=>bubbleUI.getStats().popped>count',arg=before_popped)
   check('Drunken Bob redirects a valid input with visible hazard feedback','target' in page.locator('.game-hud-hazard').inner_text().lower())
- page.wait_for_selector('#game-root[data-screen="run-lost"]',timeout=35000)
- check('level 4 timeout ends the run with a reset choice','time’s up' in page.locator('#run-lost-heading').inner_text().lower() and page.locator('[data-level-action=retry]').is_visible())
+ page.wait_for_function('''() => {
+  const root=document.querySelector('#game-root');
+  if(root?.dataset.screen==='run-won'&&root.querySelector('.game-eyebrow')?.textContent.includes('Level 4')) return true;
+  if(root?.dataset.screen!=='hud'||bubbleUI.refreshing) return false;
+  const open=bubbleUI.getGameBubbles().filter(b=>b.eligible&&!b.popped);
+  for(let pass=0;pass<4;pass++)for(const bubble of open)bubbleUI.popForGame(bubble.index,{type:'manual',input:'mouse',gestureId:`hazard-finish-${performance.now()}-${pass}-${bubble.index}`});
+  return false;
+ }''',timeout=30000)
+ page.locator('[data-level-action=shop]').click()
+ check('level 4 completion opens the third live shop',page.locator('#game-root[data-screen="shop"] .game-offer').count()==2)
+ page.locator('[data-shop-action=skip]').click()
+ page.wait_for_function('document.querySelector("#game-root")?.dataset.screen==="level-intro" && document.querySelector(".game-eyebrow")?.textContent.includes("Level 5")')
+ check('level 5 brief announces the moving M belt and 45-second duration','Moving M belt' in page.locator('.game-brief-stats').inner_text() and '0:45' in page.locator('.game-brief-stats').inner_text())
+ page.locator('[data-level-action=play]').click()
+ page.wait_for_function('document.querySelector("#game-root")?.dataset.screen==="hud" && document.querySelector(".game-hud-goal small")?.textContent==="bubbles popped"')
+ page.wait_for_function('''() => {
+  const root=document.querySelector('#game-root');
+  if(root?.dataset.screen==='run-won') return true;
+  for(const bubble of bubbleUI.getGameBubbles().filter(b=>b.eligible&&!b.popped))bubbleUI.popForGame(bubble.index,{type:'manual',input:'mouse',gestureId:`conveyor-${performance.now()}-${bubble.index}`});
+  return false;
+ }''',timeout=55000)
+ check('level 5 conveyor reaches a completed run at or above target','Survival Run complete' in page.locator('#conveyor-result-heading').inner_text() and float(page.locator('.game-result-hero strong').first.inner_text().replace('%',''))>=90)
+ check('completed conveyor reports spawned, popped, missed, insurance, and score rows',page.locator('.game-score-calculation>div').count()>=7)
  page.locator('[data-level-action=retry]').click()
  page.wait_for_function('document.querySelector("#game-root")?.dataset.screen==="level-intro" && document.querySelector(".game-eyebrow")?.textContent.includes("Level 1")')
  page.locator('[data-level-action=play]').click()
  page.wait_for_function('bubbleUI.getStats().popped===0 && bubbleUI.refreshLocked===true')
- check('timeout retry resets to a fresh level 1 sheet',page.evaluate('bubbleUI.getStats().popped===0 && bubbleUI.settings.bubbleSize===64'))
+ check('new run after the conveyor resets to a fresh level 1 sheet',page.evaluate('bubbleUI.getStats().popped===0 && bubbleUI.settings.bubbleSize===64'))
  check('fixture UI produces no JavaScript page errors',not errors)
  browser.close()
 

@@ -15,6 +15,10 @@ class FakeEngine extends EventTarget {
  setGameBubbleHolds(indices){for(const index of indices)if(this.items[index]?.eligible&&!this.items[index].popped)this.items[index].hardened=true;return indices.filter(index=>this.items[index]?.eligible&&!this.items[index].popped).length;}
  setGameManualTargetResolver(resolver){this.resolver=resolver;}
  inspectGameHold(){return {active:false,indices:[],progress:[],requiredMs:0,decayMs:0};}
+ startGameConveyor(baseTravelMs){this.travelMs=baseTravelMs;}
+ spawnGameConveyor(lane){this.lane=lane;return 0;}
+ setGameConveyorSpeed(multiplier){this.speed=multiplier;}
+ endGameConveyor(){return 0;}
  reinflateForGame(index){const item=this.items[index];if(!item?.popped)return false;item.popped=false;return true;}
  setHazardWarning(index){this.warning=index;return true;}
  getGameBubbles(){return this.items.map(item=>({...item}));}

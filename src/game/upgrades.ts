@@ -67,6 +67,7 @@ export function advanceRoughTable(input:{
  activeDeltaMs:number;
  bubbles:readonly GameBubbleSnapshot[];
  rng:GameRngState;
+ layout?:'static'|'conveyor';
 }):RoughTableResolution {
  if(!input.owned.includes('roughTable'))return {elapsedMs:0,procs:[],rng:input.rng};
  const interval=GAME_CONFIG.upgrades.roughTable.intervalMs;
@@ -75,11 +76,13 @@ export function advanceRoughTable(input:{
  if(triggerCount===0)return {elapsedMs,procs:[],rng:input.rng};
  elapsedMs%=interval;
  const available=new Set(input.bubbles.filter(bubble=>bubble.eligible&&!bubble.popped).map(bubble=>bubble.index));
- const candidates=[...available];
+ const candidates=input.layout==='conveyor'
+  ?input.bubbles.filter(bubble=>available.has(bubble.index)).sort((a,b)=>b.x-a.x||a.index-b.index).map(bubble=>bubble.index)
+  :[...available];
  const procs:UpgradePopProc[]=[];
  let rng=input.rng;
  for(let count=0;count<triggerCount&&candidates.length;count++){
-  const draw=nextInt(rng,0,candidates.length-1);
+  const draw=input.layout==='conveyor'?{state:rng,value:0}:nextInt(rng,0,candidates.length-1);
   rng=draw.state;
   const index=candidates.splice(draw.value,1)[0];
   available.delete(index);

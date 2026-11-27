@@ -6,6 +6,7 @@ import {formatGameCurrency,formatGameNumber,rerollPrice,shopInterest} from './ec
 import {animatedNumber,updateAnimatedNumber} from './game-vendors';
 import {bindVelocityPops,displayPopRate,mountVelocityChart,type VelocityChart} from './velocity-chart';
 import type {GameHitDetail,GamePopDetail} from './bubble-game-adapter';
+import type {ConveyorMissDetail} from '../components/bubble-ui/core/bubble-engine';
 import {BubbleGameAdapter} from './bubble-game-adapter';
 import {medalStripMarkup,roadmapMarkup,titleCase} from './dossier-ui';
 import {readLevelRecords,recordLevelResult} from './level-records';
@@ -20,6 +21,7 @@ import {buyLiveShopUpgrade,createLiveShop,rerollLiveShop,skipLiveShop,upgradePri
 import {advanceRoughTable,resolveManualUpgradeProcs} from './upgrades';
 import {deadlineScoreMultiplier} from './scoring';
 import {advanceMemoryFoam,assignDoubleLayers,assignHardenedBubbles,createDrunkenBobState,createMemoryFoamState,hazardDeadlineMultiplier,resolveDrunkenBobInput,type DrunkenBobState,type MemoryFoamState} from './hazards';
+import {advanceConveyor,conveyorClearance,createConveyorState,recordConveyorMiss,recordConveyorPop,type ConveyorState} from './conveyor';
 
 export interface SurvivalRun {
  start():void;
@@ -37,7 +39,7 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
  let levelElapsedMs=0;
  let levelClockStartMs=0;
  let timerTotalMs=0;
- let timerKind:'none'|'soft'|'hard'='none';
+ let timerKind:'none'|'soft'|'hard'|'conveyor'='none';
  let timerId=0;
  let lastTick=0;
  let bubbleWorkload=0;
@@ -54,6 +56,8 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
  let drunkenBobState:DrunkenBobState=createDrunkenBobState();
  let hazardLastTickMs=0;
  let sheetClearedAtMs:number|null=null;
+ let conveyorState:ConveyorState=createConveyorState();
+ let conveyorLastTickMs=0;
  const onVisibility=()=>{
   if(state)state={...state,session:{...state.session,clock:setClockHidden(state.session.clock,document.hidden)}};
   if(document.hidden&&state){
@@ -68,6 +72,17 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   const detail=(event as CustomEvent<GameHitDetail>).detail;
   const status=root?.querySelector<HTMLElement>('.game-hud-hazard');
   if(status&&detail.remainingLayers>0)status.innerHTML=`<span class="game-label">Hazard</span>Double Layer cracked · ${detail.remainingLayers} hit remaining`;
+ };
+ const onConveyorMiss=(event:Event)=>{
+  if(!state||state.levelId!==5||state.cleared)return;
+  const detail=(event as CustomEvent<ConveyorMissDetail>).detail;
+  const resolved=recordConveyorMiss(conveyorState,state.session.run.upgrades as UpgradeId[]);
+  conveyorState=resolved.state;
+  const run=state.session.run,penalty=Math.min(run.score,GAME_CONFIG.conveyor.missScorePenalty);
+  state={...state,session:{...state.session,run:{...run,score:run.score-penalty,stats:{...run.stats,misses:run.stats.misses+1,insuredMisses:run.stats.insuredMisses+(resolved.insured?1:0)}}},breakdown:{...state.breakdown,penalty:state.breakdown.penalty+penalty}};
+  const status=root?.querySelector<HTMLElement>('.game-hud-hazard');
+  if(status)status.innerHTML=`<span class="game-label">${resolved.insured?'Insured miss':'Miss'}</span>${resolved.insured?'Counts toward clearance · ':''}-${formatGameCurrency(GAME_CONFIG.conveyor.missScorePenalty)} · ${detail.key}`;
+  refreshScore();refreshConveyorGoal();
  };
  const onPop=(event:Event)=>{
   if(!state||state.cleared||state.session.run.phase!=='playing')return;
@@ -86,7 +101,8 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
    if(firstScoredPop)state.scoredBubbleKeys.add(scoreKey);
    refreshScore();
    refreshUpgradeValues();
-   latchSheetCompletion();
+   if(state.levelId===5){conveyorState=recordConveyorPop(conveyorState);refreshConveyorGoal();}
+   else latchSheetCompletion();
    return;
   }
   if(detail.source.type!=='manual')return;
@@ -125,7 +141,8 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   state={...state,rng:resolvedProcs.rng};
   refreshUpgradeValues();
   if(resolvedProcs.procs.length&&adapter)for(const proc of resolvedProcs.procs)adapter.pop(proc.index,{type:'assisted',upgrade:proc.upgrade});
-  latchSheetCompletion();
+  if(state.levelId===5){conveyorState=recordConveyorPop(conveyorState);refreshConveyorGoal();}
+  else latchSheetCompletion();
  };
  const onCleared=()=>{
   if(!state||state.cleared)return;
@@ -173,7 +190,7 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   unbindPops();unbindPops=()=>{};
   unbindUpgradePanel();unbindUpgradePanel=()=>{};
   chart?.destroy();chart=null;
-  adapter?.dispose();adapter=null;
+  adapter?.endConveyor(false);adapter?.dispose();adapter=null;
   engine.setRefreshLocked(false);
   clearBubbleReminder();engine.setHazardWarning(null);
   engine.setHotKeys(null);
@@ -189,7 +206,7 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   root!.dataset.screen='level-intro';
   const level=levelDefinition(state.levelId);
   const best=readLevelRecords()[state.levelId]?.bestTimeMs;
-  const timerStat=timerKind==='none'?'':`<div><span>${timerKind==='soft'?'Time target':'Deadline'}</span><strong>${clockText(timerTotalMs)}</strong></div>`;
+  const timerStat=timerKind==='none'?'':`<div><span>${timerKind==='soft'?'Time target':timerKind==='conveyor'?'Duration':'Deadline'}</span><strong>${clockText(timerTotalMs)}</strong></div>`;
   const hazardId=state.session.run.encounter?.hazardId as HazardId|null;
   const lede=state.levelId===1
    ?'Clear every bubble. Drag through adjacent bubbles for Clean Sweep, or hit highlighted Hot Keys.'
@@ -197,8 +214,11 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
     ?'Set your pace across five sheets. The soft timer removes only the time bonus at zero—you can always finish.'
     :state.levelId===4&&hazardId
      ?`${HAZARD_COPY[hazardId].name}: ${HAZARD_COPY[hazardId].description} Clear all three sheets before the adjusted deadline.`
+     :state.levelId===5
+      ?`Bubbles travel left to right and accelerate twice. Pop at least ${formatGameNumber(GAME_CONFIG.conveyor.clearanceTarget*100)}%; each escape costs ${formatGameCurrency(GAME_CONFIG.conveyor.missScorePenalty)}.`
      :'Clear every sheet before your calibrated hard deadline. Timing out ends this run.';
-  root!.innerHTML=`<div class="game-scrim"></div><section class="game-card game-intro-card game-dossier" aria-labelledby="level-heading"><p class="game-eyebrow">Level ${level.id} of ${GAME_CONFIG.run.levelCount}</p><h2 id="level-heading">${level.name}</h2><div class="game-brief-stats"><div><span>Best time</span><strong>${best===null||best===undefined?'—':formatDuration(best)}</strong></div><div><span>Sheets</span><strong>${state.sheets} × ${state.size}</strong></div><div><span>Bubbles</span><strong>${bubbleWorkload}</strong></div>${timerStat}</div><p class="game-lede">${lede}</p><h3 class="game-section-title">Medal targets · ${medalCaption(state.levelId)}</h3>${medalStripMarkup(state.levelId)}<div class="game-inline-actions game-dossier-actions"><button class="game-button game-button-secondary" type="button" data-level-action="exit">Endless Mode</button><button class="game-button game-button-secondary" type="button" data-level-action="preview">Next levels</button><button class="game-button" type="button" data-level-action="play">Start</button></div></section>`;
+  const encounterStat=state.levelId===5?`<div><span>Encounter</span><strong>Moving ${state.size} belt</strong></div>`:`<div><span>Sheets</span><strong>${state.sheets} × ${state.size}</strong></div>`;
+  root!.innerHTML=`<div class="game-scrim"></div><section class="game-card game-intro-card game-dossier" aria-labelledby="level-heading"><p class="game-eyebrow">Level ${level.id} of ${GAME_CONFIG.run.levelCount}</p><h2 id="level-heading">${level.name}</h2><div class="game-brief-stats"><div><span>Best time</span><strong>${best===null||best===undefined?'—':formatDuration(best)}</strong></div>${encounterStat}<div><span>Bubbles</span><strong>${bubbleWorkload}</strong></div>${timerStat}</div><p class="game-lede">${lede}</p><h3 class="game-section-title">Medal targets · ${medalCaption(state.levelId)}</h3>${medalStripMarkup(state.levelId)}<div class="game-inline-actions game-dossier-actions"><button class="game-button game-button-secondary" type="button" data-level-action="exit">Endless Mode</button><button class="game-button game-button-secondary" type="button" data-level-action="preview">Next levels</button><button class="game-button" type="button" data-level-action="play">Start</button></div></section>`;
   root!.querySelector<HTMLButtonElement>('[data-level-action=exit]')!.addEventListener('click',()=>{stop();onExit();});
   root!.querySelector<HTMLButtonElement>('[data-level-action=preview]')!.addEventListener('click',showRoadmap);
   root!.querySelector<HTMLButtonElement>('[data-level-action=play]')!.addEventListener('click',play);
@@ -215,6 +235,7 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
  }
  function play(){
   if(!state)return;
+  if(state.levelId===5){playConveyor();return;}
   applySheet(state);
   engine.freshSheet();
   engine.setRefreshLocked(true);
@@ -235,22 +256,36 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   showHud();
   startLevelTimer();
  }
+ function playConveyor(){
+  if(!state)return;
+  applySheet(state);engine.freshSheet();engine.setRefreshLocked(true);
+  sheet.update({onAllPopped:()=>{}});
+  levelElapsedMs=0;levelClockStartMs=state.session.clock.gameTimeMs;lastBubbleProgressMs=0;sheetClearedAtMs=null;roughTableElapsedMs=0;roughTableLastTickMs=0;conveyorLastTickMs=0;lastTick=performance.now();
+  conveyorState=createConveyorState();
+  state=beginLevel(state,[]);
+  adapter=new BubbleGameAdapter(engine);
+  adapter.addEventListener('gamepop',onPop);
+  adapter.addEventListener('gamehit',onHit);
+  adapter.addEventListener('conveyormiss',onConveyorMiss);
+  adapter.startConveyor(GAME_CONFIG.conveyor.baseTravelMs);
+  showHud();startLevelTimer();
+ }
  function showHud(){
   if(!state||!root)return;
   root.dataset.screen='hud';
   const timer=timerKind==='none'?'':`<div class="game-hud-timer" aria-label="${clockText(timerTotalMs)} remaining"><span class="game-label">${timerKind==='soft'?'Target':'Time left'}</span><strong><span data-live-minutes></span><span class="game-timer-colon">:</span><span data-live-seconds></span></strong></div>`;
   const hazardId=state.session.run.encounter?.hazardId as HazardId|null;
-  const prompt=state.levelId===1?`Pop all ${state.sheets} sheets. From the third bubble in one drag, each pop scores more.`:state.levelId===2?'The timer is a target, not a failure. Active manual-pop windows calibrate Level 3.':state.levelId===4&&hazardId?`${HAZARD_COPY[hazardId].name} is active. Clear every sheet before time reaches zero.`:'Hard deadline. Clear every sheet before time reaches zero.';
-  const hazard=hazardId?`<p class="game-hud-hazard" role="status"><span class="game-label">Hazard</span>${HAZARD_COPY[hazardId].name} · ${HAZARD_COPY[hazardId].description}</p>`:'';
+  const prompt=state.levelId===1?`Pop all ${state.sheets} sheets. From the third bubble in one drag, each pop scores more.`:state.levelId===2?'The timer is a target, not a failure. Active manual-pop windows calibrate Level 3.':state.levelId===4&&hazardId?`${HAZARD_COPY[hazardId].name} is active. Clear every sheet before time reaches zero.`:state.levelId===5?`Pop at least ${formatGameNumber(GAME_CONFIG.conveyor.clearanceTarget*100)}%. Escaped bubbles cost ${formatGameCurrency(GAME_CONFIG.conveyor.missScorePenalty)}.`:'Hard deadline. Clear every sheet before time reaches zero.';
+  const hazard=hazardId?`<p class="game-hud-hazard" role="status"><span class="game-label">Hazard</span>${HAZARD_COPY[hazardId].name} · ${HAZARD_COPY[hazardId].description}</p>`:state.levelId===5?'<p class="game-hud-hazard" role="status"><span class="game-label">Conveyor</span>Speed stage 1 · no misses</p>':'';
   const owned=state.session.run.upgrades.filter((id):id is UpgradeId=>id in UPGRADE_COPY);
   const build=owned.length?`<div class="game-hud-build"><button type="button" class="game-upgrade-panel" aria-expanded="false" aria-label="Owned upgrades"><span class="game-upgrade-icons">${owned.map(id=>{const copy=UPGRADE_COPY[id],value=upgradeValue(id);return `<span class="game-upgrade" data-upgrade="${id}" data-active="${Boolean(value)}"><span class="material-symbols-rounded" aria-hidden="true">${copy.icon}</span><b data-upgrade-value="${id}" ${value?'':'hidden'}>${value}</b></span>`;}).join('')}</span></button><div class="game-upgrade-popover" role="tooltip">${owned.map(id=>`<span class="game-upgrade-note"><strong>${UPGRADE_COPY[id].name}</strong><span>${UPGRADE_COPY[id].description}</span></span>`).join('')}</div></div>`:'';
-  root.innerHTML=`<section class="game-hud" aria-label="Level ${state.session.run.level}" data-danger="false" data-soft-expired="false" data-paused="false" data-hidden="false"><div class="game-hud-score"><span class="game-label">Score</span><strong data-live-score></strong><small data-live-combo hidden></small></div><div class="game-hud-velocity"><div class="game-velocity-readout"><strong data-live-rate></strong><span class="game-label">Pop / s</span></div><div class="game-velocity-chart" role="img" aria-label="Pop velocity over the last 30 seconds"></div></div><div class="game-hud-goal"><span class="game-label">Level ${state.session.run.level}</span><strong><span data-live-sheet></span><span class="game-goal-sep">/</span><span data-live-sheets></span></strong><small>sheets</small></div>${timer}${build}${hazard}<p class="game-onboarding">${prompt}</p></section>`;
+  root.innerHTML=`<section class="game-hud" aria-label="Level ${state.session.run.level}" data-danger="false" data-soft-expired="false" data-paused="false" data-hidden="false"><div class="game-hud-score"><span class="game-label">Score</span><strong data-live-score></strong><small data-live-combo hidden></small></div><div class="game-hud-velocity"><div class="game-velocity-readout"><strong data-live-rate></strong><span class="game-label">Pop / s</span></div><div class="game-velocity-chart" role="img" aria-label="Pop velocity over the last 30 seconds"></div></div><div class="game-hud-goal"><span class="game-label">Level ${state.session.run.level}</span><strong><span data-live-sheet></span><span class="game-goal-sep">/</span><span data-live-sheets></span></strong><small>${state.levelId===5?'bubbles popped':'sheets'}</small></div>${timer}${build}${hazard}<p class="game-onboarding">${prompt}</p></section>`;
   mountNumber(root.querySelector('[data-live-score]'),state.session.run.score,true);
   mountNumber(root.querySelector('[data-live-rate]'),0,false,0);
   const sheetSlot=root.querySelector<HTMLElement>('[data-live-sheet]');
   const totalSlot=root.querySelector<HTMLElement>('[data-live-sheets]');
-  if(sheetSlot)sheetSlot.replaceWith(animatedNumber(state.sheet));
-  if(totalSlot)totalSlot.replaceWith(animatedNumber(state.sheets));
+  if(sheetSlot)sheetSlot.replaceWith(animatedNumber(state.levelId===5?conveyorState.popped:state.sheet));
+  if(totalSlot)totalSlot.replaceWith(animatedNumber(state.levelId===5?conveyorState.totalSpawned:state.sheets));
   if(timerKind!=='none'){
    const parts=timerParts(timerTotalMs);
    mountTimerNumber(root.querySelector('[data-live-minutes]'),parts.minutes);
@@ -284,6 +319,7 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   const levelId=state.levelId;
   const level=levelDefinition(levelId);
   const levelScore=state.session.run.score-state.startScore;
+  state={...state,session:{...state.session,run:{...state.session.run,levelScores:{...state.session.run.levelScores,[levelId]:levelScore}}}};
   const records=recordLevelResult(levelId,{timeMs:levelElapsedMs,score:levelScore});
   const medalValue=level.medals.metric==='score'?levelScore:levelElapsedMs/1000;
   const medal=awardedMedal(levelId,medalValue);
@@ -353,36 +389,27 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
    if(!liveShop)return;
    const rerolled=rerollLiveShop(liveShop);
    if(!rerolled.accepted)return;
-   liveShop=rerolled.state;syncLiveShop();renderLiveShop();
+   liveShop=rerolled.state;syncLiveShop(1);renderLiveShop();
   });
   root.querySelector<HTMLButtonElement>('[data-shop-action=skip]')!.addEventListener('click',()=>{
    if(!liveShop)return;
    liveShop=skipLiveShop(liveShop).state;syncLiveShop();finishLiveShop();
   });
  }
- function syncLiveShop(){
+ function syncLiveShop(rerollsAdded=0){
   if(!state||!liveShop)return;
   const run=state.session.run;
-  const session={...state.session,rng:liveShop.rng,run:{...run,score:liveShop.score,upgrades:[...liveShop.owned],rerollUsed:liveShop.rerollsUsed>0}};
+  const session={...state.session,rng:liveShop.rng,run:{...run,score:liveShop.score,upgrades:[...liveShop.owned],rerollUsed:liveShop.rerollsUsed>0,stats:{...run.stats,rerolls:run.stats.rerolls+rerollsAdded}}};
   state={...state,session,rng:liveShop.rng};
  }
  function finishLiveShop(){
   if(!state)return;
-  if(state.levelId===4){liveShop=null;showCheckpointComplete();return;}
   const left=reduceSession(state.session,{type:'leave-shop'});
   if(!left.accepted)return;
   liveShop=null;
   state=createLevelState(left.state,left.state.run.level);
   prepareLevel();
   showIntro();
- }
- function showCheckpointComplete(){
-  if(!state||!root)return;
-  engine.setRefreshLocked(false);
-  root.dataset.screen='run-won';
-  root.innerHTML=`<div class="game-scrim"></div><section class="game-card game-result-card game-dossier" aria-labelledby="checkpoint-heading"><p class="game-eyebrow">Level 4 checkpoint complete</p><h2 id="checkpoint-heading">Hazards survived</h2><div class="game-result-hero"><div><span>Run balance</span><strong>${formatGameCurrency(state.session.run.score)}</strong><small>After shop 3</small></div><div><span>Next build stage</span><strong>Level 5</strong><small>Conveyor miniboss</small></div></div><p class="game-lede">This test build stops here so the new upgrades and hazard pair can be checked before the conveyor is attached.</p><div class="game-inline-actions game-dossier-actions"><button class="game-button game-button-secondary" type="button" data-level-action="exit">Endless Mode</button><button class="game-button" type="button" data-level-action="retry">New run</button></div></section>`;
-  root.querySelector<HTMLButtonElement>('[data-level-action=exit]')!.addEventListener('click',()=>{stop();onExit();});
-  root.querySelector<HTMLButtonElement>('[data-level-action=retry]')!.addEventListener('click',start);
  }
  function prepareLevel(){
   if(!state)return;
@@ -398,6 +425,13 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   calibrationSummary=null;
   timeSettlement=null;
   calibrationCollector=state.levelId===2?new CalibrationCollector():null;
+  if(state.levelId===5){
+   timerKind='conveyor';
+   timerTotalMs=GAME_CONFIG.conveyor.durationMs;
+   bubbleWorkload=Math.ceil((GAME_CONFIG.conveyor.durationMs-GAME_CONFIG.conveyor.cleanupWindowMs)/GAME_CONFIG.conveyor.spawnIntervalMs);
+   conveyorState=createConveyorState();
+   return;
+  }
   if(state.levelId===1){timerKind='none';timerTotalMs=0;return;}
   if(state.levelId===2){
    timerKind='soft';
@@ -424,6 +458,7 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
  function tickLevelTimer(){
   if(!state||state.cleared||state.session.run.phase!=='playing')return;
   advanceElapsedNow();
+  if(state.levelId===5){tickConveyor();if(state.cleared)return;}
   const held=adapter?.holdState().active??false;
   if(held&&state.combo.expiresAt!==0)state={...state,combo:{...state.combo,expiresAt:state.combo.expiresAt+Math.max(0,levelElapsedMs-hazardLastTickMs)}};
   expireComboIfNeeded();
@@ -433,6 +468,26 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   if(timerKind==='hard'&&levelElapsedMs>=timerTotalMs&&!finalSheetSettling&&!tryUseSecondWind()){showLoss();return;}
   refreshTimer();
   refreshBubbleReminder();
+ }
+ function tickConveyor(){
+  if(!state||!adapter)return;
+  const delta=Math.max(0,levelElapsedMs-conveyorLastTickMs);conveyorLastTickMs=levelElapsedMs;
+  const advanced=advanceConveyor({state:conveyorState,activeDeltaMs:delta,rng:state.rng});
+  conveyorState=advanced.state;state={...state,rng:advanced.rng};adapter.setConveyorSpeed(advanced.speedMultiplier);
+  for(const lane of advanced.spawnLanes)if(adapter.spawnConveyor(lane)<0)conveyorState={...conveyorState,totalSpawned:Math.max(0,conveyorState.totalSpawned-1)};
+  const status=root?.querySelector<HTMLElement>('.game-hud-hazard');
+  const stage=GAME_CONFIG.conveyor.speedStages.reduce((current,item,index)=>levelElapsedMs>=item.atMs?index+1:current,1);
+  if(status&&advanced.spawnLanes.length)status.innerHTML=`<span class="game-label">Conveyor</span>Speed stage ${stage} · ${conveyorState.missed} missed`;
+  refreshConveyorGoal();
+  if(conveyorState.finished)finishConveyor();
+ }
+ function finishConveyor(){
+  if(!state||!adapter||state.cleared)return;
+  adapter.endConveyor(true);
+  const clearance=conveyorClearance(conveyorState),won=clearance>=GAME_CONFIG.conveyor.clearanceTarget;
+  const outcome=reduceSession(state.session,{type:won?'complete-level':'declare-run-lost'});
+  if(outcome.accepted)state={...state,session:outcome.state,cleared:true,combo:{count:0,expiresAt:0}};
+  showConveyorResult(won,clearance);
  }
  function advanceElapsedNow(){
   const now=performance.now();
@@ -490,7 +545,8 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
    elapsedMs:roughTableElapsedMs,
    activeDeltaMs:delta,
    bubbles:engine.getGameBubbles(),
-   rng:state.rng
+   rng:state.rng,
+   layout:state.levelId===5?'conveyor':'static'
   });
   roughTableElapsedMs=resolution.elapsedMs;
   state={...state,rng:resolution.rng};
@@ -559,7 +615,7 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   }
  }
  function refreshBubbleReminder(){
-  if(!state||state.session.run.phase!=='playing'||document.hidden){clearBubbleReminder();return;}
+  if(!state||state.levelId===5||state.session.run.phase!=='playing'||document.hidden){clearBubbleReminder();return;}
   if(engine.refreshing){reminderWaitingForSheet=true;clearBubbleReminder();return;}
   if(reminderWaitingForSheet){reminderWaitingForSheet=false;lastBubbleProgressMs=levelElapsedMs;return;}
   const remaining=engine.getGameBubbles().filter(bubble=>bubble.eligible&&!bubble.popped);
@@ -567,6 +623,25 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   if(remaining.some(bubble=>bubble.index===reminderBubbleIndex))return;
   reminderBubbleIndex=remaining[0].index;
   if(!engine.setBubbleReminder(reminderBubbleIndex))reminderBubbleIndex=-1;
+ }
+ function showConveyorResult(won:boolean,clearance:number){
+  if(!state||!root)return;
+  stopLevelTimer();chart?.destroy();chart=null;unbindPops();unbindPops=()=>{};unbindUpgradePanel();unbindUpgradePanel=()=>{};
+  adapter?.dispose();adapter=null;engine.setRefreshLocked(false);clearBubbleReminder();engine.setHotKeys(null);
+  const levelScore=state.session.run.score-state.startScore;
+  state={...state,session:{...state.session,run:{...state.session.run,levelScores:{...state.session.run.levelScores,5:levelScore}}}};
+  if(won){
+   recordGameHighScore(state.category??'touch',state.session.run.score);
+   recordLevelResult(5,{timeMs:GAME_CONFIG.conveyor.durationMs,score:levelScore});
+  }
+  const medal=awardedMedal(5,clearance*100);
+  const owned=state.session.run.upgrades.filter((id):id is UpgradeId=>id in UPGRADE_COPY);
+  const manualScore=state.breakdown.base+state.breakdown.cleanSweep+state.breakdown.hotKey+state.breakdown.sureHands+state.breakdown.velocityBoost+state.breakdown.deadlineBoost;
+  const bestLevel=Object.entries(state.session.run.levelScores).sort((a,b)=>(b[1]??0)-(a[1]??0))[0];
+  root.dataset.screen=won?'run-won':'run-lost';
+  root.innerHTML=`<div class="game-scrim"></div><section class="game-card game-result-card game-dossier" aria-labelledby="conveyor-result-heading"><p class="game-eyebrow">Level 5 · Conveyor miniboss</p><h2 id="conveyor-result-heading">${won?'Survival Run complete':'Conveyor breach'}</h2><div class="game-result-hero"><div><span>Clearance</span><strong>${formatGameNumber(clearance*100)}%</strong><small>Target ${formatGameNumber(GAME_CONFIG.conveyor.clearanceTarget*100)}%</small></div><div><span>Final score</span><strong>${formatGameCurrency(state.session.run.score)}</strong><small>${state.category==='keyboard-pointer'?'Keyboard & Pointer':'Touch'}</small></div></div>${medalStripMarkup(5,medal)}<h3 class="game-section-title">Run statistics</h3><div class="game-score-calculation"><div><span>Best-scoring level</span><strong>${bestLevel?`Level ${bestLevel[0]} · ${formatGameCurrency(bestLevel[1]??0)}`:'—'}</strong></div><div><span>Total bubbles popped</span><strong>${state.session.run.stats.totalBubbles}</strong></div><div><span>Manual / assisted</span><strong>${state.session.run.stats.manualPops} / ${state.session.run.stats.assistedPops}</strong></div><div><span>Highest combo</span><strong>${state.session.run.stats.highestCombo}</strong></div><div><span>Rerolls</span><strong>${state.session.run.stats.rerolls}</strong></div><div><span>Conveyor spawned</span><strong>${conveyorState.totalSpawned}</strong></div><div><span>Missed / insured</span><strong>${conveyorState.missed} / ${conveyorState.insuredMisses}</strong></div><div><span>Manual score</span><strong>+${formatGameCurrency(manualScore)}</strong></div><div><span>Assisted score</span><strong>+${formatGameCurrency(state.breakdown.assisted)}</strong></div><div><span>Miss penalties</span><strong>-${formatGameCurrency(state.breakdown.penalty)}</strong></div></div><p class="game-result-note">${owned.length?`Final build: ${owned.map(id=>UPGRADE_COPY[id].name).join(', ')}.`:'No upgrades purchased.'} ${won?'The completed score is now eligible for the local category high score.':'Only a completed run records a category high score.'}</p><div class="game-inline-actions game-dossier-actions"><button class="game-button game-button-secondary" type="button" data-level-action="exit">Endless Mode</button><button class="game-button" type="button" data-level-action="retry">New run</button></div></section>`;
+  root.querySelector<HTMLButtonElement>('[data-level-action=exit]')!.addEventListener('click',()=>{stop();onExit();});
+  root.querySelector<HTMLButtonElement>('[data-level-action=retry]')!.addEventListener('click',start);
  }
  function showLoss(){
   if(!state||!root)return;
@@ -617,6 +692,7 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   return '';
  }
  function refreshGoal(){const slot=root?.querySelector('.game-hud-goal strong number-flow');if(state)updateAnimatedNumber(slot??null,state.sheet);}
+ function refreshConveyorGoal(){const slots=root?.querySelectorAll('.game-hud-goal strong number-flow');if(!slots||slots.length<2)return;updateAnimatedNumber(slots[0],conveyorState.popped);updateAnimatedNumber(slots[1],conveyorState.totalSpawned);}
  function applySheet(current:LevelPlayState){
   const plan=current.plans[current.sheet-1];
   const sizeName=plan?.bubbleSize??current.size;

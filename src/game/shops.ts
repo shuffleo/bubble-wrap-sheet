@@ -12,6 +12,7 @@ export const LIVE_SHOP_UPGRADES:readonly UpgradeId[]=[
  'deadlineFighter',
  'sureHands',
  'secondWind',
+ 'bubbleInsurance',
  'rateHikeCycle',
  'priorityBanking',
  'flatRate'

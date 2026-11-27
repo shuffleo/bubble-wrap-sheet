@@ -26,7 +26,7 @@ export interface LevelPlayState {
  currentVelocityMultiplier:number;
  currentDeadlineMultiplier:number;
  scoredBubbleKeys:Set<string>;
- breakdown:{base:number;cleanSweep:number;hotKey:number;sureHands:number;velocityBoost:number;deadlineBoost:number;assisted:number;assistedByUpgrade:Partial<Record<UpgradeId,number>>;remainingTime:number};
+ breakdown:{base:number;cleanSweep:number;hotKey:number;sureHands:number;velocityBoost:number;deadlineBoost:number;assisted:number;assistedByUpgrade:Partial<Record<UpgradeId,number>>;remainingTime:number;penalty:number};
 }
 export type LevelOneState=LevelPlayState;
 
@@ -78,7 +78,7 @@ export function createLevelState(source:GameSessionState,levelId:LevelId):LevelP
   currentVelocityMultiplier:1,
   currentDeadlineMultiplier:1,
   scoredBubbleKeys:new Set(),
-  breakdown:{base:0,cleanSweep:0,hotKey:0,sureHands:0,velocityBoost:0,deadlineBoost:0,assisted:0,assistedByUpgrade:{},remainingTime:0}
+  breakdown:{base:0,cleanSweep:0,hotKey:0,sureHands:0,velocityBoost:0,deadlineBoost:0,assisted:0,assistedByUpgrade:{},remainingTime:0,penalty:0}
  };
 }
 
@@ -132,7 +132,7 @@ export function applyManualPop(state:LevelPlayState,input:{
   rng=next.state;
  }
  const run=state.session.run;
- const session={...state.session,run:{...run,category,score:run.score+scored.points,stats:{...run.stats,manualPops:run.stats.manualPops+1,scoreEvents:run.stats.scoreEvents+1}}};
+ const session={...state.session,run:{...run,category,score:run.score+scored.points,stats:{...run.stats,manualPops:run.stats.manualPops+1,totalBubbles:run.stats.totalBubbles+1,highestCombo:Math.max(run.stats.highestCombo,scored.combo.count),scoreEvents:run.stats.scoreEvents+1}}};
  const breakdown={
   ...state.breakdown,
   base:state.breakdown.base+(input.firstScoredPop===false?0:input.baseScore??GAME_CONFIG.scoring.normalBase),
@@ -155,7 +155,7 @@ export function applyAssistedPop(state:LevelPlayState,upgrade?:UpgradeId,firstSc
   :state.breakdown.assistedByUpgrade;
  return {
   points,
-  state:{...state,session:{...state.session,run:{...run,score:run.score+points,stats:{...run.stats,assistedPops:run.stats.assistedPops+1,scoreEvents:run.stats.scoreEvents+1}}},combo:state.combo,breakdown:{...state.breakdown,assisted:state.breakdown.assisted+points,assistedByUpgrade}}
+  state:{...state,session:{...state.session,run:{...run,score:run.score+points,stats:{...run.stats,assistedPops:run.stats.assistedPops+1,totalBubbles:run.stats.totalBubbles+1,scoreEvents:run.stats.scoreEvents+1}}},combo:state.combo,breakdown:{...state.breakdown,assisted:state.breakdown.assisted+points,assistedByUpgrade}}
  };
 }
 

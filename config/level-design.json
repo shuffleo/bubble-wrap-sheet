@@ -250,6 +250,8 @@
   "conveyor": {
     "durationMs": 45000,
     "cleanupWindowMs": 3000,
+    "spawnIntervalMs": 600,
+    "baseTravelMs": 6000,
     "clearanceTarget": 0.9,
     "missScorePenalty": 10,
     "speedStages": [

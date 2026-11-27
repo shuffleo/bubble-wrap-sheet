@@ -20,6 +20,7 @@ export type AutomatedPopSource=
 export type BubblePopSource=ManualPopSource|AutomatedPopSource;
 export interface BubblePopDetail {index:number;key:string;surface:string;source:BubblePopSource;}
 export interface BubbleHitDetail extends BubblePopDetail {remainingLayers:number;}
+export interface ConveyorMissDetail {index:number;key:string;surface:string;}
 export interface GameBubbleSnapshot {index:number;surface:string;eligible:boolean;popped:boolean;x:number;y:number;layers:number;hardened:boolean;holdProgress:number;}
 interface SheetExchange {old:Float32Array[];oldCount:number;timeline:RefillTimeline;progress:number;distance:number;slide:boolean;}
 interface Surface {completed:boolean;id:string;node:HTMLElement;config:SurfaceConfig;rect:Rect;off:()=>void;}
@@ -41,6 +42,7 @@ export class BubbleEngine extends EventTarget {
  private pendingPopSources=new Map<number,BubblePopSource>();private refreshLocked=false;private hotCodes:Set<string>|null=null;private labelSnapshot:boolean|null=null;private completionToken:object|null=null;
  private lastPopBySurface=new Map<string,number>();
  private exchange:SheetExchange|null=null;private currentAttributes:Float32Array[]=[];private renderInstances=0;
+ private sheetRoles=new Float32Array();private conveyorActive=false;private conveyorVisible=new Uint8Array();private conveyorSpawnSerial=new Uint32Array();private conveyorSerial=0;private conveyorSpeed=0;private conveyorBaseTravelMs=1;private conveyorOrigins=new Float32Array();
  private reminderIndex=-1;private reminderStartedAt=0;private reminderExposure=new Float32Array();
  private gameLayers=new Uint8Array();private doubleLayerMask=new Uint8Array();private hardenedMask=new Uint8Array();private holdProgressMs=new Float32Array();private holdRequiredMs=0;private holdDecayMs=0;private activeHolds=new Map<number,ManualPopSource>();private manualTargetResolver:((sourceIndex:number,source:ManualPopSource,bubbles:readonly GameBubbleSnapshot[])=>number)|null=null;
  private hazardWarningIndex=-1;private hazardWarningStartedAt=0;private hazardVisual=new Float32Array();
@@ -104,10 +106,24 @@ export class BubbleEngine extends EventTarget {
  }
  private fit(){this.dpr=Math.min(window.devicePixelRatio||1,this.settings.dpr);const w=Math.round(innerWidth*this.dpr),h=Math.round(innerHeight*this.dpr);if(this.canvas.width!==w||this.canvas.height!==h){this.canvas.width=w;this.canvas.height=h;}this.gl.viewport(0,0,w,h);}
  private layout(){
-  if(this.destroyed||this.lost)return;this.finishRefresh(true,false);this.fit();const old=new Map(this.points.map((p,i)=>[p.key,{x:this.physics.squish[i],v:this.physics.velocity[i],p:this.physics.isPopped[i],t:this.physics.targetSquish[i],cut:!!p.cut,radius:p.radius,layers:this.gameLayers[i]??1,doubleLayer:!!this.doubleLayerMask[i],hardened:!!this.hardenedMask[i],hold:this.holdProgressMs[i]??0}]));this.cancelPointers();this.points=[];
+  if(this.destroyed||this.lost)return;this.finishRefresh(true,false);this.fit();
+  const conveyor=this.conveyorActive?this.points.flatMap((point,index)=>{
+   if(!this.conveyorVisible[index])return [];
+   const surface=this.surfaces.get(point.surface);if(!surface)return [];
+   return [{surface:point.surface,x:(point.x-(surface.rect.left-point.radius))/Math.max(1,surface.rect.width+point.radius*2),y:(point.y-(surface.rect.top+point.radius))/Math.max(1,surface.rect.height-point.radius*2),popped:!!this.physics.isPopped[index],squish:this.physics.squish[index],velocity:this.physics.velocity[index],serial:this.conveyorSpawnSerial[index]}];
+  }):[];
+  const old=new Map(this.points.map((p,i)=>[p.key,{x:this.physics.squish[i],v:this.physics.velocity[i],p:this.physics.isPopped[i],t:this.physics.targetSquish[i],cut:!!p.cut,radius:p.radius,layers:this.gameLayers[i]??1,doubleLayer:!!this.doubleLayerMask[i],hardened:!!this.hardenedMask[i],hold:this.holdProgressMs[i]??0}]));
+  this.cancelPointers();this.points=[];
   for(const s of this.surfaces.values()){s.rect=s.node.getBoundingClientRect();if(s.rect.width>0&&s.rect.height>0)this.points.push(...makeGrid(s.rect,s.id,s.config));}
   this.coordMap=new Map(this.points.map((p,i)=>[p.key,i]));this.gameLayers=new Uint8Array(this.points.length).fill(1);this.doubleLayerMask=new Uint8Array(this.points.length);this.hardenedMask=new Uint8Array(this.points.length);this.holdProgressMs=new Float32Array(this.points.length);this.activeHolds.clear();this.physics=new BubblePhysics(this.points,i=>this.didPop(i),i=>this.beforePop(i));this.physics.settings=this.settings;
-  this.points.forEach((p,i)=>{const a=old.get(p.key);if(a&&!p.cut&&!a.cut&&a.radius===p.radius){this.physics.squish[i]=a.x;this.physics.velocity[i]=a.v;this.physics.isPopped[i]=a.p;this.physics.targetSquish[i]=a.p?1:0;this.gameLayers[i]=a.layers;this.doubleLayerMask[i]=a.doubleLayer?1:0;this.hardenedMask[i]=a.hardened?1:0;this.holdProgressMs[i]=a.hold;}});for(const s of this.surfaces.values()){if(this.points.some((p,i)=>p.surface===s.id&&p.eligible&&!this.physics.isPopped[i]))s.completed=false;}this.keyboard=buildKeyboardMapping(this.points);this.refreshKeyboardHints();this.upload();this.notify();this.dispatchEvent(new Event('layoutchange'));this.wake();
+  this.points.forEach((p,i)=>{const a=old.get(p.key);if(a&&!p.cut&&!a.cut&&a.radius===p.radius){this.physics.squish[i]=a.x;this.physics.velocity[i]=a.v;this.physics.isPopped[i]=a.p;this.physics.targetSquish[i]=a.p?1:0;this.gameLayers[i]=a.layers;this.doubleLayerMask[i]=a.doubleLayer?1:0;this.hardenedMask[i]=a.hardened?1:0;this.holdProgressMs[i]=a.hold;}});
+  if(this.conveyorActive){
+   this.conveyorVisible=new Uint8Array(this.points.length);this.conveyorSpawnSerial=new Uint32Array(this.points.length);this.conveyorOrigins=new Float32Array(this.points.length*2);
+   this.points.forEach((point,index)=>{this.conveyorOrigins.set([point.x,point.y],index*2);if(point.mode==='poppable'){point.visible=false;this.physics.isPopped[index]=1;this.physics.squish[index]=1;this.physics.targetSquish[index]=1;}});
+   const pool=this.points.flatMap((point,index)=>point.mode==='poppable'&&point.eligible!==false&&!point.cut?[index]:[]);
+   for(const item of conveyor){const index=pool.shift();if(index===undefined)break;const point=this.points[index],surface=this.surfaces.get(point.surface);if(!surface)continue;point.x=surface.rect.left-point.radius+item.x*(surface.rect.width+point.radius*2);point.y=surface.rect.top+point.radius+item.y*Math.max(0,surface.rect.height-point.radius*2);point.visible=true;this.conveyorVisible[index]=1;this.conveyorSpawnSerial[index]=item.serial;this.physics.isPopped[index]=item.popped?1:0;this.physics.squish[index]=item.squish;this.physics.velocity[index]=item.velocity;this.physics.targetSquish[index]=item.popped?1:0;}
+  }
+  for(const s of this.surfaces.values()){if(this.points.some((p,i)=>p.surface===s.id&&p.eligible&&!this.physics.isPopped[i]))s.completed=false;}this.keyboard=buildKeyboardMapping(this.points);this.refreshKeyboardHints();this.upload();this.notify();this.dispatchEvent(new Event('layoutchange'));this.wake();
  }
  private upload(){
   const n=this.points.length,a=new Float32Array(n*4),clip=new Float32Array(n*4),style=new Float32Array(n*4),edges=new Float32Array(n*4);
@@ -118,13 +134,17 @@ export class BubbleEngine extends EventTarget {
   this.currentAttributes=[a,clip,style,this.physics.squish,this.physics.bounce,...this.neighborData,edges,this.reminderExposure,this.hazardVisual];
   const previous=this.exchange?.slide?this.exchange:null,oldCount=previous?.oldCount??0;
   this.renderInstances=n+oldCount;
-  const roles=new Float32Array(this.renderInstances);if(previous){this.points.forEach((p,i)=>{if(p.mode==='poppable')roles[i]=2;});roles.fill(1,n);}
+  const roles=new Float32Array(this.renderInstances);if(this.conveyorActive)this.points.forEach((p,i)=>{if(p.mode==='poppable')roles[i]=this.conveyorVisible[i]?0:-1;});if(previous){this.points.forEach((p,i)=>{if(p.mode==='poppable')roles[i]=2;});roles.fill(1,n);}this.sheetRoles=roles;
   const g=this.gl;g.bindVertexArray(this.vao);
   [...this.currentAttributes,roles].forEach((data,j)=>{let payload=data;if(previous&&j<14){payload=new Float32Array(data.length+previous.old[j].length);payload.set(data);payload.set(previous.old[j],data.length);}
    g.bindBuffer(g.ARRAY_BUFFER,this.buffers[j+1]);g.bufferData(g.ARRAY_BUFFER,payload,j>=3?g.DYNAMIC_DRAW:g.STATIC_DRAW);});
  }
  private inside(s:Surface,x:number,y:number){return boundaryDistance(s.rect,x,y,s.config.cornerRadius??5,s.config.edgeRoughness??0,s.config.edgeScale??24,s.config.edgeSeed??17,s.config.cornerVariation??0)<=0;}
  hitTest(screenX:number,screenY:number,surface?:string){
+  if(this.conveyorActive){
+   for(let index=this.points.length-1;index>=0;index--){const point=this.points[index];if(!this.conveyorVisible[index]||(surface&&point.surface!==surface)||this.physics.isPopped[index])continue;if(Math.hypot(screenX-point.x,screenY-point.y)<point.radius*1.06)return index;}
+   return -1;
+  }
   const ss=surface?[this.surfaces.get(surface)].filter((s):s is Surface=>!!s):Array.from(this.surfaces.values()).reverse();
   for(const s of ss){if(this.refreshing&&s.config.layout!=='single')continue;const rest=s.config.layout==='single'?{x:screenX,y:screenY}:this.motion.inverse(s.rect,screenX,screenY),x=rest.x,y=rest.y;if(!this.inside(s,x,y))continue;
    if(s.config.layout==='single'){const i=this.points.findIndex(p=>p.surface===s.id);if(i>=0&&Math.hypot(x-this.points[i].x,y-this.points[i].y)<this.points[i].radius*1.06)return i;continue;}
@@ -172,7 +192,7 @@ export class BubbleEngine extends EventTarget {
   if(index===this.reminderIndex)this.setBubbleReminder(null);
   this.activeHolds.delete(index);this.holdProgressMs[index]=0;
   this.hintNodes.get(index)?.setAttribute('data-popped','true');
-  this.audio.pop();const point=this.points[index],surface=this.surfaces.get(point.surface),source=this.pendingPopSources.get(index)??{type:'system' as const,reason:'physics'};if(surface)this.lastPopBySurface.set(surface.id,index);this.pendingPopSources.delete(index);this.physics.jiggle(index);this.motion.impulse(point.x,point.y,.7);this.dispatchEvent(new CustomEvent<BubblePopDetail>('bubblepop',{detail:{index,key:point.key,surface:point.surface,source}}));queueMicrotask(()=>{if(this.destroyed)return;this.notify();if(surface){let count=0,total=0;this.points.forEach((p,i)=>{if(p.surface===point.surface&&p.eligible){total++;count+=this.physics.isPopped[i];}});surface.config.onPop?.(count);if(count===total&&total>0&&!surface.completed){surface.completed=true;this.finishWhenSettled(this.lastPopBySurface.get(surface.id)??index,surface);}}});
+  this.audio.pop();const point=this.points[index],surface=this.surfaces.get(point.surface),source=this.pendingPopSources.get(index)??{type:'system' as const,reason:'physics'},key=this.conveyorActive?`${point.key}:spawn:${this.conveyorSpawnSerial[index]}`:point.key;if(surface)this.lastPopBySurface.set(surface.id,index);this.pendingPopSources.delete(index);this.physics.jiggle(index);this.motion.impulse(point.x,point.y,.7);this.dispatchEvent(new CustomEvent<BubblePopDetail>('bubblepop',{detail:{index,key,surface:point.surface,source}}));queueMicrotask(()=>{if(this.destroyed)return;this.notify();if(surface&&!this.conveyorActive){let count=0,total=0;this.points.forEach((p,i)=>{if(p.surface===point.surface&&p.eligible){total++;count+=this.physics.isPopped[i];}});surface.config.onPop?.(count);if(count===total&&total>0&&!surface.completed){surface.completed=true;this.finishWhenSettled(this.lastPopBySurface.get(surface.id)??index,surface);}}});
  }
  /** Let the last bubble finish collapsing before the sheet is allowed to leave. */
  private finishWhenSettled(index:number,surface:Surface){
@@ -309,12 +329,37 @@ export class BubbleEngine extends EventTarget {
   const exposure=this.reduced?.75:.25+.75*(.5+.5*Math.sin((time-this.hazardWarningStartedAt)/110));
   this.syncHazardVisual(exposure);this.dirty=true;return !this.reduced;
  }
+ private updateConveyor(dt:number):boolean {
+  if(!this.conveyorActive)return false;
+  let moved=false,mappingChanged=false;
+  const positions=this.currentAttributes[0];
+  for(let index=0;index<this.points.length;index++){
+   if(!this.conveyorVisible[index])continue;
+   const point=this.points[index];
+   if(this.physics.isPopped[index]){
+    if(this.physics.squish[index]>=.9){this.conveyorVisible[index]=0;point.visible=false;this.sheetRoles[index]=-1;mappingChanged=true;}
+    continue;
+   }
+   point.x+=this.conveyorSpeed*dt;positions[index*4]=point.x;positions[index*4+1]=point.y;moved=true;
+   const surface=this.surfaces.get(point.surface);
+   if(surface&&point.x-point.radius>surface.rect.left+surface.rect.width){
+    this.conveyorVisible[index]=0;point.visible=false;this.sheetRoles[index]=-1;this.physics.isPopped[index]=1;this.physics.squish[index]=1;this.physics.targetSquish[index]=1;mappingChanged=true;
+    this.audio.crinkle();this.audio.feedback.pulse(7);
+    const key=`${point.key}:spawn:${this.conveyorSpawnSerial[index]}`;
+    this.dispatchEvent(new CustomEvent<ConveyorMissDetail>('conveyormiss',{detail:{index,key,surface:point.surface}}));
+   }
+  }
+  if(mappingChanged){this.keyboard=buildKeyboardMapping(this.points);this.refreshKeyboardHints();}
+  if(moved||mappingChanged)this.dirty=true;
+  return moved||mappingChanged;
+ }
  private tick=(time:number)=>{
-  this.frame=0;if(this.destroyed||this.lost)return;const dt=Math.min(.05,(time-this.last)/1000);this.last=time;const holds=this.updateGameHolds(dt),active=this.physics.step(dt),flex=this.motion.step(dt);
+  this.frame=0;if(this.destroyed||this.lost)return;const dt=Math.min(.05,(time-this.last)/1000);this.last=time;const holds=this.updateGameHolds(dt),conveyor=this.updateConveyor(dt),active=this.physics.step(dt),flex=this.motion.step(dt);
   const reminder=this.updateBubbleReminder(time);
   const hazardWarning=this.updateHazardWarning(time);
   if(this.exchange){const duration=this.exchange.timeline.duration,elapsed=this.exchange.timeline.elapsed();this.exchange.progress=Number.isFinite(elapsed)&&duration>0?Math.max(0,Math.min(1,elapsed/duration)):1;if(this.exchange.progress>=1)this.finishRefresh();}
   if(this.dirty||active||flex||this.exchange){const g=this.gl;g.useProgram(this.program);g.bindVertexArray(this.vao);g.activeTexture(g.TEXTURE0);g.bindTexture(g.TEXTURE_2D,this.texture);g.activeTexture(g.TEXTURE1);g.bindTexture(g.TEXTURE_2D,this.atlas);g.activeTexture(g.TEXTURE2);g.bindTexture(g.TEXTURE_2D,this.collapsedAtlas);g.uniform1f(this.uniforms.uAtlasReady,this.atlasReady);g.bindBuffer(g.ARRAY_BUFFER,this.buffers[4]);g.bufferSubData(g.ARRAY_BUFFER,0,this.physics.squish);g.uniform2f(this.uniforms.uResolution,innerWidth,innerHeight);g.uniform1f(this.uniforms.uDpr,this.dpr);
+   if(this.conveyorActive){g.bindBuffer(g.ARRAY_BUFFER,this.buffers[1]);g.bufferSubData(g.ARRAY_BUFFER,0,this.currentAttributes[0]);g.bindBuffer(g.ARRAY_BUFFER,this.buffers[15]);g.bufferSubData(g.ARRAY_BUFFER,0,this.sheetRoles);}
    g.bindBuffer(g.ARRAY_BUFFER,this.buffers[5]);g.bufferSubData(g.ARRAY_BUFFER,0,this.physics.bounce);g.bindBuffer(g.ARRAY_BUFFER,this.buffers[13]);g.bufferSubData(g.ARRAY_BUFFER,0,this.reminderExposure);g.bindBuffer(g.ARRAY_BUFFER,this.buffers[14]);g.bufferSubData(g.ARRAY_BUFFER,0,this.hazardVisual);
    for(let k=0;k<6;k++){const data=this.neighborData[k];for(let i=0;i<this.points.length;i++){const j=this.physics.neighbors[i*6+k];data[i*3+2]=j>=0?this.physics.squish[j]:1;}g.bindBuffer(g.ARRAY_BUFFER,this.buffers[6+k]);g.bufferSubData(g.ARRAY_BUFFER,0,data);}
    const s=this.settings,e=this.exchange;g.uniform4f(this.uniforms.uSlide,e?sheetEase(e.progress):0,e?.distance??0,s.slideFlex,e?.slide?1:0);g.uniform3fv(this.uniforms.uCorners,this.motion.corners);g.uniform4fv(this.uniforms.uRipples,this.motion.ripples);
@@ -323,7 +368,7 @@ export class BubbleEngine extends EventTarget {
    g.uniform4f(this.uniforms.uReveal,s.revealStart,s.revealEnd,s.revealCurve,s.linearReveal?1:0);g.uniform2f(this.uniforms.uPressure,s.pressureBulge,s.pressureWrinkle);
    g.uniform4f(this.uniforms.uTone,s.exposure,s.contrast,s.blackPoint,s.whitePoint);g.uniform4f(this.uniforms.uGrade,s.gamma,s.highlights,s.grain,s.sharpness);g.uniform4f(this.uniforms.uLayer,s.blendMode,s.layerOpacity,s.backingLevel,0);g.uniform1f(this.uniforms.uGuides,s.showContours?1:0);
    this.syncHandles();this.syncKeyboardHints();g.clear(g.COLOR_BUFFER_BIT);g.drawArraysInstanced(g.TRIANGLES,0,this.vertexCount,this.renderInstances);this.frames++;this.dirty=false;}
-  if(active||flex||holds||reminder||hazardWarning||this.pointers.size||this.exchange||this.activeHolds.size)this.frame=requestAnimationFrame(this.tick);
+  if(active||flex||holds||conveyor||reminder||hazardWarning||this.pointers.size||this.exchange||this.activeHolds.size||this.conveyorActive)this.frame=requestAnimationFrame(this.tick);
  };
  /** Updates shader uniforms and imperative solvers without React renders. */
  setSettings(patch:Partial<Settings>){
@@ -351,7 +396,7 @@ export class BubbleEngine extends EventTarget {
  }
  inspectMotion(){return {corners:Array.from(this.motion.corners),targets:Array.from(this.motion.targets),time:this.motion.time};}
  project(x:number,y:number){const surface=this.sheetSurface();return surface?this.motion.deform(surface.rect,x,y):{x,y,z:0};}
- getStats():BubbleStats{let total=0,popped=0;this.points.forEach((p,i)=>{if(p.mode==='poppable'&&p.eligible){total++;popped+=this.physics.isPopped[i];}});return {total,popped,drawCalls:this.points.length?1:0,instances:this.points.length,surfaces:this.surfaces.size,dpr:this.dpr,audio:this.audio.state,activePointers:this.pointers.size,frames:this.frames};}
+ getStats():BubbleStats{let total=0,popped=0;this.points.forEach((p,i)=>{if(p.mode==='poppable'&&p.eligible&&(!this.conveyorActive||this.conveyorVisible[i])){total++;popped+=this.physics.isPopped[i];}});return {total,popped,drawCalls:this.points.length?1:0,instances:this.points.length,surfaces:this.surfaces.size,dpr:this.dpr,audio:this.audio.state,activePointers:this.pointers.size,frames:this.frames};}
  /** Physical key -> one random unpopped bubble. Popped/cut cells cannot be selected. */
  popKey(code:string):number {
   if(this.destroyed||this.lost||this.refreshing||!this.settings.keyboardEnabled)return -1;
@@ -362,9 +407,36 @@ export class BubbleEngine extends EventTarget {
  }
  releaseKey(code:string):void {this.releaseHoldsForGesture(`key:${code}`);this.wake();}
  releaseAllGameHolds():void {this.activeHolds.clear();this.pendingPopSources.clear();this.wake();}
- getGameBubbles():GameBubbleSnapshot[]{return this.points.flatMap((point,index)=>point.mode==='poppable'?[{index,surface:point.surface,eligible:point.eligible!==false&&!point.cut,popped:!!this.physics.isPopped[index],x:point.x,y:point.y,layers:this.gameLayers[index]??1,hardened:!!this.hardenedMask[index],holdProgress:this.holdRequiredMs>0?(this.holdProgressMs[index]??0)/this.holdRequiredMs:0}]:[]);}
- getGameNeighbours(index:number):number[]{if(!Number.isInteger(index)||index<0||index>=this.points.length)return[];const neighbours:number[]=[];for(let offset=0;offset<6;offset++){const candidate=this.physics.neighbors[index*6+offset];if(candidate>=0&&this.points[candidate]?.mode==='poppable'&&this.points[candidate].eligible!==false&&!this.points[candidate].cut)neighbours.push(candidate);}return neighbours;}
- popForGame(index:number,source:AutomatedPopSource):boolean {if(this.destroyed||this.lost||this.refreshing||!Number.isInteger(index))return false;const point=this.points[index];if(!point||point.mode!=='poppable'||point.eligible===false||point.cut)return false;const popped=this.popWithSource(index,source);if(popped)this.wake();return popped;}
+ getGameBubbles():GameBubbleSnapshot[]{return this.points.flatMap((point,index)=>point.mode==='poppable'?[{index,surface:point.surface,eligible:point.eligible!==false&&!point.cut&&(!this.conveyorActive||!!this.conveyorVisible[index]),popped:!!this.physics.isPopped[index],x:point.x,y:point.y,layers:this.gameLayers[index]??1,hardened:!!this.hardenedMask[index],holdProgress:this.holdRequiredMs>0?(this.holdProgressMs[index]??0)/this.holdRequiredMs:0}]:[]);}
+ getGameNeighbours(index:number):number[]{if(!Number.isInteger(index)||index<0||index>=this.points.length)return[];if(this.conveyorActive){const origin=this.points[index];return this.points.flatMap((point,candidate)=>candidate!==index&&this.conveyorVisible[candidate]&&!this.physics.isPopped[candidate]?[candidate]:[]).sort((a,b)=>Math.hypot(this.points[a].x-origin.x,this.points[a].y-origin.y)-Math.hypot(this.points[b].x-origin.x,this.points[b].y-origin.y)).slice(0,6);}const neighbours:number[]=[];for(let offset=0;offset<6;offset++){const candidate=this.physics.neighbors[index*6+offset];if(candidate>=0&&this.points[candidate]?.mode==='poppable'&&this.points[candidate].eligible!==false&&!this.points[candidate].cut)neighbours.push(candidate);}return neighbours;}
+ popForGame(index:number,source:AutomatedPopSource):boolean {if(this.destroyed||this.lost||this.refreshing||!Number.isInteger(index))return false;const point=this.points[index];if(!point||point.mode!=='poppable'||point.eligible===false||point.cut||(this.conveyorActive&&!this.conveyorVisible[index]))return false;const popped=this.popWithSource(index,source);if(popped)this.wake();return popped;}
+ startGameConveyor(baseTravelMs:number):void {
+  if(this.conveyorActive)this.endGameConveyor(false);
+  this.finishRefresh(true,false);this.cancelPointers();this.conveyorActive=true;this.conveyorBaseTravelMs=Math.max(1,baseTravelMs);this.conveyorSpeed=0;this.conveyorSerial=0;this.conveyorVisible=new Uint8Array(this.points.length);this.conveyorSpawnSerial=new Uint32Array(this.points.length);this.conveyorOrigins=new Float32Array(this.points.length*2);this.sheetRoles=new Float32Array(this.points.length);
+  this.points.forEach((point,index)=>{this.conveyorOrigins.set([point.x,point.y],index*2);if(point.mode==='poppable'){point.visible=false;this.physics.isPopped[index]=1;this.physics.squish[index]=1;this.physics.targetSquish[index]=1;this.sheetRoles[index]=-1;}});
+  this.keyboard=buildKeyboardMapping(this.points);this.refreshKeyboardHints();this.dirty=true;this.wake();this.notify();
+ }
+ spawnGameConveyor(lane:number):number {
+  if(!this.conveyorActive)return -1;
+  const index=this.points.findIndex((point,candidate)=>point.mode==='poppable'&&point.eligible!==false&&!point.cut&&!this.conveyorVisible[candidate]);
+  if(index<0)return -1;
+  const point=this.points[index],surface=this.surfaces.get(point.surface);if(!surface)return -1;
+  point.x=surface.rect.left-point.radius;point.y=surface.rect.top+point.radius+Math.max(0,Math.min(1,lane))*Math.max(0,surface.rect.height-point.radius*2);point.visible=true;this.conveyorVisible[index]=1;this.conveyorSpawnSerial[index]=++this.conveyorSerial;this.sheetRoles[index]=0;
+  this.physics.reinflate(index);this.physics.squish[index]=0;this.physics.velocity[index]=0;this.physics.targetSquish[index]=0;
+  const positions=this.currentAttributes[0];positions[index*4]=point.x;positions[index*4+1]=point.y;
+  this.keyboard=buildKeyboardMapping(this.points);this.refreshKeyboardHints();this.dirty=true;this.wake();this.notify();return index;
+ }
+ setGameConveyorSpeed(multiplier:number):void {
+  if(!this.conveyorActive)return;
+  const surface=this.sheetSurface(),radius=this.points.find((point,index)=>point.mode==='poppable'&&this.conveyorVisible[index])?.radius??this.settings.bubbleSize/2;
+  this.conveyorSpeed=((surface?.rect.width??innerWidth)+radius*2)/this.conveyorBaseTravelMs*1000*Math.max(0,multiplier);this.wake();
+ }
+ endGameConveyor(countRemaining:boolean):number {
+  if(!this.conveyorActive)return 0;
+  let misses=0;
+  if(countRemaining)for(let index=0;index<this.points.length;index++)if(this.conveyorVisible[index]&&!this.physics.isPopped[index]){const point=this.points[index],key=`${point.key}:spawn:${this.conveyorSpawnSerial[index]}`;misses++;this.dispatchEvent(new CustomEvent<ConveyorMissDetail>('conveyormiss',{detail:{index,key,surface:point.surface}}));}
+  this.conveyorActive=false;this.conveyorVisible=new Uint8Array();this.conveyorSpawnSerial=new Uint32Array();this.conveyorSpeed=0;this.points.forEach((point,index)=>{if(this.conveyorOrigins.length>index*2+1){point.x=this.conveyorOrigins[index*2];point.y=this.conveyorOrigins[index*2+1];}point.visible=undefined;});this.conveyorOrigins=new Float32Array();this.layout();return misses;
+ }
  setGameBubbleLayers(indices:readonly number[],layers:number):number {
   const value=Math.max(1,Math.floor(layers));let changed=0;
   for(const index of new Set(indices)){const point=this.points[index];if(!Number.isInteger(index)||!point||point.mode!=='poppable'||point.eligible===false||point.cut||this.physics.isPopped[index])continue;this.gameLayers[index]=value;this.doubleLayerMask[index]=value>1?1:0;this.syncLayerHint(index);changed++;}
@@ -401,6 +473,6 @@ export class BubbleEngine extends EventTarget {
    const p=this.motion.deform(surface.rect,point.x,point.y);node.style.transform=`translate3d(${p.x}px,${p.y}px,0) translate(-50%,-50%)`;node.dataset.popped=String(!!this.physics.isPopped[index]);}
  }
  /** Read-only diagnostic data for interaction tests. */
- inspect(){return this.points.map((p,i)=>({...p,index:i,keyboardCode:this.keyboard.byPoint.get(i)?.code??null,keyboardLabel:this.keyboard.byPoint.get(i)?.label??null,popped:!!this.physics.isPopped[i],layers:this.gameLayers[i]??1,doubleLayer:!!this.doubleLayerMask[i],hardened:!!this.hardenedMask[i],holdProgress:this.holdRequiredMs>0?(this.holdProgressMs[i]??0)/this.holdRequiredMs:0,hazardWarning:i===this.hazardWarningIndex,squish:this.physics.squish[i],bounce:this.physics.bounce[i],taps:this.physics.tapCount[i],inflatedVariant:materialVariant(p.row+Math.floor(this.settings.variantSeed),p.col),collapsedVariant:materialVariant(p.row+Math.floor(this.settings.variantSeed),p.col,true)}));}
+ inspect(){return this.points.map((p,i)=>({...p,index:i,keyboardCode:this.keyboard.byPoint.get(i)?.code??null,keyboardLabel:this.keyboard.byPoint.get(i)?.label??null,popped:!!this.physics.isPopped[i],conveyorVisible:!!this.conveyorVisible[i],layers:this.gameLayers[i]??1,doubleLayer:!!this.doubleLayerMask[i],hardened:!!this.hardenedMask[i],holdProgress:this.holdRequiredMs>0?(this.holdProgressMs[i]??0)/this.holdRequiredMs:0,hazardWarning:i===this.hazardWarningIndex,squish:this.physics.squish[i],bounce:this.physics.bounce[i],taps:this.physics.tapCount[i],inflatedVariant:materialVariant(p.row+Math.floor(this.settings.variantSeed),p.col),collapsedVariant:materialVariant(p.row+Math.floor(this.settings.variantSeed),p.col,true)}));}
  destroy(){if(this.destroyed)return;this.destroyed=true;this.exchange=null;cancelAnimationFrame(this.frame);this.observer.disconnect();for(const binding of this.cornerBindings)binding.off();this.cornerBindings=[];for(const s of this.surfaces.values())s.off();this.surfaces.clear();this.cancelPointers();window.removeEventListener('pointerdown',this.onOutsideDown);window.removeEventListener('resize',this.onWindowChange);window.removeEventListener('scroll',this.onWindowChange,true);window.removeEventListener('blur',this.onBlur);document.removeEventListener('visibilitychange',this.onVisibility);this.canvas.removeEventListener('webglcontextlost',this.onLost);this.canvas.removeEventListener('webglcontextrestored',this.onRestore);this.audio.destroy();this.keyboardHints?.remove();this.keyboardHints=null;this.hintNodes.clear();const g=this.gl;for(const b of this.buffers)g.deleteBuffer(b);g.deleteTexture(this.texture);g.deleteTexture(this.atlas);g.deleteTexture(this.collapsedAtlas);g.deleteVertexArray(this.vao);g.deleteProgram(this.program);g.clear(g.COLOR_BUFFER_BIT);activeCanvas.delete(this.canvas);activeDocument.delete(this.canvas.ownerDocument);}
 }

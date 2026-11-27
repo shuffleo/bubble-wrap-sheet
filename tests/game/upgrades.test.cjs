@@ -80,3 +80,17 @@ test('Rough Table advances only supplied active time and uses seeded unique targ
  assert.equal(triggered.elapsedMs,0);
  assert.deepEqual(advanceRoughTable({owned:[],elapsedMs:100,activeDeltaMs:interval,bubbles,rng}),{elapsedMs:0,procs:[],rng});
 });
+
+test('Rough Table prioritizes the conveyor bubble nearest the exit',()=>{
+ const rng=createGameRng(23);
+ const result=advanceRoughTable({
+  owned:['roughTable'],
+  elapsedMs:0,
+  activeDeltaMs:GAME_CONFIG.upgrades.roughTable.intervalMs,
+  bubbles,
+  rng,
+  layout:'conveyor'
+ });
+ assert.deepEqual(result.procs,[{upgrade:'roughTable',index:8}]);
+ assert.deepEqual(result.rng,rng);
+});

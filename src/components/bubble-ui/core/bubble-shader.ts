@@ -63,6 +63,7 @@ void main(){
  }
  vec2 center=(aClip.xy+aClip.zw)*.5;
  screen=center+(screen+d.xy-center)*(uPerspective/(uPerspective-d.z));screen.x+=slideX;vHeight=d.z;
+ if(aSheetRole<-.5)screen=vec2(-10000.);
  gl_Position=vec4(screen.x/uResolution.x*2.-1.,1.-screen.y/uResolution.y*2.,0.,1.);
 }`;
 export const fragmentShader=`#version 300 es

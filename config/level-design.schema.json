@@ -411,6 +411,8 @@
       "required": [
         "durationMs",
         "cleanupWindowMs",
+        "spawnIntervalMs",
+        "baseTravelMs",
         "clearanceTarget",
         "missScorePenalty",
         "speedStages"
@@ -418,6 +420,8 @@
       "properties": {
         "durationMs": {"$ref": "#/definitions/milliseconds"},
         "cleanupWindowMs": {"$ref": "#/definitions/nonNegativeMilliseconds"},
+        "spawnIntervalMs": {"$ref": "#/definitions/milliseconds"},
+        "baseTravelMs": {"$ref": "#/definitions/milliseconds"},
         "clearanceTarget": {"$ref": "#/definitions/ratio"},
         "missScorePenalty": {"$ref": "#/definitions/nonNegativeInteger"},
         "speedStages": {
