@@ -19,3 +19,10 @@ backups/*.html
 
 # Local Netlify folder
 .netlify
+
+# Test runs write screenshots, logs, and JSON into evidence/.
+# The crop audits stay tracked; tests compare them to the embedded atlas.
+evidence/**
+!evidence/README.md
+!evidence/crop-contours.jpg
+!evidence/source-crop-review.jpg

@@ -1,8 +1,0 @@
-
-> bubble-wrap@8.0.0 audio
-> python3 scripts/process_audio.py
-
-single 1.wav: 0.596698s -> 0.042000s, attack 2.77ms, peak -3.10dBFS
-single 2.wav: 0.326802s -> 0.087000s, attack 0.29ms, peak -3.10dBFS
-single 3.wav: 0.608052s -> 0.096000s, attack 2.60ms, peak -3.10dBFS
-refresh sound.wav: 1.129344s -> 1.129354s, attack 2.27ms, peak -3.74dBFS

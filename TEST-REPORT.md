@@ -19,8 +19,8 @@ The unit and browser suites total **222 passing checks**. Counts do not include
 historical milestone logs, nested assertion calls, or the six syntax checks.
 
 Commands: `npm test`, `npm run test:react-syntax`, `npm run test:browser`.
-Evidence: `evidence/release-unit-log.txt`, `evidence/release-react-log.txt`, and
-`evidence/release-browser-results.json` plus the accompanying browser log.
+The logs and screenshots from that run were local files under `evidence/`.
+They are gitignored and are not part of this repository.
 
 ## What was exercised
 
