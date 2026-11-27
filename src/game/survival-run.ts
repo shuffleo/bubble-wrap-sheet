@@ -81,14 +81,16 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   const prompt=root?.querySelector<HTMLElement>('.game-onboarding');
   if(!state.prompt)prompt?.remove();
   if(state.category==='keyboard-pointer')engine.setHotKeys(state.hotKeys);
-  const procs=resolveManualUpgradeProcs({
+  const resolvedProcs=resolveManualUpgradeProcs({
    owned:state.session.run.upgrades as UpgradeId[],
    neighbours:engine.getGameNeighbours(detail.index),
-   bubbles:engine.getGameBubbles()
+   bubbles:engine.getGameBubbles(),
+   rng:state.rng
   });
-  if(procs.length)queueMicrotask(()=>{
+  state={...state,rng:resolvedProcs.rng};
+  if(resolvedProcs.procs.length)queueMicrotask(()=>{
    if(!state||state.cleared||state.session.run.phase!=='playing'||!adapter)return;
-   for(const proc of procs)adapter.pop(proc.index,{type:'assisted',upgrade:proc.upgrade});
+   for(const proc of resolvedProcs.procs)adapter.pop(proc.index,{type:'assisted',upgrade:proc.upgrade});
   });
  };
  const onCleared=()=>{
