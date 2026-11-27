@@ -80,8 +80,8 @@ including an offline browser context. This also exercises the storage fallback;
 local-storage persistence on a normal hosted origin is not re-certified here.
 Public asset routes were independently tested through the local HTTP server.
 A fixed 150 ms resize wait was replaced with an explicit viewport/layout-ready
-condition after a software-renderer timing failure. The failed run is retained
-under `evidence/history/`; the final full run passed.
+condition after a software-renderer timing failure. That failed log is not
+kept in the repository; the final full run passed.
 
 No physical phone was connected. These checks do not certify iPhone/Android
 vibration, Safari audio behavior, perceived headphone loudness, or real-device
