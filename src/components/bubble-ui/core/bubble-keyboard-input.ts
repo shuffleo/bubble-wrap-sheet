@@ -17,8 +17,8 @@ export function bindBubbleKeyboard(engine:BubbleEngine,target:Window=window):()=
   if(space){engine.reset();}
   else engine.popKey(code);
  };
- const up=(event:KeyboardEvent)=>{const code=event.code==='Space'||event.key===' '?'Space':bubbleKeyCode(event);if(code)held.delete(code);};
- const clear=()=>held.clear();
+ const up=(event:KeyboardEvent)=>{const code=event.code==='Space'||event.key===' '?'Space':bubbleKeyCode(event);if(code){held.delete(code);if(code!=='Space')engine.releaseKey(code);}};
+ const clear=()=>{for(const code of held)if(code!=='Space')engine.releaseKey(code);held.clear();engine.releaseAllGameHolds();};
  target.addEventListener('keydown',down);target.addEventListener('keyup',up);target.addEventListener('blur',clear);
  document.addEventListener('visibilitychange',clear);
  return()=>{target.removeEventListener('keydown',down);target.removeEventListener('keyup',up);target.removeEventListener('blur',clear);document.removeEventListener('visibilitychange',clear);clear();};

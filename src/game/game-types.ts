@@ -37,6 +37,11 @@ export interface RunStats {
  manualPops:number;
  assistedPops:number;
  scoreEvents:number;
+ totalBubbles:number;
+ highestCombo:number;
+ misses:number;
+ insuredMisses:number;
+ rerolls:number;
 }
 
 export interface RunState {
@@ -47,9 +52,11 @@ export interface RunState {
  score:number;
  upgrades:string[];
  rerollUsed:boolean;
+ secondWindUsesRemaining:number;
  calibration:CalibrationResult|null;
  encounter:EncounterState|null;
  stats:RunStats;
+ levelScores:Partial<Record<LevelId,number>>;
 }
 
 export interface GameSessionState {

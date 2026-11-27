@@ -12,7 +12,9 @@ export const UPGRADE_COPY:Record<UpgradeId,{name:string;description:string;icon:
  bubbleInsurance:{name:'Bubble Insurance',description:'The first conveyor misses count as cleared.',icon:'verified_user'},
  rateHikeCycle:{name:'Rate-hike Cycle',description:'Raises shop-skip interest from 2% to 5%.',icon:'trending_up'},
  priorityBanking:{name:'Priority Banking',description:'Doubles the maximum interest payout per shop.',icon:'account_balance'},
- flatRate:{name:'Flat Rate',description:'Stops reroll prices from increasing after each use.',icon:'horizontal_rule'}
+ flatRate:{name:'Flat Rate',description:'Stops reroll prices from increasing after each use.',icon:'horizontal_rule'},
+ clusterBomb:{name:'Cluster Bomb',description:'Every quarter of a sheet reveals one key group. That key pops the whole group.',icon:'bomb'},
+ keyboardCover:{name:'Keyboard Cover',description:'Shows every key label. A label disappears when its bubble is popped.',icon:'keyboard'}
 };
 
 export const HAZARD_COPY:Record<HazardId,{name:string;description:string}>={

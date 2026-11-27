@@ -10,7 +10,7 @@ export class BubblePhysics {
  readonly resetAt:Float64Array; readonly neighbors:Int32Array;
  private refillStart:Float64Array;private refillLength:Float64Array;private refillX:Float32Array;private refillV:Float32Array;private refillClock:(()=>number)|null=null;
  time=0; private accumulator=0;
- constructor(readonly points:BubblePoint[],private onPop:PopListener){
+ constructor(readonly points:BubblePoint[],private onPop:PopListener,private beforePop:(index:number)=>boolean=()=>true){
   const n=points.length;this.refillStart=new Float64Array(n).fill(-1);this.refillLength=new Float64Array(n);this.refillX=new Float32Array(n);this.refillV=new Float32Array(n);this.bounce=new Float32Array(n);this.bounceVelocity=new Float32Array(n);this.tapCount=new Uint16Array(n);this.squish=new Float32Array(n);this.velocity=new Float32Array(n);this.targetSquish=new Float32Array(n);this.isPopped=new Float32Array(n);this.resetAt=new Float64Array(n).fill(-1);this.neighbors=new Int32Array(n*6).fill(-1);
   points.forEach((p,i)=>{if(p.cut){this.squish[i]=1;this.targetSquish[i]=1;this.isPopped[i]=1;}});
   const map=new Map(points.map((p,i)=>[`${p.surface}:${p.row}:${p.col}`,i]));
@@ -19,13 +19,23 @@ export class BubblePhysics {
  pop(i:number):boolean{
   if(i<0||i>=this.points.length||this.isPopped[i]||this.points[i].cut||this.points[i].eligible===false)return false;
   if(this.points[i].mode==='spring-return'){this.targetSquish[i]=.78;return false;}
+  if(!this.beforePop(i)){this.targetSquish[i]=0;this.velocity[i]=Math.min(0,this.velocity[i]);return false;}
   this.refillStart[i]=-1;this.isPopped[i]=1;this.targetSquish[i]=1;this.velocity[i]=Math.max(this.velocity[i],this.settings.popImpulse*this.settings.collapseSpeed);this.resetAt[i]=-1;
   for(let k=0;k<6;k++){const j=this.neighbors[i*6+k];if(j>=0&&!this.isPopped[j])this.velocity[j]-=this.settings.neighborRipple;}
   this.onPop(i);return true;
  }
  jiggle(i:number){if(i<0||i>=this.points.length||this.points[i].cut)return;this.tapCount[i]++;this.bounceVelocity[i]=Math.min(24,this.bounceVelocity[i]+10*this.settings.bounceStrength);}
  press(i:number,pressure=1){if(i<0||i>=this.points.length||this.isPopped[i]||this.points[i].cut||this.points[i].eligible===false)return;this.refillStart[i]=-1;this.targetSquish[i]=Math.max(this.targetSquish[i],Math.min(1,pressure)*.9);}
+ setHoldProgress(i:number,progress:number){
+  if(i<0||i>=this.points.length||this.isPopped[i]||this.points[i].cut||this.points[i].eligible===false)return;
+  this.refillStart[i]=-1;this.targetSquish[i]=Math.max(0,Math.min(this.settings.popThreshold*.88,progress*this.settings.popThreshold*.88));
+ }
  release(i:number){if(i>=0&&i<this.points.length&&!this.isPopped[i])this.targetSquish[i]=0;}
+ reinflate(i:number):boolean{
+  if(i<0||i>=this.points.length||!this.isPopped[i]||this.points[i].cut||this.points[i].eligible===false)return false;
+  this.refillStart[i]=-1;this.isPopped[i]=0;this.targetSquish[i]=0;this.resetAt[i]=-1;this.velocity[i]=Math.min(this.velocity[i],-this.settings.popImpulse*this.settings.pressSpeed);
+  return true;
+ }
  reset(surface?:string,immediate=false,timeline?:TimedReset){
   if(timeline&&!immediate&&timeline.duration>0){this.timedReset(surface,timeline);return;}
   this.refillStart.fill(-1);this.refillClock=null;

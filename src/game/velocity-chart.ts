@@ -14,6 +14,7 @@ export interface VelocityChartOptions {
  rateWindowMs:number;
  reducedMotion?:boolean;
  running?:boolean;
+ decorate?:boolean;
  onRate?:(rate:number)=>void;
 }
 
@@ -67,8 +68,9 @@ export function mountVelocityChart(host:HTMLElement,values:readonly number[],opt
   const width=canvas.offsetWidth||host.clientWidth||120;
   chart.options.millisPerPixel=VELOCITY_HISTORY_MS/Math.max(48,width);
  };
+ const decorate=options.decorate===true;
  const sample=()=>{
-  if(!running||document.hidden)return;
+  if(decorate||!running||document.hidden)return;
   const time=Date.now();
   while(pops.length&&time-pops[0]>VELOCITY_HISTORY_MS)pops.shift();
   const value=live?ratePerSecond(pops,time,options.rateWindowMs):hold;
@@ -81,7 +83,7 @@ export function mountVelocityChart(host:HTMLElement,values:readonly number[],opt
  document.addEventListener('visibilitychange',onVisibility);
  const timer=window.setInterval(sample,500);
  const start=()=>{fit();chart.streamTo(canvas,250);};
- if(running&&!document.hidden)start();
+ if((running||decorate)&&!document.hidden)start();
  function setRunning(next:boolean){
   running=next;
   if(running&&!document.hidden)start();

@@ -1,6 +1,7 @@
 import {GAME_CONFIG} from './game-config';
 import {roundGameValue} from './economy';
 import {nextInt,type GameRngState} from './game-rng';
+import type {UpgradeId} from './game-config';
 import type {RunCategory} from './game-types';
 
 export type ScoreSkill='none'|'clean-sweep'|'hot-key';
@@ -13,6 +14,12 @@ export interface ManualScore {
  points:number;
  skill:ScoreSkill;
  combo:ComboState;
+ rate:number;
+ velocityMultiplier:number;
+ deadlineMultiplier:number;
+ sureHandsBonus:number;
+ velocityBoost:number;
+ deadlineBoost:number;
 }
 
 export function scoreAssistedPop():number {
@@ -26,16 +33,64 @@ export function scoreManualPop(input:{
  adjacent:boolean;
  hotKey:boolean;
  combo:ComboState;
+ owned?:readonly UpgradeId[];
+ manualPopTimes?:readonly number[];
+ hardDeadline?:{totalMs:number;elapsedMs:number}|null;
+ scoreEligible?:boolean;
+ skillEligible?:boolean;
+ baseScore?:number;
 }):ManualScore {
  const scoring=GAME_CONFIG.scoring;
+ const owned=input.owned??[];
  const keyboard=input.input==='keyboard';
- const skill:ScoreSkill=keyboard
-  ?input.hotKey?'hot-key':'none'
+ const skill:ScoreSkill=input.skillEligible===false||keyboard
+  ?'none'
   :input.gestureOrdinal>=scoring.cleanSweepStartsAt&&input.adjacent?'clean-sweep':'none';
  const alive=input.combo.expiresAt!==0&&input.now<=input.combo.expiresAt;
  const combo={count:alive?input.combo.count+1:1,expiresAt:input.now+scoring.comboGraceMs};
- const points=roundGameValue(scoring.normalBase+(skill==='none'?0:scoring.skillBonus));
- return {points,skill,combo};
+ const popTimes=[...(input.manualPopTimes??[]),input.now].filter(time=>time>=input.now-scoring.velocity.windowMs&&time<=input.now);
+ const rate=manualPopRate(popTimes,scoring.velocity.windowMs);
+ const velocity=velocityScoreMultiplier(rate,owned.includes('velocityBuff')&&alive);
+ const deadline=deadlineScoreMultiplier(
+  input.hardDeadline?.totalMs??0,
+  input.hardDeadline?Math.max(0,input.hardDeadline.totalMs-input.hardDeadline.elapsedMs):0,
+  owned.includes('deadlineFighter')&&alive&&!!input.hardDeadline
+ );
+ const scoreEligible=input.scoreEligible!==false;
+ const skillBonus=scoreEligible&&skill!=='none'?scoring.skillBonus:0;
+ const sureHandsBonus=scoreEligible&&skill!=='none'&&owned.includes('sureHands')?GAME_CONFIG.upgrades.sureHands.additionalSkillBonus:0;
+ const subtotal=scoreEligible?(input.baseScore??scoring.normalBase)+skillBonus+sureHandsBonus:0;
+ const afterVelocity=subtotal*velocity;
+ const points=roundGameValue(afterVelocity*deadline);
+ const velocityBoost=Math.max(0,roundGameValue(afterVelocity)-subtotal);
+ const deadlineBoost=Math.max(0,points-subtotal-velocityBoost);
+ return {points,skill,combo,rate,velocityMultiplier:velocity,deadlineMultiplier:deadline,sureHandsBonus,velocityBoost,deadlineBoost};
+}
+
+export function manualPopRate(popTimes:readonly number[],windowMs=GAME_CONFIG.scoring.velocity.windowMs):number {
+ if(!Number.isFinite(windowMs)||windowMs<=0)return 0;
+ return popTimes.length/(windowMs/1000);
+}
+
+export function velocityScoreMultiplier(rate:number,active:boolean):number {
+ if(!active||rate<GAME_CONFIG.scoring.velocity.activationPopsPerSecond)return 1;
+ const velocity=GAME_CONFIG.scoring.velocity;
+ const multiplier=velocity.minimumMultiplier+(velocity.maximumMultiplier-velocity.minimumMultiplier)
+  *(1-Math.exp(-(rate-velocity.activationPopsPerSecond)/velocity.diminishingRate));
+ return Math.max(velocity.minimumMultiplier,Math.min(velocity.maximumMultiplier,multiplier));
+}
+
+export function dangerZoneMs(totalMs:number):number {
+ const deadline=GAME_CONFIG.scoring.deadline;
+ return Math.min(Math.max(0,totalMs)*deadline.dangerZoneFraction,deadline.dangerZoneMaxSeconds*1000);
+}
+
+export function deadlineScoreMultiplier(totalMs:number,remainingMs:number,active:boolean):number {
+ const zone=dangerZoneMs(totalMs);
+ if(!active||zone<=0||remainingMs>zone)return 1;
+ const deadline=GAME_CONFIG.scoring.deadline;
+ const progress=1-Math.max(0,remainingMs)/zone;
+ return deadline.minimumMultiplier+(deadline.maximumMultiplier-deadline.minimumMultiplier)*progress;
 }
 
 export function chooseHotKeys(codes:readonly string[],count:number,rng:GameRngState,previous:readonly string[]=[]):{state:GameRngState;codes:string[]} {

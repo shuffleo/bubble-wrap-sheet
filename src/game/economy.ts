@@ -5,7 +5,8 @@ const factor=10**GAME_CONFIG.economy.decimalPlaces;
 
 export function roundGameValue(value:number):number {
  if(!Number.isFinite(value))throw new Error('Game value must be finite');
- return Math.ceil((value-Number.EPSILON)*factor)/factor;
+ const rounded=Math.ceil((value-Number.EPSILON)*factor)/factor;
+ return Object.is(rounded,-0)?0:rounded;
 }
 
 export function formatGameNumber(value:number):string {

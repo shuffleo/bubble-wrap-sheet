@@ -466,7 +466,7 @@ Implemented through the Level 3 checkpoint:
 - One live encounter state now carries score, category, RNG, sheet plan, and attributable score rows across Levels 1–3.
 - Level 2 derives its soft target from actual responsive bubble workload and category tuning, settles remaining time, and never fails at zero.
 - Calibration samples manual-pop active windows only, closes windows across transitions and visibility loss, clamps by category, and persists diagnostics for the development drawer.
-- Level 3 derives a bounded hard deadline from the calibrated pace and actual L-sheet workload, exposes danger state, and resets the full run after timeout.
+- Level 3 derives a bounded hard deadline from the calibrated pace and actual L-sheet workload, adds the configured 25-second bonus after that clamp, exposes danger state, and resets the full run after timeout.
 - Hard-deadline danger now adds the final-10-second neon treatment, while a shader-backed exposure reminder helps locate one of the final one to three idle bubbles.
 - The completed Level 2 now hands off to the Stage E shop instead of bypassing its reducer phase.
 
@@ -508,7 +508,24 @@ Build:
 - The Level 2 result now opens a live seeded shop with two unowned offers, score-paid rerolls, immediate purchase dismissal, and capped skip interest.
 - The active offer pool contains Fat Finger plus the three economy upgrades; effects scheduled for later Stage E slices remain unavailable until implemented.
 - Fat Finger resolves through the manual-only deterministic proc queue, attributes its fixed assisted score separately, and appears in the live build HUD.
-- Buying or skipping advances through the reducer's existing shop phase into Level 3; no Stage F hazard behavior is enabled yet.
+- At this first checkpoint, buying or skipping advanced through the reducer's
+  existing shop phase into Level 3; Stage F had not yet been enabled.
+
+### Stage E upgrade-batch status
+
+Implemented through Second Wind:
+
+- Rough Table advances on active encounter time only and pauses during sheet
+  exchange, menus, and hidden-tab time.
+- Knuckle Crack uses the live combo count; Static Discharge uses an
+  encounter-scoped manual-pop count and actual bubble positions.
+- Velocity Buff, Deadline Fighter, and Sure Hands now resolve in the documented
+  score order and add separate attributable result rows.
+- Second Wind persists its one use across levels, extends only a hard deadline
+  it can actually save, and recalculates the danger multiplier from the extended
+  total.
+- All seven effects are in the seeded live shop pool with their config prices.
+  Assisted effects share a deterministic, non-recursive queue.
 
 ### User checkpoint 4: economy and first upgrade
 
@@ -559,6 +576,27 @@ Stop after the first four upgrades, and again after all twelve. Ask the user to 
 
 - Warning, reinflation, completion cancellation, and anti-farming.
 
+### Stage F first-pair status
+
+Implemented through F3:
+
+- Level 3 now opens shop 2 and advances into a three-sheet Level 4 encounter.
+- Level 4 chooses one seeded hazard for the whole level, repeats it in each
+  sheet plan, announces it before play, and applies its workload allowance to
+  the calibrated deadline.
+- The live checkpoint pool contains Double Layer and Memory Foam only.
+- Double Layer assigns the configured responsive ratio, exposes its layer state,
+  cracks without scoring on the first hit, and lets manual or assisted hits
+  remove exactly one membrane.
+- Memory Foam uses active encounter time, warns for the configured interval,
+  cancels at sheet completion, reinflates through the engine adapter, and
+  prevents repeat-score farming.
+- The renderer has bounded layer, warning, and reinflation APIs; hazard state
+  remains outside persisted run data.
+- Shop 3 settles normally, then this checkpoint stops on an explicit Level 5
+  handoff screen. It does not enter the static-sheet controller with the
+  conveyor's zero-sheet configuration.
+
 ### User checkpoint 6: first hazard pair
 
 Ask the user to validate visual clarity, deadlines, Fat Finger interactions, and whether reinflation feels pressuring rather than annoying.
@@ -585,6 +623,22 @@ Require a real-phone test before continuing. Confirm 1.5 seconds, finger jitter,
 ### User checkpoint 8: chaos test
 
 Ask whether Drunken Bob is confusing in the intended way rather than merely frustrating. Tune pity, deadline allowance, feedback, or selection weight in JSON.
+
+### Stage F completion status
+
+Implemented through F5:
+
+- Hardened Bubbles assigns the configured responsive ratio, accumulates
+  touch/pointer or keyboard pressure for 1.5 seconds, decays released pressure
+  over 0.4 seconds, and pauses a live combo while a valid hold continues.
+- Hardened progress is exposed through the instanced shader ring, keyboard
+  accessibility text, and the bounded game adapter. A completed hold scores the
+  configured 30-point base without Clean Sweep or Hot Key.
+- Drunken Bob rolls over every eligible position with run-seeded randomness,
+  visibly lurches the selected target, reports no-progress rolls, and guarantees
+  an unpopped target after three consecutive failures.
+- Drunken Bob disables both manual skill bonuses. All four Level 4 hazards now
+  participate in the weighted live pool.
 
 ## Stage G: conveyor, visuals before rules
 
@@ -616,6 +670,27 @@ Ask the user to review direction, density, speed stages, cleanup window, phone p
 
 Ask for complete no-upgrade and upgraded runs in both categories. Tune spawn density, speed, threshold, penalties, insurance, and prices before polish.
 
+### Stage G implementation status
+
+Implemented through G3:
+
+- Level 5 is a 45-second moving M-bubble belt rendered in the existing single
+  instanced draw. Slots are pooled, move continuously, retain moving pointer hit
+  tests, and rebuild screen-space keyboard groups as the active pool changes.
+- The belt spawns from seeded lane values, increases speed at 15 and 30 seconds,
+  stops spawning for the final cleanup window, and preserves active bubbles
+  across responsive relayout.
+- Escapes deduct the configured score penalty. Bubble Insurance still applies
+  the penalty but credits its first three misses toward clearance.
+- Fat Finger uses current moving neighbours, Rough Table selects the oldest
+  bubble nearest the exit, and Static Discharge uses current world positions.
+- At 45 seconds, remaining belt bubbles settle as misses. At least 90% clearance
+  wins and records the category high score; lower clearance ends the run without
+  writing a high score.
+- The final dossier reports clearance, medal, final score, build, best-scoring
+  level, total/manual/assisted pops, highest combo, rerolls, misses, insurance,
+  and attributable conveyor score rows.
+
 ## Stage H: release polish
 
 Build:
@@ -643,6 +718,32 @@ Exit:
 - Every GDD balance gate passes.
 - Endless Mode has no regression.
 - No timer, audio, animation, or input lock survives background/foreground.
+
+### Stage H automated status
+
+- The complete four-hazard pool, twelve-upgrade shop, and conveyor finale share
+  the final onboarding, HUD, result dossier, local category high-score, audio,
+  haptic, reduced-motion, and hidden-tab lifecycle paths.
+- Hardened state, Double Layer state, and moving keyboard groups retain
+  accessible labels; all changing hazard and conveyor outcomes use status text
+  in addition to visual treatment.
+- Automated validation covers 264 unit/config tests, 78 complete Survival Run
+  browser assertions, and 68 Endless Mode/release/deployment assertions.
+- The remaining release gate is the documented human phone/desktop playtest:
+  hold feel and jitter, Drunken Bob clarity, conveyor motion comfort, haptics,
+  and final balance in both score categories.
+
+### Playtest follow-up: labels, patterns, and the result trace
+
+Implemented:
+
+- Survival Run suspends saved key labels. Keyboard pops score base value and do not receive a highlighted-key bonus.
+- Cluster Bomb arms one random remaining key group at each 25% of a static sheet, up to three times, and that key pops the group.
+- Keyboard Cover shows every key label and removes a label when its bubble pops. With Cluster Bomb, the armed group is the bright set.
+- A manual zigzag or swirl/concentric path on a static sheet adds half of that sheet's manual score again. The two patterns do not stack.
+- The level-end dossier draws the level's manual velocity samples as a non-interactive decoration.
+- These two upgrades are in `level-design.json` and the live shop. The pool is fourteen upgrades.
+- The last-bubbles reminder drives the existing dome bounce with the ease-out bounce curve. It no longer multiplies exposure, which was revealing the hexagonal tiles.
 
 ## Implementation risks
 

@@ -2,7 +2,7 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {GAME_CONFIG}=require('../../.compiled/game/game-config');
 const {createGameRng}=require('../../.compiled/game/game-rng');
-const {EMPTY_COMBO,chooseHotKeys,scoreAssistedPop,scoreManualPop}=require('../../.compiled/game/scoring');
+const {EMPTY_COMBO,chooseHotKeys,dangerZoneMs,deadlineScoreMultiplier,scoreAssistedPop,scoreManualPop,velocityScoreMultiplier}=require('../../.compiled/game/scoring');
 const {applyAssistedPop,applyManualPop,beginLevel,beginLevelOne,createLevelOne,createLevelState,noteSheetCleared}=require('../../.compiled/game/level-one');
 
 test('clean sweep starts at the configured gesture crossing',()=>{
@@ -16,11 +16,13 @@ test('clean sweep starts at the configured gesture crossing',()=>{
  assert.equal(gap.skill,'none');
 });
 
-test('hot key scores only after a highlighted keyboard success and then rotates',()=>{
+test('keyboard pops score base value with no highlighted-key bonus',()=>{
  const miss=scoreManualPop({now:0,input:'keyboard',gestureOrdinal:1,adjacent:true,hotKey:false,combo:EMPTY_COMBO});
- const hit=scoreManualPop({now:0,input:'keyboard',gestureOrdinal:4,adjacent:true,hotKey:true,combo:EMPTY_COMBO});
+ const marked=scoreManualPop({now:0,input:'keyboard',gestureOrdinal:4,adjacent:true,hotKey:true,combo:EMPTY_COMBO});
  assert.equal(miss.skill,'none');
- assert.equal(hit.skill,'hot-key');
+ assert.equal(marked.skill,'none');
+ assert.equal(miss.points,GAME_CONFIG.scoring.normalBase);
+ assert.equal(marked.points,GAME_CONFIG.scoring.normalBase);
  const first=chooseHotKeys(['KeyQ','KeyW','KeyE','KeyR'],GAME_CONFIG.scoring.hotKeyTargetCount,createGameRng(4));
  const second=chooseHotKeys(['KeyQ','KeyW','KeyE','KeyR'],GAME_CONFIG.scoring.hotKeyTargetCount,first.state,first.codes);
  assert.notDeepEqual([...first.codes].sort(),[...second.codes].sort());
@@ -33,6 +35,91 @@ test('combo expires from config and assisted pops do not extend it',()=>{
  assert.equal(extended.combo.count,2);
  assert.equal(expired.combo.count,1);
  assert.equal(scoreAssistedPop(),GAME_CONFIG.scoring.assistedBase);
+});
+
+test('Velocity Buff follows its configured diminishing curve only in a live combo',()=>{
+ const activation=GAME_CONFIG.scoring.velocity.activationPopsPerSecond;
+ assert.equal(velocityScoreMultiplier(activation-0.01,true),1);
+ assert.equal(velocityScoreMultiplier(activation,true),GAME_CONFIG.scoring.velocity.minimumMultiplier);
+ assert.ok(velocityScoreMultiplier(activation+4,true)>GAME_CONFIG.scoring.velocity.minimumMultiplier);
+ assert.ok(velocityScoreMultiplier(100,true)<=GAME_CONFIG.scoring.velocity.maximumMultiplier);
+ assert.equal(velocityScoreMultiplier(100,false),1);
+});
+
+test('Deadline Fighter rises linearly inside the configured danger zone',()=>{
+ const totalMs=28_000,zone=dangerZoneMs(totalMs);
+ assert.equal(zone,totalMs*GAME_CONFIG.scoring.deadline.dangerZoneFraction);
+ assert.equal(deadlineScoreMultiplier(totalMs,zone+1,true),1);
+ assert.equal(deadlineScoreMultiplier(totalMs,zone,true),1);
+ assert.equal(deadlineScoreMultiplier(totalMs,zone/2,true),1.5);
+ assert.equal(deadlineScoreMultiplier(totalMs,0,true),GAME_CONFIG.scoring.deadline.maximumMultiplier);
+ assert.equal(deadlineScoreMultiplier(totalMs,0,false),1);
+});
+
+test('manual score applies Sure Hands before velocity and deadline multipliers',()=>{
+ const now=1500;
+ const result=scoreManualPop({
+  now,
+  input:'touch',
+  gestureOrdinal:3,
+  adjacent:true,
+  hotKey:false,
+  combo:{count:4,expiresAt:now},
+  owned:['sureHands','velocityBuff','deadlineFighter'],
+  manualPopTimes:[0,250,500,750,1000,1250],
+  hardDeadline:{totalMs:20_000,elapsedMs:19_000}
+ });
+ assert.equal(result.sureHandsBonus,GAME_CONFIG.upgrades.sureHands.additionalSkillBonus);
+ assert.ok(result.velocityMultiplier>1);
+ assert.ok(result.deadlineMultiplier>1);
+ assert.equal(
+  GAME_CONFIG.scoring.normalBase+GAME_CONFIG.scoring.skillBonus+result.sureHandsBonus+result.velocityBoost+result.deadlineBoost,
+  result.points
+ );
+});
+
+test('a reinflated bubble advances manual play without awarding repeat score',()=>{
+ const result=scoreManualPop({
+  now:500,
+  input:'touch',
+  gestureOrdinal:3,
+  adjacent:true,
+  hotKey:false,
+  combo:{count:2,expiresAt:500},
+  owned:['sureHands','velocityBuff'],
+  manualPopTimes:[0,250],
+  scoreEligible:false
+ });
+ assert.equal(result.points,0);
+ assert.equal(result.sureHandsBonus,0);
+ assert.equal(result.velocityBoost,0);
+ assert.equal(result.combo.count,3);
+});
+
+test('Hardened and Drunken Bob pops suppress skill while retaining configured base score',()=>{
+ const hardened=scoreManualPop({
+  now:500,
+  input:'touch',
+  gestureOrdinal:4,
+  adjacent:true,
+  hotKey:false,
+  combo:{count:2,expiresAt:500},
+  skillEligible:false,
+  baseScore:GAME_CONFIG.scoring.hardenedBase
+ });
+ assert.equal(hardened.skill,'none');
+ assert.equal(hardened.points,GAME_CONFIG.scoring.hardenedBase);
+ const drunken=scoreManualPop({
+  now:500,
+  input:'keyboard',
+  gestureOrdinal:1,
+  adjacent:false,
+  hotKey:true,
+  combo:{count:2,expiresAt:500},
+  skillEligible:false
+ });
+ assert.equal(drunken.skill,'none');
+ assert.equal(drunken.points,GAME_CONFIG.scoring.normalBase);
 });
 
 test('level 1 scores two manual sheets and keeps the first category',()=>{

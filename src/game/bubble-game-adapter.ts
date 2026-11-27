@@ -1,13 +1,26 @@
-import type {AutomatedPopSource,BubblePopDetail,GameBubbleSnapshot,ManualPopInput} from '../components/bubble-ui/core/bubble-engine';
+import type {AutomatedPopSource,BubbleHitDetail,BubblePopDetail,ConveyorMissDetail,GameBubbleSnapshot,ManualPopInput,ManualPopSource} from '../components/bubble-ui/core/bubble-engine';
 import type {RunCategory} from './game-types';
 
 export interface BubbleGamePort extends EventTarget {
  getGameBubbles():GameBubbleSnapshot[];
  getGameNeighbours(index:number):number[];
  popForGame(index:number,source:AutomatedPopSource):boolean;
+ setGameBubbleLayers(indices:readonly number[],layers:number):number;
+ setGameBubbleHolds(indices:readonly number[],holdMs:number,decayMs:number):number;
+ setGameManualTargetResolver(resolver:((sourceIndex:number,source:ManualPopSource,bubbles:readonly GameBubbleSnapshot[])=>number)|null):void;
+ inspectGameHold():{active:boolean;indices:number[];progress:number[];requiredMs:number;decayMs:number};
+ startGameConveyor(baseTravelMs:number):void;
+ spawnGameConveyor(lane:number):number;
+ setGameConveyorSpeed(multiplier:number):void;
+ endGameConveyor(countRemaining:boolean):number;
+ reinflateForGame(index:number):boolean;
+ setHazardWarning(index:number|null):boolean;
 }
 
 export interface GamePopDetail extends BubblePopDetail {
+ category:RunCategory|null;
+}
+export interface GameHitDetail extends BubbleHitDetail {
  category:RunCategory|null;
 }
 
@@ -26,10 +39,22 @@ export class BubbleGameAdapter extends EventTarget {
   if(detail.source.type==='manual'&&!this.lockedCategory)this.lockedCategory=categoryForInput(detail.source.input);
   this.dispatchEvent(new CustomEvent<GamePopDetail>('gamepop',{detail:{...detail,category:this.lockedCategory}}));
  };
+ private readonly onBubbleHit=(event:Event)=>{
+  if(this.disposed)return;
+  const detail=(event as CustomEvent<BubbleHitDetail>).detail;
+  if(detail.source.type==='manual'&&!this.lockedCategory)this.lockedCategory=categoryForInput(detail.source.input);
+  this.dispatchEvent(new CustomEvent<GameHitDetail>('gamehit',{detail:{...detail,category:this.lockedCategory}}));
+ };
+ private readonly onConveyorMiss=(event:Event)=>{
+  if(this.disposed)return;
+  this.dispatchEvent(new CustomEvent<ConveyorMissDetail>('conveyormiss',{detail:(event as CustomEvent<ConveyorMissDetail>).detail}));
+ };
 
  constructor(private readonly engine:BubbleGamePort){
   super();
   engine.addEventListener('bubblepop',this.onBubblePop);
+  engine.addEventListener('bubblehit',this.onBubbleHit);
+  engine.addEventListener('conveyormiss',this.onConveyorMiss);
  }
 
  get category():RunCategory|null {return this.lockedCategory;}
@@ -47,6 +72,51 @@ export class BubbleGameAdapter extends EventTarget {
   return this.engine.popForGame(index,source);
  }
 
+ setLayers(indices:readonly number[],layers:number):number {
+  if(this.disposed)return 0;
+  return this.engine.setGameBubbleLayers(indices,layers);
+ }
+
+ setHolds(indices:readonly number[],holdMs:number,decayMs:number):number {
+  if(this.disposed)return 0;
+  return this.engine.setGameBubbleHolds(indices,holdMs,decayMs);
+ }
+
+ setTargetResolver(resolver:((sourceIndex:number,source:ManualPopSource,bubbles:readonly GameBubbleSnapshot[])=>number)|null):void {
+  if(this.disposed)return;
+  this.engine.setGameManualTargetResolver(resolver);
+ }
+
+ holdState() {
+  return this.engine.inspectGameHold();
+ }
+
+ startConveyor(baseTravelMs:number):void {
+  if(!this.disposed)this.engine.startGameConveyor(baseTravelMs);
+ }
+
+ spawnConveyor(lane:number):number {
+  return this.disposed?-1:this.engine.spawnGameConveyor(lane);
+ }
+
+ setConveyorSpeed(multiplier:number):void {
+  if(!this.disposed)this.engine.setGameConveyorSpeed(multiplier);
+ }
+
+ endConveyor(countRemaining:boolean):number {
+  return this.disposed?0:this.engine.endGameConveyor(countRemaining);
+ }
+
+ reinflate(index:number):boolean {
+  if(this.disposed)return false;
+  return this.engine.reinflateForGame(index);
+ }
+
+ warn(index:number|null):boolean {
+  if(this.disposed)return false;
+  return this.engine.setHazardWarning(index);
+ }
+
  popRandom(source:AutomatedPopSource,random:()=>number=Math.random):number {
   if(this.disposed)return -1;
   const available=this.engine.getGameBubbles().filter(bubble=>bubble.eligible&&!bubble.popped);
@@ -59,6 +129,9 @@ export class BubbleGameAdapter extends EventTarget {
  dispose():void {
   if(this.disposed)return;
   this.disposed=true;
+  this.engine.setGameManualTargetResolver(null);
   this.engine.removeEventListener('bubblepop',this.onBubblePop);
+  this.engine.removeEventListener('bubblehit',this.onBubbleHit);
+  this.engine.removeEventListener('conveyormiss',this.onConveyorMiss);
  }
 }

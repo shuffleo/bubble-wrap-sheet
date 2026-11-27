@@ -24,3 +24,9 @@ test('sheet transitions keep the preplanned hazard list for that sheet',()=>{
  assert.equal(level.session.run.encounter.sheetIndex,1);
  assert.deepEqual(level.session.run.encounter.sheetHazardIds,level.plans[1].hazardIds);
 });
+
+test('Level 4 keeps one selected hazard across every planned sheet',()=>{
+ const plans=planLevelSheets(4,'memoryFoam');
+ assert.equal(plans.length,GAME_CONFIG.run.levels.find(level=>level.id===4).sheetCount);
+ assert.ok(plans.every(plan=>plan.hazardIds.length===1&&plan.hazardIds[0]==='memoryFoam'));
+});

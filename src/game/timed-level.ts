@@ -79,8 +79,8 @@ export function softParMs(category:RunCategory,totalBubbles:number,sheetCount:nu
  return Math.ceil(popMs+transitionAllowanceMs(sheetCount));
 }
 
-export function calibratedDeadlineMs(totalBubbles:number,sheetCount:number,calibration:CalibrationResult):number {
- const activeMs=Math.max(0,totalBubbles)/Math.max(Number.EPSILON,calibration.popsPerSecond)*1000*GAME_CONFIG.calibration.hardDeadlineChallengeFactor;
+export function calibratedDeadlineMs(totalBubbles:number,sheetCount:number,calibration:CalibrationResult,workloadMultiplier=1):number {
+ const activeMs=Math.max(0,totalBubbles)/Math.max(Number.EPSILON,calibration.popsPerSecond)*1000*GAME_CONFIG.calibration.hardDeadlineChallengeFactor*Math.max(1,workloadMultiplier);
  const proposed=activeMs+transitionAllowanceMs(sheetCount);
  const minimum=GAME_CONFIG.calibration.hardDeadlineMinSeconds*1000;
  const maximum=GAME_CONFIG.calibration.hardDeadlineMaxSeconds*1000;
@@ -93,6 +93,30 @@ export interface TimeSettlement {
  bonus:number;
  total:number;
  remainingMs:number;
+}
+
+export interface SecondWindResolution {
+ triggered:boolean;
+ totalMs:number;
+ usesRemaining:number;
+}
+
+export function resolveSecondWind(input:{
+ totalMs:number;
+ elapsedMs:number;
+ owned:boolean;
+ usesRemaining:number;
+ hardTimer:boolean;
+}):SecondWindResolution {
+ const addedMs=GAME_CONFIG.upgrades.secondWind.addedSeconds*1000;
+ const canPreventFailure=input.hardTimer
+  &&input.owned
+  &&input.usesRemaining>0
+  &&input.elapsedMs>=input.totalMs
+  &&input.elapsedMs<input.totalMs+addedMs;
+ return canPreventFailure
+  ?{triggered:true,totalMs:input.totalMs+addedMs,usesRemaining:input.usesRemaining-1}
+  :{triggered:false,totalMs:input.totalMs,usesRemaining:input.usesRemaining};
 }
 
 export function remainingTimeSettlement(subtotal:number,totalMs:number,elapsedMs:number):TimeSettlement {

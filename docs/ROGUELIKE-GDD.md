@@ -1,6 +1,6 @@
 # Bubble Wrap: Survival Run
 
-Status: Draft v0.2
+Status: Implemented MVP v0.5
 Scope: Five-level MVP  
 Branch: `cursor/roguelike-2ece`
 
@@ -31,7 +31,7 @@ The primary question is whether the player reaches the end. Score measures execu
 
 ### Short, divergent runs
 
-Three shops, nine unique upgrades, and one of four hazards create meaningful variation inside a compact five-level run.
+Three shops, fourteen unique upgrades, and one of four hazards create meaningful variation inside a compact five-level run.
 
 ### Legible unfairness
 
@@ -90,14 +90,14 @@ Every successful normal manual pop has a base value of 10, independent of input.
 - Re-crossing a popped bubble gives no score.
 - Hardened Bubbles and Drunken Bob do not qualify for Clean Sweep.
 
-### Keyboard: Hot Key
+### Keyboard
 
-- Three keyboard groups containing unpopped bubbles are highlighted.
-- Popping from a highlighted group receives a +20 skill bonus.
-- After a successful Hot Key pop, the highlighted set changes.
-- A non-highlighted valid key still pops for base value.
+- Key labels are hidden during Survival Run.
+- A keyboard pop scores base value. There is no default highlighted-key bonus.
+- One physical press still pops one unpopped bubble in that key's group.
 - Held-key repeat remains disabled.
-- Drunken Bob disables Hot Key.
+- Keyboard Cover and Cluster Bomb are the only ways a run reveals key labels.
+- Endless Mode still defaults labels off, and its own label setting does not leak into a run.
 
 ### Manual combo
 
@@ -117,7 +117,8 @@ Values:
 
 - Normal base: 10.
 - Hardened Bubble base: 30.
-- Clean Sweep or Hot Key bonus: +20.
+- Clean Sweep bonus: +20.
+- Keyboard pops have no default skill bonus.
 - Sure Hands bonus on a skilled pop: +10.
 - No Velocity Buff: 1×.
 - Velocity Buff: 2×–5× while active.
@@ -135,6 +136,8 @@ Integer score is rounded after resolving the complete pop.
 - At activation, multiplier starts at 2×.
 - It approaches 5× with diminishing returns.
 - Losing the manual combo returns it to 1×.
+- Reinflated Memory Foam bubbles still advance the manual chain and upgrade
+  counters, but their repeat pop contributes no base, skill, or boost score.
 
 Provisional curve:
 
@@ -154,6 +157,15 @@ Timed encounters apply a completion multiplier to the encounter subtotal:
 `1 + 0.5 × remaining / starting time`
 
 The multiplier ranges from 1× to 1.5×. A soft timer at or below zero gives 1× and does not fail the level.
+
+### Sheet patterns
+
+Finishing a static sheet in a recognized manual path multiplies that sheet's manual score by 1.5×. The bonus is the extra 0.5×, added once. Zigzag and swirl do not stack. The conveyor has no sheet pattern.
+
+- At least six manual pops, covering at least 60% of that sheet.
+- Horizontal zigzag: row by row, each row monotonic, and each new row reversing direction.
+- Swirl or concentric rings: a steady rotation whose radius trends inward or outward, or complete rings from the outside in or the inside out.
+- Assisted pops do not draw the path. They can still lower coverage if the player did not pop enough bubbles themselves.
 
 ### Score as purchasing power
 
@@ -180,7 +192,8 @@ The multiplier ranges from 1× to 1.5×. A soft timer at or below zero gives 1×
 - Calibration bounds and challenge factors.
 - Shop offers, rerolls, prices, and upgrade strengths.
 - Hazard frequencies, durations, ratios, and pity limits.
-- Conveyor duration, speed stages, penalties, and clearance target.
+- Conveyor duration, spawn interval, travel time, speed stages, cleanup window,
+  penalties, and clearance target.
 - UI transition and feedback timings.
 
 The prose in this GDD defines intent and behavior. If a numeric value differs, the JSON configuration controls the build.
@@ -253,7 +266,7 @@ Actual bubble count remains responsive. Touch and Keyboard & Pointer scores are 
 - Failure: none.
 - Upgrades: disabled.
 - Shop: none.
-- Purpose: explain popping, sheet clearing, Clean Sweep, Hot Key, score, and refresh.
+- Purpose: explain popping, sheet clearing, Clean Sweep, score, and refresh. Key labels are not part of the default lesson.
 - Performance is not used for calibration.
 
 ### Level 2: Tempo
@@ -285,7 +298,7 @@ It measures robust active windows rather than total level duration. The result i
 - Objective: clear 5 L sheets.
 - Timer: calibrated hard deadline.
 - Failure: timeout ends the run.
-- Target range: 16–28 seconds after clamping.
+- The calibrated result stays clamped to 16–28 seconds. Level 3 then adds `deadlineBonusSeconds` (25) so the countdown the player sees is 41–53 seconds.
 - Base formula uses actual eligible bubbles, level-2 manual rate, transition allowance, and an initial 0.85 challenge factor.
 - Completion opens shop 2.
 
@@ -383,6 +396,8 @@ Once per run, a hard timer reaching zero automatically adds five seconds.
 - Consumed only when it prevents failure.
 - Does not replenish.
 - The danger zone recalculates against the extended timer.
+- If more than five seconds have already elapsed beyond the deadline, it is not
+  consumed because the extension cannot prevent failure.
 
 ### Bubble Insurance
 
@@ -412,6 +427,25 @@ Rerolls remain at their base category price instead of increasing after each use
 
 - Does not refund earlier rerolls.
 - The three-reroll limit still applies.
+
+### Cluster Bomb
+
+Every time another 25% of the current static sheet is popped, one random key group that still has bubbles reveals its labels.
+
+- Up to three reveals per sheet, at 25%, 50%, and 75%.
+- Pressing that key pops every remaining bubble in the group.
+- The pressed bubble scores as a normal manual pop. The rest score as assisted pops.
+- A new quarter replaces an unpressed group.
+- The conveyor does not arm a cluster.
+- Drunken Bob can still scramble the first press. The labeled group still bursts.
+
+### Keyboard Cover
+
+Shows the key label on every unpopped bubble.
+
+- The label disappears when that bubble is popped.
+- It does not add a score bonus.
+- If Cluster Bomb is also owned, the armed group stays highlighted and the other labels remain readable.
 
 ### Designed, not yet scheduled
 
@@ -448,7 +482,11 @@ To avoid recursion and ambiguous scoring:
 
 ## 13. Hazards
 
-The MVP selects at most one hazard for a level. Each sheet already has a plan with a hazard id list, and that list is empty. A later variant can put a different set on each new sheet of the same level by changing the planner only. The level loop, scoring, and sheet transition stay the same.
+The MVP selects at most one hazard for a level. Each sheet already has a plan with a hazard id list, and Level 4 repeats its one selected hazard across all three sheets. A later variant can put a different set on each new sheet of the same level by changing the planner only. The level loop, scoring, and sheet transition stay the same.
+
+Double Layer, Memory Foam, Hardened Bubbles, and Drunken Bob all participate in
+the live seeded pool. The configured equal weights give each a 25% selection
+chance, and one selected hazard repeats across all three Level 4 sheets.
 
 ### Double Layer
 
@@ -486,7 +524,7 @@ The MVP selects at most one hazard for a level. Each sheet already has a plan wi
 - The failure counter resets after progress.
 - Dragging performs one roll for each newly crossed source cell.
 - Input location and keyboard group do not constrain the target.
-- Clean Sweep and Hot Key are disabled.
+- Clean Sweep is disabled. Keyboard pops stay at base value.
 - Successful manual pops have base value 10.
 - Selected targets visibly lurch before resolving.
 
@@ -526,7 +564,8 @@ The chosen direction combines Moving Out's clear job brief and medal result with
 
 ### Level result
 
-- Reveal the score calculation progressively: base/manual value first, then skill, upgrade, boost, penalty, and settlement effects as separate attributable rows.
+- Reveal the score calculation progressively: base/manual value first, then skill, upgrade, boost, pattern, penalty, and settlement effects as separate attributable rows.
+- The level's manual velocity trace is drawn once under the result as decoration. It does not show a readout and does not affect score.
 - Show clear time, earned medal, personal best, and the exact improvement needed for the next medal.
 - Effects that were not active do not create noisy zero rows, except during onboarding where an explicit “no upgrades active” note explains the empty category.
 
@@ -540,8 +579,9 @@ The sheet remains the visual focus. During Survival Run, remove the page title a
 - **Bottom left:** time remaining only. The colon blinks once per second. During the final 10 seconds of a hard deadline, the countdown flashes neon red and a responsive 4-pixel neon-red line frames the viewport. Reduced motion keeps the warning static. Do not add a status caption under the time.
 - **Bottom centre:** owned-upgrade icons with no surrounding panel. Hover, focus, or tap opens one explanation covering every upgrade. Tap the icons again, or tap an empty area, to dismiss it. While an effect is active, its current value appears beside its icon.
 - Deadline Fighter does not occupy a permanent top-row chip; its active value appears on its upgrade icon.
-- Combo, Hot Key, hazard, and onboarding feedback appear contextually rather than competing with the primary KPI.
-- If one to three eligible bubbles remain without a pop for three active seconds, one remaining bubble receives a rhythmic, bounce-eased exposure glow. Any pop, transition, visibility loss, or new sheet clears and restarts that reminder delay.
+- Combo, hazard, and onboarding feedback appear contextually rather than competing with the primary KPI.
+- Key labels stay off unless Cluster Bomb or Keyboard Cover is owned.
+- If one to three eligible bubbles remain without a pop for three active seconds, one remaining bubble plays the re-tap dome on the same ease-out bounce curve. The motion falls off before the cell edge, and exposure stays unchanged, so the hexagonal film join stays continuous. Any pop, transition, visibility loss, or new sheet clears and restarts that reminder delay.
 - Game type uses a tighter line height than body copy so the HUD stays compact on a phone.
 - One Material Symbols overflow button at the bottom right contains Refresh sheet, Mute, Shop preview, Modes, Run won preview, and Tuning panel. Refresh and mute are not separate corner buttons during Survival Run.
 

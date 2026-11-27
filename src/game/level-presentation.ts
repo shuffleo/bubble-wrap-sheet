@@ -67,7 +67,7 @@ export function levelHazardPreview(levelId:LevelId):string {
  if(level.id===1)return 'No hazard · learn Clean Sweep and Hot Keys';
  if(level.id===2)return 'Soft timer · establishes your pace';
  if(level.id===3)return 'Hard deadline · no hazard';
- if(level.id===4)return 'One seeded hazard per sheet';
+ if(level.id===4)return 'One seeded hazard · hard deadline';
  return `Conveyor · missed bubbles cost ${formatGameCurrency(GAME_CONFIG.conveyor.missScorePenalty)}`;
 }
 

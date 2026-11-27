@@ -1,5 +1,5 @@
 import {createGameClock} from './game-clock';
-import {levelDefinition,shouldOpenShopAfterLevel} from './game-config';
+import {GAME_CONFIG,levelDefinition,shouldOpenShopAfterLevel} from './game-config';
 import {createGameRng} from './game-rng';
 import type {EncounterState,GamePhase,GameRunAction,GameSessionState,LevelId,ReduceOutcome,RunState} from './game-types';
 
@@ -14,7 +14,7 @@ export const LEGAL_TRANSITIONS:Readonly<Record<GamePhase,readonly ActionType[]>>
  'run-lost':['back-to-mode-select','reset']
 };
 
-function emptyStats(){return {manualPops:0,assistedPops:0,scoreEvents:0};}
+function emptyStats(){return {manualPops:0,assistedPops:0,scoreEvents:0,totalBubbles:0,highestCombo:0,misses:0,insuredMisses:0,rerolls:0};}
 
 function encounterFor(level:LevelId):EncounterState {
  const definition=levelDefinition(level);
@@ -22,7 +22,7 @@ function encounterFor(level:LevelId):EncounterState {
 }
 
 function initialRun(seed:number):RunState {
- return {seed:seed>>>0,phase:'mode-select',category:null,level:1,score:0,upgrades:[],rerollUsed:false,calibration:null,encounter:null,stats:emptyStats()};
+ return {seed:seed>>>0,phase:'mode-select',category:null,level:1,score:0,upgrades:[],rerollUsed:false,secondWindUsesRemaining:GAME_CONFIG.upgrades.secondWind.usesPerRun,calibration:null,encounter:null,stats:emptyStats(),levelScores:{}};
 }
 
 export function initialSession(seed:number):GameSessionState {
