@@ -26,6 +26,10 @@ export class BubblePhysics {
  }
  jiggle(i:number){if(i<0||i>=this.points.length||this.points[i].cut)return;this.tapCount[i]++;this.bounceVelocity[i]=Math.min(24,this.bounceVelocity[i]+10*this.settings.bounceStrength);}
  press(i:number,pressure=1){if(i<0||i>=this.points.length||this.isPopped[i]||this.points[i].cut||this.points[i].eligible===false)return;this.refillStart[i]=-1;this.targetSquish[i]=Math.max(this.targetSquish[i],Math.min(1,pressure)*.9);}
+ setHoldProgress(i:number,progress:number){
+  if(i<0||i>=this.points.length||this.isPopped[i]||this.points[i].cut||this.points[i].eligible===false)return;
+  this.refillStart[i]=-1;this.targetSquish[i]=Math.max(0,Math.min(this.settings.popThreshold*.88,progress*this.settings.popThreshold*.88));
+ }
  release(i:number){if(i>=0&&i<this.points.length&&!this.isPopped[i])this.targetSquish[i]=0;}
  reinflate(i:number):boolean{
   if(i<0||i>=this.points.length||!this.isPopped[i]||this.points[i].cut||this.points[i].eligible===false)return false;

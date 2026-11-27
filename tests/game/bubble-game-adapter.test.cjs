@@ -6,12 +6,15 @@ class FakeEngine extends EventTarget {
  constructor(){
   super();
   this.items=[
-   {index:0,surface:'sheet',eligible:true,popped:false,x:0,y:0,layers:1},
-   {index:1,surface:'sheet',eligible:true,popped:false,x:10,y:0,layers:1},
-   {index:2,surface:'sheet',eligible:false,popped:false,x:20,y:0,layers:1}
+   {index:0,surface:'sheet',eligible:true,popped:false,x:0,y:0,layers:1,hardened:false,holdProgress:0},
+   {index:1,surface:'sheet',eligible:true,popped:false,x:10,y:0,layers:1,hardened:false,holdProgress:0},
+   {index:2,surface:'sheet',eligible:false,popped:false,x:20,y:0,layers:1,hardened:false,holdProgress:0}
   ];
  }
  setGameBubbleLayers(indices,layers){for(const index of indices)if(this.items[index]?.eligible&&!this.items[index].popped)this.items[index].layers=layers;return indices.filter(index=>this.items[index]?.eligible&&!this.items[index].popped).length;}
+ setGameBubbleHolds(indices){for(const index of indices)if(this.items[index]?.eligible&&!this.items[index].popped)this.items[index].hardened=true;return indices.filter(index=>this.items[index]?.eligible&&!this.items[index].popped).length;}
+ setGameManualTargetResolver(resolver){this.resolver=resolver;}
+ inspectGameHold(){return {active:false,indices:[],progress:[],requiredMs:0,decayMs:0};}
  reinflateForGame(index){const item=this.items[index];if(!item?.popped)return false;item.popped=false;return true;}
  setHazardWarning(index){this.warning=index;return true;}
  getGameBubbles(){return this.items.map(item=>({...item}));}
@@ -59,6 +62,8 @@ test('bounded methods return copies and reject unavailable bubbles',()=>{
  assert.equal(adapter.pop(99,{type:'system',reason:'test'}),false);
  assert.equal(adapter.setLayers([0,1,2],2),2);
  assert.equal(adapter.bubbles()[0].layers,2);
+ assert.equal(adapter.setHolds([0,1,2],1500,400),2);
+ assert.equal(adapter.bubbles()[0].hardened,true);
  engine.items[0].popped=true;
  assert.equal(adapter.reinflate(0),true);
  assert.equal(adapter.warn(0),true);

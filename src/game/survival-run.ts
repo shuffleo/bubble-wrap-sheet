@@ -19,7 +19,7 @@ import {HAZARD_COPY,UPGRADE_COPY} from './game-copy';
 import {buyLiveShopUpgrade,createLiveShop,rerollLiveShop,skipLiveShop,upgradePrice,type LiveShopState} from './shops';
 import {advanceRoughTable,resolveManualUpgradeProcs} from './upgrades';
 import {deadlineScoreMultiplier} from './scoring';
-import {advanceMemoryFoam,assignDoubleLayers,createMemoryFoamState,hazardDeadlineMultiplier,type MemoryFoamState} from './hazards';
+import {advanceMemoryFoam,assignDoubleLayers,assignHardenedBubbles,createDrunkenBobState,createMemoryFoamState,hazardDeadlineMultiplier,resolveDrunkenBobInput,type DrunkenBobState,type MemoryFoamState} from './hazards';
 
 export interface SurvivalRun {
  start():void;
@@ -51,6 +51,7 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
  let roughTableElapsedMs=0;
  let roughTableLastTickMs=0;
  let memoryFoamState:MemoryFoamState=createMemoryFoamState();
+ let drunkenBobState:DrunkenBobState=createDrunkenBobState();
  let hazardLastTickMs=0;
  let sheetClearedAtMs:number|null=null;
  const onVisibility=()=>{
@@ -73,6 +74,8 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   advanceElapsedNow();
   if(timerKind==='hard'&&levelElapsedMs>=timerTotalMs&&!tryUseSecondWind()){showLoss();return;}
   const detail=(event as CustomEvent<GamePopDetail>).detail;
+  const bubble=engine.getGameBubbles().find(item=>item.index===detail.index);
+  const hazardId=state.session.run.encounter?.hazardId as HazardId|null;
   lastBubbleProgressMs=levelElapsedMs;
   clearBubbleReminder();
   if(detail.source.type==='assisted'){
@@ -98,7 +101,9 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
    keyCode:code,
    availableKeyCodes:engine.getKeyboardMap().filter(group=>group.remaining>0).map(group=>group.code),
    hardDeadline:timerKind==='hard'?{totalMs:timerTotalMs,elapsedMs:levelElapsedMs}:null,
-   firstScoredPop
+   firstScoredPop,
+   skillEligible:!bubble?.hardened&&hazardId!=='drunkenBob',
+   baseScore:bubble?.hardened?GAME_CONFIG.scoring.hardenedBase:GAME_CONFIG.scoring.normalBase
   });
   state=applied.state;
   if(firstScoredPop)state.scoredBubbleKeys.add(scoreKey);
@@ -107,7 +112,7 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   refreshCombo();
   const prompt=root?.querySelector<HTMLElement>('.game-onboarding');
   if(!state.prompt)prompt?.remove();
-  if(state.category==='keyboard-pointer')engine.setHotKeys(state.hotKeys);
+  if(state.category==='keyboard-pointer'&&hazardId!=='drunkenBob')engine.setHotKeys(state.hotKeys);
   const resolvedProcs=resolveManualUpgradeProcs({
    owned:state.session.run.upgrades as UpgradeId[],
    neighbours:engine.getGameNeighbours(detail.index),
@@ -388,6 +393,7 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   roughTableElapsedMs=0;
   roughTableLastTickMs=0;
   memoryFoamState=createMemoryFoamState();
+  drunkenBobState=createDrunkenBobState();
   hazardLastTickMs=0;
   calibrationSummary=null;
   timeSettlement=null;
@@ -418,6 +424,8 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
  function tickLevelTimer(){
   if(!state||state.cleared||state.session.run.phase!=='playing')return;
   advanceElapsedNow();
+  const held=adapter?.holdState().active??false;
+  if(held&&state.combo.expiresAt!==0)state={...state,combo:{...state.combo,expiresAt:state.combo.expiresAt+Math.max(0,levelElapsedMs-hazardLastTickMs)}};
   expireComboIfNeeded();
   tickRoughTable();
   tickHazard();
@@ -494,17 +502,44 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   memoryFoamState=createMemoryFoamState();
   hazardLastTickMs=levelElapsedMs;
   adapter.warn(null);
+  adapter.setTargetResolver(null);
   const hazardId=state.session.run.encounter?.hazardId as HazardId|null;
-  if(hazardId!=='doubleLayer')return;
-  const assignment=assignDoubleLayers(engine.getGameBubbles(),state.rng);
-  state={...state,rng:assignment.rng};
-  adapter.setLayers(assignment.indices,GAME_CONFIG.hazards.doubleLayer.layers);
+  if(hazardId==='doubleLayer'){
+   const assignment=assignDoubleLayers(engine.getGameBubbles(),state.rng);
+   state={...state,rng:assignment.rng};
+   adapter.setLayers(assignment.indices,GAME_CONFIG.hazards.doubleLayer.layers);
+  }else if(hazardId==='hardenedBubbles'){
+   const assignment=assignHardenedBubbles(engine.getGameBubbles(),state.rng);
+   state={...state,rng:assignment.rng};
+   adapter.setHolds(assignment.indices,GAME_CONFIG.hazards.hardenedBubbles.holdMs,GAME_CONFIG.hazards.hardenedBubbles.releaseDecayMs);
+  }else if(hazardId==='drunkenBob'){
+   adapter.setTargetResolver((_sourceIndex,_source,bubbles)=>{
+    if(!state)return -1;
+    const resolution=resolveDrunkenBobInput({state:drunkenBobState,bubbles,rng:state.rng});
+    drunkenBobState=resolution.state;
+    state={...state,rng:resolution.rng};
+    const status=root?.querySelector<HTMLElement>('.game-hud-hazard');
+    if(status)status.innerHTML=resolution.madeProgress
+     ?`<span class="game-label">Hazard</span>Drunken Bob · ${resolution.pity?'pity target':'target scrambled'}`
+     :`<span class="game-label">Hazard</span>Drunken Bob lurched into an empty cell · ${resolution.state.failedRolls}/${GAME_CONFIG.hazards.drunkenBob.maximumFailedRolls}`;
+    return resolution.targetIndex??-1;
+   });
+  }
  }
  function tickHazard(){
   if(!state||!adapter)return;
   const delta=Math.max(0,levelElapsedMs-hazardLastTickMs);
   hazardLastTickMs=levelElapsedMs;
-  if(engine.refreshing||document.hidden||state.session.run.encounter?.hazardId!=='memoryFoam')return;
+  if(engine.refreshing||document.hidden)return;
+  if(state.session.run.encounter?.hazardId==='hardenedBubbles'){
+   const hold=adapter.holdState(),status=root?.querySelector<HTMLElement>('.game-hud-hazard');
+   if(status&&hold.active){
+    const progress=Math.max(...hold.indices.map(index=>hold.progress[index]??0),0);
+    status.innerHTML=`<span class="game-label">Hazard</span>Hardened Bubbles · hold ${Math.round(progress/Math.max(1,hold.requiredMs)*100)}%`;
+   }
+   return;
+  }
+  if(state.session.run.encounter?.hazardId!=='memoryFoam')return;
   const bubbles=engine.getGameBubbles();
   if(!bubbles.some(bubble=>bubble.eligible&&!bubble.popped)){
    adapter.warn(null);

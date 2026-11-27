@@ -20,10 +20,10 @@ export type AutomatedPopSource=
 export type BubblePopSource=ManualPopSource|AutomatedPopSource;
 export interface BubblePopDetail {index:number;key:string;surface:string;source:BubblePopSource;}
 export interface BubbleHitDetail extends BubblePopDetail {remainingLayers:number;}
-export interface GameBubbleSnapshot {index:number;surface:string;eligible:boolean;popped:boolean;x:number;y:number;layers:number;}
+export interface GameBubbleSnapshot {index:number;surface:string;eligible:boolean;popped:boolean;x:number;y:number;layers:number;hardened:boolean;holdProgress:number;}
 interface SheetExchange {old:Float32Array[];oldCount:number;timeline:RefillTimeline;progress:number;distance:number;slide:boolean;}
 interface Surface {completed:boolean;id:string;node:HTMLElement;config:SurfaceConfig;rect:Rect;off:()=>void;}
-interface Pointer {id:number;surface:string;x:number;y:number;startX:number;startY:number;index:number;visited:Set<number>;gentle:boolean;input:ManualPopInput;gestureId:string;}
+interface Pointer {id:number;surface:string;x:number;y:number;startX:number;startY:number;index:number;visited:Set<number>;processed:Set<number>;gentle:boolean;input:ManualPopInput;gestureId:string;}
 let engineId=0;
 const activeCanvas=new WeakMap<HTMLCanvasElement,BubbleEngine>();
 const activeDocument=new WeakMap<Document,BubbleEngine>();
@@ -42,7 +42,8 @@ export class BubbleEngine extends EventTarget {
  private lastPopBySurface=new Map<string,number>();
  private exchange:SheetExchange|null=null;private currentAttributes:Float32Array[]=[];private renderInstances=0;
  private reminderIndex=-1;private reminderStartedAt=0;private reminderExposure=new Float32Array();
- private gameLayers=new Uint8Array();private doubleLayerMask=new Uint8Array();private hazardWarningIndex=-1;private hazardWarningStartedAt=0;private hazardVisual=new Float32Array();
+ private gameLayers=new Uint8Array();private doubleLayerMask=new Uint8Array();private hardenedMask=new Uint8Array();private holdProgressMs=new Float32Array();private holdRequiredMs=0;private holdDecayMs=0;private activeHolds=new Map<number,ManualPopSource>();private manualTargetResolver:((sourceIndex:number,source:ManualPopSource,bubbles:readonly GameBubbleSnapshot[])=>number)|null=null;
+ private hazardWarningIndex=-1;private hazardWarningStartedAt=0;private hazardVisual=new Float32Array();
  private crackedGestureByIndex=new Map<number,string>();
  get refreshing(){return this.exchange!==null;}
  private frame=0;private last=0;private destroyed=false;private dirty=true;private dpr=1;private frames=0;private lost=false;private queued=false;
@@ -67,7 +68,7 @@ export class BubbleEngine extends EventTarget {
   const vertices:number[]=[];const hex=[[-.5,-.288675135],[0,-.57735027],[.5,-.288675135],[.5,.288675135],[0,.57735027],[-.5,.288675135]];
   const triangle=(a:number[],b:number[],c:number[],level:number)=>{if(level===0){vertices.push(...a,...b,...c);return;}const ab=[(a[0]+b[0])/2,(a[1]+b[1])/2],bc=[(b[0]+c[0])/2,(b[1]+c[1])/2],ca=[(c[0]+a[0])/2,(c[1]+a[1])/2];triangle(a,ab,ca,level-1);triangle(ab,b,bc,level-1);triangle(ca,bc,c,level-1);triangle(ab,bc,ca,level-1);};
   for(let i=0;i<6;i++)triangle([0,0],hex[i],hex[(i+1)%6],2);this.vertexCount=vertices.length/2;
-  for(let location=0;location<16;location++){const b=g.createBuffer()!;this.buffers.push(b);g.bindBuffer(g.ARRAY_BUFFER,b);g.enableVertexAttribArray(location);const size=location===0?2:location===12?4:location===14?2:location>=6&&location<=11?3:location>=4?1:4;g.vertexAttribPointer(location,size,g.FLOAT,false,0,0);if(location)g.vertexAttribDivisor(location,1);else g.bufferData(g.ARRAY_BUFFER,new Float32Array(vertices),g.STATIC_DRAW);}
+  for(let location=0;location<16;location++){const b=g.createBuffer()!;this.buffers.push(b);g.bindBuffer(g.ARRAY_BUFFER,b);g.enableVertexAttribArray(location);const size=location===0?2:location===12||location===14?4:location>=6&&location<=11?3:location>=4?1:4;g.vertexAttribPointer(location,size,g.FLOAT,false,0,0);if(location)g.vertexAttribDivisor(location,1);else g.bufferData(g.ARRAY_BUFFER,new Float32Array(vertices),g.STATIC_DRAW);}
   // Seeded noise texture: repeatable reference-free optical microstructure.
   const data=new Uint8Array(256*256*4);let seed=0x20ab34cd;const rnd=()=>{seed^=seed<<13;seed^=seed>>>17;seed^=seed<<5;return(seed>>>0)/4294967296;};for(let i=0;i<data.length;i+=4){data[i]=rnd()*255;data[i+1]=rnd()*255;data[i+2]=rnd()*255;data[i+3]=255;}
   this.texture=g.createTexture()!;g.activeTexture(g.TEXTURE0);g.bindTexture(g.TEXTURE_2D,this.texture);g.texImage2D(g.TEXTURE_2D,0,g.RGBA,256,256,0,g.RGBA,g.UNSIGNED_BYTE,data);g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MIN_FILTER,g.LINEAR);g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MAG_FILTER,g.LINEAR);g.texParameteri(g.TEXTURE_2D,g.TEXTURE_WRAP_S,g.REPEAT);g.texParameteri(g.TEXTURE_2D,g.TEXTURE_WRAP_T,g.REPEAT);
@@ -103,17 +104,17 @@ export class BubbleEngine extends EventTarget {
  }
  private fit(){this.dpr=Math.min(window.devicePixelRatio||1,this.settings.dpr);const w=Math.round(innerWidth*this.dpr),h=Math.round(innerHeight*this.dpr);if(this.canvas.width!==w||this.canvas.height!==h){this.canvas.width=w;this.canvas.height=h;}this.gl.viewport(0,0,w,h);}
  private layout(){
-  if(this.destroyed||this.lost)return;this.finishRefresh(true,false);this.fit();const old=new Map(this.points.map((p,i)=>[p.key,{x:this.physics.squish[i],v:this.physics.velocity[i],p:this.physics.isPopped[i],t:this.physics.targetSquish[i],cut:!!p.cut,radius:p.radius,layers:this.gameLayers[i]??1,doubleLayer:!!this.doubleLayerMask[i]}]));this.cancelPointers();this.points=[];
+  if(this.destroyed||this.lost)return;this.finishRefresh(true,false);this.fit();const old=new Map(this.points.map((p,i)=>[p.key,{x:this.physics.squish[i],v:this.physics.velocity[i],p:this.physics.isPopped[i],t:this.physics.targetSquish[i],cut:!!p.cut,radius:p.radius,layers:this.gameLayers[i]??1,doubleLayer:!!this.doubleLayerMask[i],hardened:!!this.hardenedMask[i],hold:this.holdProgressMs[i]??0}]));this.cancelPointers();this.points=[];
   for(const s of this.surfaces.values()){s.rect=s.node.getBoundingClientRect();if(s.rect.width>0&&s.rect.height>0)this.points.push(...makeGrid(s.rect,s.id,s.config));}
-  this.coordMap=new Map(this.points.map((p,i)=>[p.key,i]));this.gameLayers=new Uint8Array(this.points.length).fill(1);this.doubleLayerMask=new Uint8Array(this.points.length);this.physics=new BubblePhysics(this.points,i=>this.didPop(i),i=>this.beforePop(i));this.physics.settings=this.settings;
-  this.points.forEach((p,i)=>{const a=old.get(p.key);if(a&&!p.cut&&!a.cut&&a.radius===p.radius){this.physics.squish[i]=a.x;this.physics.velocity[i]=a.v;this.physics.isPopped[i]=a.p;this.physics.targetSquish[i]=a.p?1:0;this.gameLayers[i]=a.layers;this.doubleLayerMask[i]=a.doubleLayer?1:0;}});for(const s of this.surfaces.values()){if(this.points.some((p,i)=>p.surface===s.id&&p.eligible&&!this.physics.isPopped[i]))s.completed=false;}this.keyboard=buildKeyboardMapping(this.points);this.refreshKeyboardHints();this.upload();this.notify();this.dispatchEvent(new Event('layoutchange'));this.wake();
+  this.coordMap=new Map(this.points.map((p,i)=>[p.key,i]));this.gameLayers=new Uint8Array(this.points.length).fill(1);this.doubleLayerMask=new Uint8Array(this.points.length);this.hardenedMask=new Uint8Array(this.points.length);this.holdProgressMs=new Float32Array(this.points.length);this.activeHolds.clear();this.physics=new BubblePhysics(this.points,i=>this.didPop(i),i=>this.beforePop(i));this.physics.settings=this.settings;
+  this.points.forEach((p,i)=>{const a=old.get(p.key);if(a&&!p.cut&&!a.cut&&a.radius===p.radius){this.physics.squish[i]=a.x;this.physics.velocity[i]=a.v;this.physics.isPopped[i]=a.p;this.physics.targetSquish[i]=a.p?1:0;this.gameLayers[i]=a.layers;this.doubleLayerMask[i]=a.doubleLayer?1:0;this.hardenedMask[i]=a.hardened?1:0;this.holdProgressMs[i]=a.hold;}});for(const s of this.surfaces.values()){if(this.points.some((p,i)=>p.surface===s.id&&p.eligible&&!this.physics.isPopped[i]))s.completed=false;}this.keyboard=buildKeyboardMapping(this.points);this.refreshKeyboardHints();this.upload();this.notify();this.dispatchEvent(new Event('layoutchange'));this.wake();
  }
  private upload(){
   const n=this.points.length,a=new Float32Array(n*4),clip=new Float32Array(n*4),style=new Float32Array(n*4),edges=new Float32Array(n*4);
   this.points.forEach((p,i)=>{const s=this.surfaces.get(p.surface)!;edges.set([s.config.layout==='single'?-1:(s.config.edgeRoughness??0),s.config.edgeScale??24,s.config.edgeSeed??17,s.config.cornerVariation??0],i*4);const pitch=p.radius*2+Math.max(0,s.config.gap??4);a.set([p.x,p.y,p.radius,pitch],i*4);clip.set([s.rect.left,s.rect.top,s.rect.left+s.rect.width,s.rect.top+s.rect.height],i*4);style.set([hash(p.row*1023+p.col*17),s.config.cornerRadius??5,materialVariant(p.row+Math.floor(this.settings.variantSeed),p.col),materialVariant(p.row+Math.floor(this.settings.variantSeed),p.col,true)],i*4);});
   this.neighborData=Array.from({length:6},()=>new Float32Array(n*3));
   this.points.forEach((p,i)=>{const odd=p.row&1,offsets=[[0,-1],[0,1],[-1,odd-1],[-1,odd],[1,odd-1],[1,odd]];for(let k=0;k<6;k++){const j=this.physics.neighbors[i*6+k],np=j>=0?this.points[j]:null,row=np?.row??p.row+offsets[k][0],col=np?.col??p.col+offsets[k][1];this.neighborData[k].set([materialVariant(row+Math.floor(this.settings.variantSeed),col),materialVariant(row+Math.floor(this.settings.variantSeed),col,true),j>=0?this.physics.squish[j]:1],i*3);}});
-  this.reminderExposure=new Float32Array(n);this.hazardVisual=new Float32Array(n*2);this.syncHazardVisual();
+  this.reminderExposure=new Float32Array(n);this.hazardVisual=new Float32Array(n*4);this.syncHazardVisual();
   this.currentAttributes=[a,clip,style,this.physics.squish,this.physics.bounce,...this.neighborData,edges,this.reminderExposure,this.hazardVisual];
   const previous=this.exchange?.slide?this.exchange:null,oldCount=previous?.oldCount??0;
   this.renderInstances=n+oldCount;
@@ -142,20 +143,34 @@ export class BubbleEngine extends EventTarget {
  }
  private beginManualGesture(gestureId:string){for(const [index,gesture] of this.crackedGestureByIndex)if(gesture===gestureId)this.crackedGestureByIndex.delete(index);}
  private popWithSource(index:number,source:BubblePopSource):boolean {
+  if(source.type==='manual'&&this.manualTargetResolver){
+   index=this.manualTargetResolver(index,source,this.getGameBubbles());
+   const target=this.points[index];
+   if(!Number.isInteger(index)||!target||target.mode!=='poppable'||target.eligible===false||target.cut)return false;
+   this.physics.jiggle(index);this.motion.impulse(target.x,target.y,.35);
+   if(this.physics.isPopped[index]){this.retap(index);this.wake();return false;}
+  }
+  if(source.type==='manual'&&this.hardenedMask[index]&&!this.physics.isPopped[index]){
+   this.activeHolds.set(index,source);this.pendingPopSources.set(index,source);this.syncLayerHint(index);this.syncHazardVisual();this.dirty=true;this.wake();return true;
+  }
   if(source.type==='manual'&&this.crackedGestureByIndex.get(index)===source.gestureId)return false;
   this.pendingPopSources.set(index,source);const layered=(this.gameLayers[index]??1)>1,popped=this.physics.pop(index);if(!popped)this.pendingPopSources.delete(index);return popped||layered;
  }
+ private releaseHoldsForGesture(gestureId:string){
+  for(const [index,source]of this.activeHolds)if(source.gestureId===gestureId){this.activeHolds.delete(index);this.pendingPopSources.delete(index);this.physics.release(index);this.syncLayerHint(index);}
+ }
  private stagePopSource(index:number,source:BubblePopSource):void {if(index>=0&&!this.physics.isPopped[index])this.pendingPopSources.set(index,source);}
- private pointerDown(e:PointerEvent,surface:string){if(this.refreshing&&this.surfaces.get(surface)?.config.layout!=='single')return;if(e.button!==0&&e.pointerType!=='touch')return;this.audio.unlock();const s=this.surfaces.get(surface)!;const haptic=e.target instanceof HTMLElement&&e.target.hasAttribute('data-bubble-haptic-tap');if(!haptic){try{s.node.setPointerCapture(e.pointerId);}catch{}}const i=this.hitTest(e.clientX,e.clientY,surface),input:ManualPopInput=e.pointerType==='touch'?'touch':e.pointerType==='pen'?'pen':'mouse',gestureId=`pointer:${e.pointerId}`;this.beginManualGesture(gestureId);const p:Pointer={id:e.pointerId,surface,x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,index:i,visited:new Set(),gentle:e.pointerType==='pen'&&e.pressure<.65,input,gestureId};if(i>=0){p.visited.add(i);if(this.physics.isPopped[i])this.retap(i);else{this.stagePopSource(i,{type:'manual',input,gestureId});this.physics.press(i,p.gentle?e.pressure:1);}}this.pointers.set(e.pointerId,p);this.wake();}
+ private pointerDown(e:PointerEvent,surface:string){if(this.refreshing&&this.surfaces.get(surface)?.config.layout!=='single')return;if(e.button!==0&&e.pointerType!=='touch')return;this.audio.unlock();const s=this.surfaces.get(surface)!;const haptic=e.target instanceof HTMLElement&&e.target.hasAttribute('data-bubble-haptic-tap');if(!haptic){try{s.node.setPointerCapture(e.pointerId);}catch{}}const i=this.hitTest(e.clientX,e.clientY,surface),input:ManualPopInput=e.pointerType==='touch'?'touch':e.pointerType==='pen'?'pen':'mouse',gestureId=`pointer:${e.pointerId}`;this.beginManualGesture(gestureId);const p:Pointer={id:e.pointerId,surface,x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,index:i,visited:new Set(),processed:new Set(),gentle:e.pointerType==='pen'&&e.pressure<.65,input,gestureId};if(i>=0){p.visited.add(i);const source={type:'manual' as const,input,gestureId};if(this.manualTargetResolver||this.hardenedMask[i]){this.popWithSource(i,source);p.processed.add(i);}else if(this.physics.isPopped[i])this.retap(i);else{this.stagePopSource(i,source);this.physics.press(i,p.gentle?e.pressure:1);}}this.pointers.set(e.pointerId,p);this.wake();}
  private pointerMove(e:PointerEvent,surface:string){
   const p=this.pointers.get(e.pointerId);if(!p)return;
-  if(p){if(!(e.target instanceof HTMLElement&&e.target.hasAttribute('data-bubble-haptic-tap')))e.preventDefault();const length=Math.hypot(e.clientX-p.x,e.clientY-p.y);if(length>1){const steps=Math.min(200,Math.max(1,Math.ceil(length/10)));for(let t=0;t<=steps;t++){const x=p.x+(e.clientX-p.x)*t/steps,y=p.y+(e.clientY-p.y)*t/steps;const i=this.hitTest(x,y,surface);if(i>=0&&!p.visited.has(i)){p.visited.add(i);if(this.physics.isPopped[i])this.retap(i);else if(!p.gentle)this.popWithSource(i,{type:'manual',input:p.input,gestureId:p.gestureId});else{this.stagePopSource(i,{type:'manual',input:p.input,gestureId:p.gestureId});this.physics.press(i,e.pressure);}}}}p.x=e.clientX;p.y=e.clientY;p.index=this.hitTest(p.x,p.y,surface);}
+  if(p){if(!(e.target instanceof HTMLElement&&e.target.hasAttribute('data-bubble-haptic-tap')))e.preventDefault();const length=Math.hypot(e.clientX-p.x,e.clientY-p.y);if(length>1){const steps=Math.min(200,Math.max(1,Math.ceil(length/10)));for(let t=0;t<=steps;t++){const x=p.x+(e.clientX-p.x)*t/steps,y=p.y+(e.clientY-p.y)*t/steps;const i=this.hitTest(x,y,surface);if(i>=0&&!p.visited.has(i)){p.visited.add(i);this.releaseHoldsForGesture(p.gestureId);const source={type:'manual' as const,input:p.input,gestureId:p.gestureId};if(this.manualTargetResolver){this.popWithSource(i,source);p.processed.add(i);}else if(this.physics.isPopped[i])this.retap(i);else if(!p.gentle){this.popWithSource(i,source);p.processed.add(i);}else{this.stagePopSource(i,source);this.physics.press(i,e.pressure);}}}}p.x=e.clientX;p.y=e.clientY;const current=this.hitTest(p.x,p.y,surface);if(current!==p.index&&current<0)this.releaseHoldsForGesture(p.gestureId);p.index=current;}
   this.wake();
  }
- private pointerUp(e:PointerEvent,cancelled:boolean){const p=this.pointers.get(e.pointerId);if(!p)return;this.pointers.delete(e.pointerId);if(!cancelled&&!p.gentle){for(const i of p.visited)this.popWithSource(i,{type:'manual',input:p.input,gestureId:p.gestureId});}for(const i of p.visited){let held=false;for(const other of this.pointers.values())if(other.visited.has(i))held=true;if(!held){this.physics.release(i);if(!this.physics.isPopped[i])this.pendingPopSources.delete(i);}}this.wake();}
- private cancelPointers(){for(const p of this.pointers.values())for(const i of p.visited){this.physics.release(i);if(!this.physics.isPopped[i])this.pendingPopSources.delete(i);}this.pointers.clear();this.points.forEach((p,i)=>{if(!p.cut&&!this.physics.isPopped[i]){this.physics.release(i);this.pendingPopSources.delete(i);}});for(let i=0;i<4;i++)this.motion.release(i);}
+ private pointerUp(e:PointerEvent,cancelled:boolean){const p=this.pointers.get(e.pointerId);if(!p)return;this.pointers.delete(e.pointerId);if(!cancelled&&!p.gentle){for(const i of p.visited)if(!p.processed.has(i))this.popWithSource(i,{type:'manual',input:p.input,gestureId:p.gestureId});}this.releaseHoldsForGesture(p.gestureId);for(const i of p.visited){let held=false;for(const other of this.pointers.values())if(other.visited.has(i))held=true;if(!held){this.physics.release(i);if(!this.physics.isPopped[i])this.pendingPopSources.delete(i);}}this.wake();}
+ private cancelPointers(){for(const p of this.pointers.values()){this.releaseHoldsForGesture(p.gestureId);for(const i of p.visited){this.physics.release(i);if(!this.physics.isPopped[i])this.pendingPopSources.delete(i);}}this.pointers.clear();this.activeHolds.clear();this.points.forEach((p,i)=>{if(!p.cut&&!this.physics.isPopped[i]){this.physics.release(i);this.pendingPopSources.delete(i);}});for(let i=0;i<4;i++)this.motion.release(i);}
  private didPop(index:number){
   if(index===this.reminderIndex)this.setBubbleReminder(null);
+  this.activeHolds.delete(index);this.holdProgressMs[index]=0;
   this.hintNodes.get(index)?.setAttribute('data-popped','true');
   this.audio.pop();const point=this.points[index],surface=this.surfaces.get(point.surface),source=this.pendingPopSources.get(index)??{type:'system' as const,reason:'physics'};if(surface)this.lastPopBySurface.set(surface.id,index);this.pendingPopSources.delete(index);this.physics.jiggle(index);this.motion.impulse(point.x,point.y,.7);this.dispatchEvent(new CustomEvent<BubblePopDetail>('bubblepop',{detail:{index,key:point.key,surface:point.surface,source}}));queueMicrotask(()=>{if(this.destroyed)return;this.notify();if(surface){let count=0,total=0;this.points.forEach((p,i)=>{if(p.surface===point.surface&&p.eligible){total++;count+=this.physics.isPopped[i];}});surface.config.onPop?.(count);if(count===total&&total>0&&!surface.completed){surface.completed=true;this.finishWhenSettled(this.lastPopBySurface.get(surface.id)??index,surface);}}});
  }
@@ -192,12 +207,12 @@ export class BubbleEngine extends EventTarget {
   if(next===this.hazardWarningIndex)return true;
   this.hazardWarningIndex=next;this.hazardWarningStartedAt=performance.now();this.syncHazardVisual();this.dirty=true;this.wake();this.notify();return true;
  }
- inspectHazardState(){return {warningIndex:this.hazardWarningIndex,layers:Array.from(this.gameLayers)};}
+ inspectHazardState(){return {warningIndex:this.hazardWarningIndex,layers:Array.from(this.gameLayers),hardened:Array.from(this.hardenedMask),holdProgress:Array.from(this.holdProgressMs),activeHolds:Array.from(this.activeHolds.keys())};}
  /** Snapshot the old sheet's material and popped state once, not every frame.
   * New + old instances share the same context, program, atlases and draw call. */
  private snapshotSheet(surface?:string):{old:Float32Array[];oldCount:number}{
   const indices=this.points.flatMap((p,i)=>p.mode==='poppable'&&(!surface||p.surface===surface)?[i]:[]);
-  const widths=[4,4,4,1,1,3,3,3,3,3,3,4,1,2];
+  const widths=[4,4,4,1,1,3,3,3,3,3,3,4,1,4];
   return {oldCount:indices.length,old:this.currentAttributes.map((data,j)=>{const width=widths[j],out=new Float32Array(indices.length*width);indices.forEach((i,k)=>out.set(data.subarray(i*width,(i+1)*width),k*width));return out;})};
  }
  private finishRefresh(cancelSound=false,upload=true){
@@ -242,7 +257,8 @@ export class BubbleEngine extends EventTarget {
   for(const item of this.surfaces.values())if(!surface||item.id===surface){item.completed=false;this.lastPopBySurface.delete(item.id);}
   if(slide)this.motion.clear();
   this.physics.reset(surface,immediate||slide||this.reduced,timeline??undefined);
-  this.points.forEach((point,index)=>{if(!surface||point.surface===surface){this.gameLayers[index]=1;this.doubleLayerMask[index]=0;}});
+  this.points.forEach((point,index)=>{if(!surface||point.surface===surface){this.gameLayers[index]=1;this.doubleLayerMask[index]=0;this.hardenedMask[index]=0;this.holdProgressMs[index]=0;}});
+  this.activeHolds.clear();this.manualTargetResolver=null;this.holdRequiredMs=0;this.holdDecayMs=0;
   if(slide){this.physics.bounce.fill(0);this.physics.bounceVelocity.fill(0);}
   if(timeline&&timeline.duration>0){this.exchange={...snapshot,timeline,progress:0,distance:innerWidth+24,slide};for(const item of this.surfaces.values())if(item.config.layout!=='single')item.node.setAttribute('aria-busy','true');}
   this.upload();this.notify();this.wake();
@@ -264,8 +280,27 @@ export class BubbleEngine extends EventTarget {
   return true;
  }
  private syncHazardVisual(warningExposure=0){
-  if(this.hazardVisual.length!==this.points.length*2)this.hazardVisual=new Float32Array(this.points.length*2);
-  for(let index=0;index<this.points.length;index++){this.hazardVisual[index*2]=this.doubleLayerMask[index]?(this.gameLayers[index]??1):0;this.hazardVisual[index*2+1]=index===this.hazardWarningIndex?warningExposure:0;}
+  if(this.hazardVisual.length!==this.points.length*4)this.hazardVisual=new Float32Array(this.points.length*4);
+  for(let index=0;index<this.points.length;index++){this.hazardVisual[index*4]=this.doubleLayerMask[index]?(this.gameLayers[index]??1):0;this.hazardVisual[index*4+1]=index===this.hazardWarningIndex?warningExposure:0;this.hazardVisual[index*4+2]=this.hardenedMask[index]?1:0;this.hazardVisual[index*4+3]=this.holdRequiredMs>0?(this.holdProgressMs[index]??0)/this.holdRequiredMs:0;}
+ }
+ private updateGameHolds(dt:number):boolean {
+  if(this.holdRequiredMs<=0)return false;
+  let changed=false;
+  for(let index=0;index<this.points.length;index++){
+   if(!this.hardenedMask[index]||this.physics.isPopped[index])continue;
+   const active=this.activeHolds.get(index);
+   const previous=this.holdProgressMs[index]??0;
+   const next=active
+    ?Math.min(this.holdRequiredMs,previous+dt*1000)
+    :Math.max(0,previous-dt*1000*this.holdRequiredMs/Math.max(1,this.holdDecayMs));
+   if(next===previous)continue;
+   this.holdProgressMs[index]=next;this.physics.setHoldProgress(index,next/this.holdRequiredMs);this.syncLayerHint(index);changed=true;
+   if(active&&next>=this.holdRequiredMs){
+    this.activeHolds.delete(index);this.pendingPopSources.set(index,active);this.holdProgressMs[index]=0;this.physics.pop(index);
+   }
+  }
+  if(changed){this.syncHazardVisual();this.dirty=true;this.notify();}
+  return changed;
  }
  private updateHazardWarning(time:number):boolean {
   const index=this.hazardWarningIndex;
@@ -275,7 +310,7 @@ export class BubbleEngine extends EventTarget {
   this.syncHazardVisual(exposure);this.dirty=true;return !this.reduced;
  }
  private tick=(time:number)=>{
-  this.frame=0;if(this.destroyed||this.lost)return;const dt=Math.min(.05,(time-this.last)/1000);this.last=time;const active=this.physics.step(dt),flex=this.motion.step(dt);
+  this.frame=0;if(this.destroyed||this.lost)return;const dt=Math.min(.05,(time-this.last)/1000);this.last=time;const holds=this.updateGameHolds(dt),active=this.physics.step(dt),flex=this.motion.step(dt);
   const reminder=this.updateBubbleReminder(time);
   const hazardWarning=this.updateHazardWarning(time);
   if(this.exchange){const duration=this.exchange.timeline.duration,elapsed=this.exchange.timeline.elapsed();this.exchange.progress=Number.isFinite(elapsed)&&duration>0?Math.max(0,Math.min(1,elapsed/duration)):1;if(this.exchange.progress>=1)this.finishRefresh();}
@@ -288,7 +323,7 @@ export class BubbleEngine extends EventTarget {
    g.uniform4f(this.uniforms.uReveal,s.revealStart,s.revealEnd,s.revealCurve,s.linearReveal?1:0);g.uniform2f(this.uniforms.uPressure,s.pressureBulge,s.pressureWrinkle);
    g.uniform4f(this.uniforms.uTone,s.exposure,s.contrast,s.blackPoint,s.whitePoint);g.uniform4f(this.uniforms.uGrade,s.gamma,s.highlights,s.grain,s.sharpness);g.uniform4f(this.uniforms.uLayer,s.blendMode,s.layerOpacity,s.backingLevel,0);g.uniform1f(this.uniforms.uGuides,s.showContours?1:0);
    this.syncHandles();this.syncKeyboardHints();g.clear(g.COLOR_BUFFER_BIT);g.drawArraysInstanced(g.TRIANGLES,0,this.vertexCount,this.renderInstances);this.frames++;this.dirty=false;}
-  if(active||flex||reminder||hazardWarning||this.pointers.size||this.exchange)this.frame=requestAnimationFrame(this.tick);
+  if(active||flex||holds||reminder||hazardWarning||this.pointers.size||this.exchange||this.activeHolds.size)this.frame=requestAnimationFrame(this.tick);
  };
  /** Updates shader uniforms and imperative solvers without React renders. */
  setSettings(patch:Partial<Settings>){
@@ -325,7 +360,9 @@ export class BubbleEngine extends EventTarget {
   const gestureId=`key:${code}`;this.beginManualGesture(gestureId);this.audio.unlock();if(!this.popWithSource(index,{type:'manual',input:'keyboard',gestureId}))return -1;this.wake();
   this.dispatchEvent(new CustomEvent('keypop',{detail:{code,label:group.label,index}}));return index;
  }
- getGameBubbles():GameBubbleSnapshot[]{return this.points.flatMap((point,index)=>point.mode==='poppable'?[{index,surface:point.surface,eligible:point.eligible!==false&&!point.cut,popped:!!this.physics.isPopped[index],x:point.x,y:point.y,layers:this.gameLayers[index]??1}]:[]);}
+ releaseKey(code:string):void {this.releaseHoldsForGesture(`key:${code}`);this.wake();}
+ releaseAllGameHolds():void {this.activeHolds.clear();this.pendingPopSources.clear();this.wake();}
+ getGameBubbles():GameBubbleSnapshot[]{return this.points.flatMap((point,index)=>point.mode==='poppable'?[{index,surface:point.surface,eligible:point.eligible!==false&&!point.cut,popped:!!this.physics.isPopped[index],x:point.x,y:point.y,layers:this.gameLayers[index]??1,hardened:!!this.hardenedMask[index],holdProgress:this.holdRequiredMs>0?(this.holdProgressMs[index]??0)/this.holdRequiredMs:0}]:[]);}
  getGameNeighbours(index:number):number[]{if(!Number.isInteger(index)||index<0||index>=this.points.length)return[];const neighbours:number[]=[];for(let offset=0;offset<6;offset++){const candidate=this.physics.neighbors[index*6+offset];if(candidate>=0&&this.points[candidate]?.mode==='poppable'&&this.points[candidate].eligible!==false&&!this.points[candidate].cut)neighbours.push(candidate);}return neighbours;}
  popForGame(index:number,source:AutomatedPopSource):boolean {if(this.destroyed||this.lost||this.refreshing||!Number.isInteger(index))return false;const point=this.points[index];if(!point||point.mode!=='poppable'||point.eligible===false||point.cut)return false;const popped=this.popWithSource(index,source);if(popped)this.wake();return popped;}
  setGameBubbleLayers(indices:readonly number[],layers:number):number {
@@ -333,6 +370,15 @@ export class BubbleEngine extends EventTarget {
   for(const index of new Set(indices)){const point=this.points[index];if(!Number.isInteger(index)||!point||point.mode!=='poppable'||point.eligible===false||point.cut||this.physics.isPopped[index])continue;this.gameLayers[index]=value;this.doubleLayerMask[index]=value>1?1:0;this.syncLayerHint(index);changed++;}
   if(changed){this.syncHazardVisual();this.dirty=true;this.wake();this.notify();}return changed;
  }
+ setGameBubbleHolds(indices:readonly number[],holdMs:number,decayMs:number):number {
+  this.holdRequiredMs=Math.max(1,holdMs);this.holdDecayMs=Math.max(1,decayMs);let changed=0;
+  for(const index of new Set(indices)){const point=this.points[index];if(!Number.isInteger(index)||!point||point.mode!=='poppable'||point.eligible===false||point.cut||this.physics.isPopped[index])continue;this.hardenedMask[index]=1;this.holdProgressMs[index]=0;this.syncLayerHint(index);changed++;}
+  if(changed){this.syncHazardVisual();this.dirty=true;this.wake();this.notify();}return changed;
+ }
+ setGameManualTargetResolver(resolver:((sourceIndex:number,source:ManualPopSource,bubbles:readonly GameBubbleSnapshot[])=>number)|null):void {
+  this.manualTargetResolver=resolver;
+ }
+ inspectGameHold(){const active=Array.from(this.activeHolds.keys());return {active:active.length>0,indices:active,progress:Array.from(this.holdProgressMs),requiredMs:this.holdRequiredMs,decayMs:this.holdDecayMs};}
  reinflateForGame(index:number):boolean {
   if(this.destroyed||this.lost||this.refreshing||!Number.isInteger(index))return false;
   const point=this.points[index],surface=point?this.surfaces.get(point.surface):null;
@@ -348,13 +394,13 @@ export class BubbleEngine extends EventTarget {
   for(const index of this.hintNodes.keys())this.syncLayerHint(index);
   this.applyHotKeys();this.syncKeyboardHints();
  }
- private syncLayerHint(index:number){const node=this.hintNodes.get(index);if(!node)return;const layers=this.gameLayers[index]??1;node.dataset.layers=String(layers);node.setAttribute('aria-label',layers>1?`${node.textContent}, double layer, ${layers} hits remaining`:`${node.textContent}, ${layers} hit remaining`);}
+ private syncLayerHint(index:number){const node=this.hintNodes.get(index);if(!node)return;const layers=this.gameLayers[index]??1,hardened=!!this.hardenedMask[index],progress=this.holdRequiredMs>0?Math.round((this.holdProgressMs[index]??0)/this.holdRequiredMs*100):0;node.dataset.layers=String(layers);node.dataset.hardened=String(hardened);node.setAttribute('aria-label',hardened?`${node.textContent}, hardened bubble, hold progress ${progress} percent`:layers>1?`${node.textContent}, double layer, ${layers} hits remaining`:`${node.textContent}, ${layers} hit remaining`);}
  private syncKeyboardHints(){
   if(!this.keyboardHints)return;this.keyboardHints.hidden=this.refreshing;
   for(const [index,node]of this.hintNodes){const point=this.points[index],surface=this.surfaces.get(point.surface);if(!surface)continue;
    const p=this.motion.deform(surface.rect,point.x,point.y);node.style.transform=`translate3d(${p.x}px,${p.y}px,0) translate(-50%,-50%)`;node.dataset.popped=String(!!this.physics.isPopped[index]);}
  }
  /** Read-only diagnostic data for interaction tests. */
- inspect(){return this.points.map((p,i)=>({...p,index:i,keyboardCode:this.keyboard.byPoint.get(i)?.code??null,keyboardLabel:this.keyboard.byPoint.get(i)?.label??null,popped:!!this.physics.isPopped[i],layers:this.gameLayers[i]??1,doubleLayer:!!this.doubleLayerMask[i],hazardWarning:i===this.hazardWarningIndex,squish:this.physics.squish[i],bounce:this.physics.bounce[i],taps:this.physics.tapCount[i],inflatedVariant:materialVariant(p.row+Math.floor(this.settings.variantSeed),p.col),collapsedVariant:materialVariant(p.row+Math.floor(this.settings.variantSeed),p.col,true)}));}
+ inspect(){return this.points.map((p,i)=>({...p,index:i,keyboardCode:this.keyboard.byPoint.get(i)?.code??null,keyboardLabel:this.keyboard.byPoint.get(i)?.label??null,popped:!!this.physics.isPopped[i],layers:this.gameLayers[i]??1,doubleLayer:!!this.doubleLayerMask[i],hardened:!!this.hardenedMask[i],holdProgress:this.holdRequiredMs>0?(this.holdProgressMs[i]??0)/this.holdRequiredMs:0,hazardWarning:i===this.hazardWarningIndex,squish:this.physics.squish[i],bounce:this.physics.bounce[i],taps:this.physics.tapCount[i],inflatedVariant:materialVariant(p.row+Math.floor(this.settings.variantSeed),p.col),collapsedVariant:materialVariant(p.row+Math.floor(this.settings.variantSeed),p.col,true)}));}
  destroy(){if(this.destroyed)return;this.destroyed=true;this.exchange=null;cancelAnimationFrame(this.frame);this.observer.disconnect();for(const binding of this.cornerBindings)binding.off();this.cornerBindings=[];for(const s of this.surfaces.values())s.off();this.surfaces.clear();this.cancelPointers();window.removeEventListener('pointerdown',this.onOutsideDown);window.removeEventListener('resize',this.onWindowChange);window.removeEventListener('scroll',this.onWindowChange,true);window.removeEventListener('blur',this.onBlur);document.removeEventListener('visibilitychange',this.onVisibility);this.canvas.removeEventListener('webglcontextlost',this.onLost);this.canvas.removeEventListener('webglcontextrestored',this.onRestore);this.audio.destroy();this.keyboardHints?.remove();this.keyboardHints=null;this.hintNodes.clear();const g=this.gl;for(const b of this.buffers)g.deleteBuffer(b);g.deleteTexture(this.texture);g.deleteTexture(this.atlas);g.deleteTexture(this.collapsedAtlas);g.deleteVertexArray(this.vao);g.deleteProgram(this.program);g.clear(g.COLOR_BUFFER_BIT);activeCanvas.delete(this.canvas);activeDocument.delete(this.canvas.ownerDocument);}
 }

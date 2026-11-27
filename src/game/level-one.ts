@@ -103,6 +103,8 @@ export function applyManualPop(state:LevelPlayState,input:{
  availableKeyCodes:readonly string[];
  hardDeadline?:{totalMs:number;elapsedMs:number}|null;
  firstScoredPop?:boolean;
+ skillEligible?:boolean;
+ baseScore?:number;
 }):{state:LevelPlayState;notice:ManualPopNotice} {
  if(state.cleared||state.session.run.phase!=='playing')return {state,notice:noticeOf(state,0,'none')};
  const category=state.category??categoryForManualInput(input.input);
@@ -118,7 +120,9 @@ export function applyManualPop(state:LevelPlayState,input:{
   owned:state.session.run.upgrades as UpgradeId[],
   manualPopTimes:state.manualPopTimes,
   hardDeadline:input.hardDeadline,
-  scoreEligible:input.firstScoredPop!==false
+  scoreEligible:input.firstScoredPop!==false,
+  skillEligible:input.skillEligible,
+  baseScore:input.baseScore
  });
  let hotKeys=state.hotKeys;
  let rng=state.rng;
@@ -131,7 +135,7 @@ export function applyManualPop(state:LevelPlayState,input:{
  const session={...state.session,run:{...run,category,score:run.score+scored.points,stats:{...run.stats,manualPops:run.stats.manualPops+1,scoreEvents:run.stats.scoreEvents+1}}};
  const breakdown={
   ...state.breakdown,
-  base:state.breakdown.base+(input.firstScoredPop===false?0:GAME_CONFIG.scoring.normalBase),
+  base:state.breakdown.base+(input.firstScoredPop===false?0:input.baseScore??GAME_CONFIG.scoring.normalBase),
   cleanSweep:state.breakdown.cleanSweep+(input.firstScoredPop!==false&&scored.skill==='clean-sweep'?GAME_CONFIG.scoring.skillBonus:0),
   hotKey:state.breakdown.hotKey+(input.firstScoredPop!==false&&scored.skill==='hot-key'?GAME_CONFIG.scoring.skillBonus:0),
   sureHands:state.breakdown.sureHands+scored.sureHandsBonus,

@@ -37,13 +37,17 @@ export function scoreManualPop(input:{
  manualPopTimes?:readonly number[];
  hardDeadline?:{totalMs:number;elapsedMs:number}|null;
  scoreEligible?:boolean;
+ skillEligible?:boolean;
+ baseScore?:number;
 }):ManualScore {
  const scoring=GAME_CONFIG.scoring;
  const owned=input.owned??[];
  const keyboard=input.input==='keyboard';
- const skill:ScoreSkill=keyboard
-  ?input.hotKey?'hot-key':'none'
-  :input.gestureOrdinal>=scoring.cleanSweepStartsAt&&input.adjacent?'clean-sweep':'none';
+ const skill:ScoreSkill=input.skillEligible===false
+  ?'none'
+  :keyboard
+   ?input.hotKey?'hot-key':'none'
+   :input.gestureOrdinal>=scoring.cleanSweepStartsAt&&input.adjacent?'clean-sweep':'none';
  const alive=input.combo.expiresAt!==0&&input.now<=input.combo.expiresAt;
  const combo={count:alive?input.combo.count+1:1,expiresAt:input.now+scoring.comboGraceMs};
  const popTimes=[...(input.manualPopTimes??[]),input.now].filter(time=>time>=input.now-scoring.velocity.windowMs&&time<=input.now);
@@ -57,7 +61,7 @@ export function scoreManualPop(input:{
  const scoreEligible=input.scoreEligible!==false;
  const skillBonus=scoreEligible&&skill!=='none'?scoring.skillBonus:0;
  const sureHandsBonus=scoreEligible&&skill!=='none'&&owned.includes('sureHands')?GAME_CONFIG.upgrades.sureHands.additionalSkillBonus:0;
- const subtotal=scoreEligible?scoring.normalBase+skillBonus+sureHandsBonus:0;
+ const subtotal=scoreEligible?(input.baseScore??scoring.normalBase)+skillBonus+sureHandsBonus:0;
  const afterVelocity=subtotal*velocity;
  const points=roundGameValue(afterVelocity*deadline);
  const velocityBoost=Math.max(0,roundGameValue(afterVelocity)-subtotal);

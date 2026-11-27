@@ -94,6 +94,32 @@ test('a reinflated bubble advances manual play without awarding repeat score',()
  assert.equal(result.combo.count,3);
 });
 
+test('Hardened and Drunken Bob pops suppress skill while retaining configured base score',()=>{
+ const hardened=scoreManualPop({
+  now:500,
+  input:'touch',
+  gestureOrdinal:4,
+  adjacent:true,
+  hotKey:false,
+  combo:{count:2,expiresAt:500},
+  skillEligible:false,
+  baseScore:GAME_CONFIG.scoring.hardenedBase
+ });
+ assert.equal(hardened.skill,'none');
+ assert.equal(hardened.points,GAME_CONFIG.scoring.hardenedBase);
+ const drunken=scoreManualPop({
+  now:500,
+  input:'keyboard',
+  gestureOrdinal:1,
+  adjacent:false,
+  hotKey:true,
+  combo:{count:2,expiresAt:500},
+  skillEligible:false
+ });
+ assert.equal(drunken.skill,'none');
+ assert.equal(drunken.points,GAME_CONFIG.scoring.normalBase);
+});
+
 test('level 1 scores two manual sheets and keeps the first category',()=>{
  let level=beginLevelOne(createLevelOne(9),['KeyA','KeyS','KeyD','KeyF']);
  assert.equal(level.sheets,GAME_CONFIG.run.levels[0].sheetCount);

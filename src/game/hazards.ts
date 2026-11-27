@@ -2,9 +2,8 @@ import type {GameBubbleSnapshot} from '../components/bubble-ui/core/bubble-engin
 import {GAME_CONFIG,type HazardId} from './game-config';
 import {nextInt,pickWeighted,type GameRngState} from './game-rng';
 
-/** Stage F checkpoint pool. Hardened Bubbles and Drunken Bob join this list
- * only when their input mechanics are implemented. */
-export const LIVE_LEVEL_FOUR_HAZARDS:readonly HazardId[]=['doubleLayer','memoryFoam'];
+/** Completed Stage F pool. A seeded run selects one hazard for all three sheets. */
+export const LIVE_LEVEL_FOUR_HAZARDS:readonly HazardId[]=['doubleLayer','memoryFoam','hardenedBubbles','drunkenBob'];
 
 export interface HazardSelection {
  hazardId:HazardId;
@@ -14,6 +13,23 @@ export interface HazardSelection {
 export interface DoubleLayerAssignment {
  indices:number[];
  rng:GameRngState;
+}
+
+export interface HardenedBubbleAssignment {
+ indices:number[];
+ rng:GameRngState;
+}
+
+export interface DrunkenBobState {
+ failedRolls:number;
+}
+
+export interface DrunkenBobResolution {
+ state:DrunkenBobState;
+ rng:GameRngState;
+ targetIndex:number|null;
+ madeProgress:boolean;
+ pity:boolean;
 }
 
 export interface MemoryFoamState {
@@ -46,8 +62,16 @@ export function hazardDeadlineMultiplier(hazardId:HazardId|null):number {
 }
 
 export function assignDoubleLayers(bubbles:readonly GameBubbleSnapshot[],rng:GameRngState):DoubleLayerAssignment {
+ return assignBubbleRatio(bubbles,GAME_CONFIG.hazards.doubleLayer.bubbleRatio,rng);
+}
+
+export function assignHardenedBubbles(bubbles:readonly GameBubbleSnapshot[],rng:GameRngState):HardenedBubbleAssignment {
+ return assignBubbleRatio(bubbles,GAME_CONFIG.hazards.hardenedBubbles.bubbleRatio,rng);
+}
+
+function assignBubbleRatio(bubbles:readonly GameBubbleSnapshot[],ratio:number,rng:GameRngState):DoubleLayerAssignment {
  const pool=bubbles.filter(bubble=>bubble.eligible&&!bubble.popped).map(bubble=>bubble.index);
- const count=Math.min(pool.length,Math.ceil(pool.length*GAME_CONFIG.hazards.doubleLayer.bubbleRatio));
+ const count=Math.min(pool.length,Math.ceil(pool.length*ratio));
  let state=rng;
  const indices:number[]=[];
  while(indices.length<count&&pool.length){
@@ -56,6 +80,40 @@ export function assignDoubleLayers(bubbles:readonly GameBubbleSnapshot[],rng:Gam
   indices.push(pool.splice(draw.value,1)[0]);
  }
  return {indices,rng:state};
+}
+
+export function createDrunkenBobState():DrunkenBobState {
+ return {failedRolls:0};
+}
+
+/** Resolves one valid manual source-cell input. Ordinary rolls include popped
+ * positions; after the configured failure cap, pity draws from unpopped cells. */
+export function resolveDrunkenBobInput(input:{
+ state:DrunkenBobState;
+ bubbles:readonly GameBubbleSnapshot[];
+ rng:GameRngState;
+}):DrunkenBobResolution {
+ const eligible=input.bubbles.filter(bubble=>bubble.eligible);
+ const unpopped=eligible.filter(bubble=>!bubble.popped);
+ if(!eligible.length||!unpopped.length)return {
+  state:input.state,
+  rng:input.rng,
+  targetIndex:null,
+  madeProgress:false,
+  pity:false
+ };
+ const pity=input.state.failedRolls>=GAME_CONFIG.hazards.drunkenBob.maximumFailedRolls;
+ const pool=pity?unpopped:eligible;
+ const draw=nextInt(input.rng,0,pool.length-1);
+ const target=pool[draw.value];
+ const madeProgress=!target.popped;
+ return {
+  state:{failedRolls:madeProgress?0:input.state.failedRolls+1},
+  rng:draw.state,
+  targetIndex:target.index,
+  madeProgress,
+  pity
+ };
 }
 
 export function createMemoryFoamState():MemoryFoamState {

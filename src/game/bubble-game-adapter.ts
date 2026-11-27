@@ -1,4 +1,4 @@
-import type {AutomatedPopSource,BubbleHitDetail,BubblePopDetail,GameBubbleSnapshot,ManualPopInput} from '../components/bubble-ui/core/bubble-engine';
+import type {AutomatedPopSource,BubbleHitDetail,BubblePopDetail,GameBubbleSnapshot,ManualPopInput,ManualPopSource} from '../components/bubble-ui/core/bubble-engine';
 import type {RunCategory} from './game-types';
 
 export interface BubbleGamePort extends EventTarget {
@@ -6,6 +6,9 @@ export interface BubbleGamePort extends EventTarget {
  getGameNeighbours(index:number):number[];
  popForGame(index:number,source:AutomatedPopSource):boolean;
  setGameBubbleLayers(indices:readonly number[],layers:number):number;
+ setGameBubbleHolds(indices:readonly number[],holdMs:number,decayMs:number):number;
+ setGameManualTargetResolver(resolver:((sourceIndex:number,source:ManualPopSource,bubbles:readonly GameBubbleSnapshot[])=>number)|null):void;
+ inspectGameHold():{active:boolean;indices:number[];progress:number[];requiredMs:number;decayMs:number};
  reinflateForGame(index:number):boolean;
  setHazardWarning(index:number|null):boolean;
 }
@@ -65,6 +68,20 @@ export class BubbleGameAdapter extends EventTarget {
   return this.engine.setGameBubbleLayers(indices,layers);
  }
 
+ setHolds(indices:readonly number[],holdMs:number,decayMs:number):number {
+  if(this.disposed)return 0;
+  return this.engine.setGameBubbleHolds(indices,holdMs,decayMs);
+ }
+
+ setTargetResolver(resolver:((sourceIndex:number,source:ManualPopSource,bubbles:readonly GameBubbleSnapshot[])=>number)|null):void {
+  if(this.disposed)return;
+  this.engine.setGameManualTargetResolver(resolver);
+ }
+
+ holdState() {
+  return this.engine.inspectGameHold();
+ }
+
  reinflate(index:number):boolean {
   if(this.disposed)return false;
   return this.engine.reinflateForGame(index);
@@ -87,6 +104,7 @@ export class BubbleGameAdapter extends EventTarget {
  dispose():void {
   if(this.disposed)return;
   this.disposed=true;
+  this.engine.setGameManualTargetResolver(null);
   this.engine.removeEventListener('bubblepop',this.onBubblePop);
   this.engine.removeEventListener('bubblehit',this.onBubbleHit);
  }

@@ -17,7 +17,7 @@ layout(location=10) in vec3 aNeighbor4;
 layout(location=11) in vec3 aNeighbor5;
 layout(location=12) in vec4 aEdges;
 layout(location=13) in float aReminderExposure;
-layout(location=14) in vec2 aHazard;
+layout(location=14) in vec4 aHazard;
 layout(location=15) in float aSheetRole;
 uniform vec4 uSlide;
 uniform vec2 uResolution;
@@ -37,7 +37,7 @@ flat out vec4 vEdges;
 flat out float vSquish;
 flat out float vBounce;
 flat out float vReminderExposure;
-flat out vec2 vHazard;
+flat out vec4 vHazard;
 flat out vec3 vNeighbors[6];
 void main(){
  vec2 screen=aBubble.xy+aVertex*aBubble.w;
@@ -77,7 +77,7 @@ flat in vec4 vEdges;
 flat in float vSquish;
 flat in float vBounce;
 flat in float vReminderExposure;
-flat in vec2 vHazard;
+flat in vec4 vHazard;
 flat in vec3 vNeighbors[6];
 uniform sampler2D uNoise;
 uniform sampler2D uAtlas;
@@ -170,7 +170,10 @@ void main(){
  // fracture mark. Memory Foam warnings pulse the collapsed bubble locally.
  float doubleRim=(1.-smoothstep(.055,.14,abs(r-.82)))*step(1.5,vHazard.x);
  float crack=(1.-smoothstep(.018,.055,abs(vLocal.y-vLocal.x*.58)))*step(.5,vHazard.x)*step(vHazard.x,1.5)*inner;
- value+=doubleRim*.22-crack*.18+vHazard.y*.32*inner;
+ float hardenedRim=(1.-smoothstep(.035,.09,abs(r-.69)))*vHazard.z;
+ float holdAngle=fract(atan(vLocal.y,vLocal.x)/6.2831853+1.);
+ float holdArc=hardenedRim*step(holdAngle,vHazard.w);
+ value+=doubleRim*.22-crack*.18+vHazard.y*.32*inner+hardenedRim*.10+holdArc*.38;
  value=mix(film,value,uAtlasReady);
  value=clamp((value-uTone.z)/max(.03,uTone.w-uTone.z),0.,1.);
  value*=exp2(uTone.x+vReminderExposure);value=(value-.5)*uTone.y+.5;
