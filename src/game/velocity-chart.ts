@@ -23,6 +23,12 @@ export function historySamples(values:readonly number[],now:number,windowMs=VELO
  return safe.map((value,index)=>({time:now-windowMs+index*step,value}));
 }
 
+/** Whole pops per second for the readout. The chart keeps the unrounded rate. */
+export function displayPopRate(rate:number):number {
+ if(!Number.isFinite(rate)||rate<=0)return 0;
+ return Math.ceil(rate-1e-9);
+}
+
 export function ratePerSecond(times:readonly number[],now:number,windowMs:number):number {
  if(!(windowMs>0))return 0;
  const start=now-windowMs;

@@ -4,7 +4,7 @@ import {recordGameHighScore} from './game-high-scores';
 import {applyAssistedPop,applyManualPop,beginLevelOne,clearLevelCombo,createLevelOne,noteSheetCleared,type LevelOneState} from './level-one';
 import {formatGameCurrency} from './economy';
 import {animatedNumber,updateAnimatedNumber} from './game-vendors';
-import {bindVelocityPops,mountVelocityChart,type VelocityChart} from './velocity-chart';
+import {bindVelocityPops,displayPopRate,mountVelocityChart,type VelocityChart} from './velocity-chart';
 import type {GamePopDetail} from './bubble-game-adapter';
 import {BubbleGameAdapter} from './bubble-game-adapter';
 
@@ -57,6 +57,7 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
  function start(){
   stop();
   previousSize=engine.settings.bubbleSize;
+  engine.freshSheet();
   state=createLevelOne((Math.random()*0xffffffff)>>>0);
   document.addEventListener('visibilitychange',onVisibility);
   showIntro();
@@ -87,6 +88,7 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
  function play(){
   if(!state)return;
   applySheet(state);
+  engine.freshSheet();
   engine.setRefreshLocked(true);
   sheet.update({onAllPopped:onCleared});
   state=beginLevelOne(state,engine.getKeyboardMap().map(group=>group.code));
@@ -99,14 +101,14 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   root.dataset.screen='hud';
   root.innerHTML=`<section class="game-hud" aria-label="Level ${state.session.run.level}" data-danger="false" data-paused="false" data-hidden="false"><div class="game-hud-score"><span class="game-label">Score</span><strong data-live-score></strong><small data-live-combo hidden></small></div><div class="game-hud-velocity"><div class="game-velocity-readout"><strong data-live-rate></strong><span class="game-label">Pop / s</span></div><div class="game-velocity-chart" role="img" aria-label="Pop velocity over the last 30 seconds"></div></div><div class="game-hud-goal"><span class="game-label">Level ${state.session.run.level}</span><strong><span data-live-sheet></span><span class="game-goal-sep">/</span><span data-live-sheets></span></strong><small>sheets</small></div><p class="game-onboarding">Pop all ${state.sheets} sheets. From the third bubble in one drag, each pop scores more.</p></section>`;
   mountNumber(root.querySelector('[data-live-score]'),state.session.run.score,true);
-  mountNumber(root.querySelector('[data-live-rate]'),0,false);
+  mountNumber(root.querySelector('[data-live-rate]'),0,false,0);
   const sheetSlot=root.querySelector<HTMLElement>('[data-live-sheet]');
   const totalSlot=root.querySelector<HTMLElement>('[data-live-sheets]');
   if(sheetSlot)sheetSlot.replaceWith(animatedNumber(state.sheet));
   if(totalSlot)totalSlot.replaceWith(animatedNumber(state.sheets));
   const host=root.querySelector<HTMLElement>('.game-velocity-chart');
   if(host){
-   chart=mountVelocityChart(host,[0],{rateWindowMs:GAME_CONFIG.scoring.velocity.windowMs,running:true});
+   chart=mountVelocityChart(host,[0],{rateWindowMs:GAME_CONFIG.scoring.velocity.windowMs,running:true,onRate:rate=>updateAnimatedNumber(root?.querySelector('[data-live=rate]')??null,displayPopRate(rate))});
    unbindPops=bindVelocityPops(chart,engine);
   }
  }
@@ -131,5 +133,5 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   if(engine.settings.bubbleSize!==size)engine.setSettings({bubbleSize:size});
  }
  function ensureRoot(){if(!root){root=document.createElement('div');root.id='game-root';document.body.append(root);}}
- function mountNumber(slot:Element|null,value:number,currency:boolean){if(!slot)return;const node=animatedNumber(value,{currency});node.dataset.live=currency?'score':'rate';slot.replaceWith(node);}
+ function mountNumber(slot:Element|null,value:number,currency:boolean,maximumFractionDigits=2){if(!slot)return;const node=animatedNumber(value,{currency,maximumFractionDigits});node.dataset.live=currency?'score':'rate';slot.replaceWith(node);}
 }

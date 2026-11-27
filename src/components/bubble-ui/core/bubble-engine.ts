@@ -37,7 +37,7 @@ export class BubbleEngine extends EventTarget {
  private surfaces=new Map<string,Surface>();private pointers=new Map<number,Pointer>();private observer:ResizeObserver;
  private keyboard:KeyboardMapping=buildKeyboardMapping([]);private keyboardHints:HTMLDivElement|null=null;private hintNodes=new Map<number,HTMLElement>();
  private points:BubblePoint[]=[];private physics=new BubblePhysics([],()=>{});private coordMap=new Map<string,number>();
- private pendingPopSources=new Map<number,BubblePopSource>();private refreshLocked=false;private hotCodes:Set<string>|null=null;private labelSnapshot:boolean|null=null;
+ private pendingPopSources=new Map<number,BubblePopSource>();private refreshLocked=false;private hotCodes:Set<string>|null=null;private labelSnapshot:boolean|null=null;private completionToken:object|null=null;
  private exchange:SheetExchange|null=null;private currentAttributes:Float32Array[]=[];private renderInstances=0;
  get refreshing(){return this.exchange!==null;}
  private frame=0;private last=0;private destroyed=false;private dirty=true;private dpr=1;private frames=0;private lost=false;private queued=false;
@@ -138,7 +138,19 @@ export class BubbleEngine extends EventTarget {
  private cancelPointers(){for(const p of this.pointers.values())for(const i of p.visited){this.physics.release(i);if(!this.physics.isPopped[i])this.pendingPopSources.delete(i);}this.pointers.clear();this.points.forEach((p,i)=>{if(!p.cut&&!this.physics.isPopped[i]){this.physics.release(i);this.pendingPopSources.delete(i);}});for(let i=0;i<4;i++)this.motion.release(i);}
  private didPop(index:number){
   this.hintNodes.get(index)?.setAttribute('data-popped','true');
-  this.audio.pop();const point=this.points[index],surface=this.surfaces.get(point.surface),source=this.pendingPopSources.get(index)??{type:'system' as const,reason:'physics'};this.pendingPopSources.delete(index);this.physics.jiggle(index);this.motion.impulse(point.x,point.y,.7);this.dispatchEvent(new CustomEvent<BubblePopDetail>('bubblepop',{detail:{index,key:point.key,surface:point.surface,source}}));queueMicrotask(()=>{if(this.destroyed)return;this.notify();if(surface){let count=0,total=0;this.points.forEach((p,i)=>{if(p.surface===point.surface&&p.eligible){total++;count+=this.physics.isPopped[i];}});surface.config.onPop?.(count);if(count===total&&total>0&&!surface.completed){surface.completed=true;surface.config.onAllPopped?.();}}});
+  this.audio.pop();const point=this.points[index],surface=this.surfaces.get(point.surface),source=this.pendingPopSources.get(index)??{type:'system' as const,reason:'physics'};this.pendingPopSources.delete(index);this.physics.jiggle(index);this.motion.impulse(point.x,point.y,.7);this.dispatchEvent(new CustomEvent<BubblePopDetail>('bubblepop',{detail:{index,key:point.key,surface:point.surface,source}}));queueMicrotask(()=>{if(this.destroyed)return;this.notify();if(surface){let count=0,total=0;this.points.forEach((p,i)=>{if(p.surface===point.surface&&p.eligible){total++;count+=this.physics.isPopped[i];}});surface.config.onPop?.(count);if(count===total&&total>0&&!surface.completed){surface.completed=true;this.finishWhenSettled(index,surface);}}});
+ }
+ /** Let the last bubble finish collapsing before the sheet is allowed to leave. */
+ private finishWhenSettled(index:number,surface:Surface){
+  const token={};this.completionToken=token;const started=performance.now();
+  const settle=()=>{
+   if(this.completionToken!==token||this.destroyed)return;
+   const squish=this.physics.squish[index];
+   if(squish!==undefined&&squish<0.9&&performance.now()-started<700){requestAnimationFrame(settle);return;}
+   if(this.completionToken!==token||this.destroyed)return;
+   surface.config.onAllPopped?.();
+  };
+  requestAnimationFrame(settle);
  }
  private notify(){if(this.queued)return;this.queued=true;queueMicrotask(()=>{this.queued=false;if(!this.destroyed)this.dispatchEvent(new CustomEvent('change',{detail:this.getStats()}));});}
  setMuted(muted:boolean){this.audio.unlock();this.audio.setMuted(muted);this.notify();}
@@ -159,6 +171,8 @@ export class BubbleEngine extends EventTarget {
  setRefreshLocked(locked:boolean){this.refreshLocked=locked;}
  /** Sheet exchange used by Survival Run while player-triggered refresh stays locked. */
  forceReset(){const locked=this.refreshLocked;this.refreshLocked=false;this.reset();this.refreshLocked=locked;}
+ /** Cancel any slide and open an unpopped sheet. Used when a run starts or retries. */
+ freshSheet(){const locked=this.refreshLocked;this.refreshLocked=false;this.reset(undefined,true);this.refreshLocked=locked;}
  setHotKeys(codes:readonly string[]|null){
   if(codes){
    if(this.labelSnapshot===null)this.labelSnapshot=this.settings.showKeyLabels;
@@ -174,6 +188,7 @@ export class BubbleEngine extends EventTarget {
  }
  private applyHotKeys(){for(const node of this.hintNodes.values()){if(!this.hotCodes){delete node.dataset.hot;continue;}node.dataset.hot=String(this.hotCodes.has(node.dataset.keyCode||''));}}
  reset(surface?:string,immediate=false){
+  this.completionToken=null;
   if(this.refreshLocked||this.destroyed||this.lost||(!immediate&&this.refreshing))return;
   if(immediate)this.finishRefresh(true,false);
   let popped=0,total=0;this.points.forEach((p,i)=>{if((!surface||p.surface===surface)&&p.mode==='poppable'&&p.eligible){total++;popped+=this.physics.isPopped[i];}});

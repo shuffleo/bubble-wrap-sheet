@@ -136,11 +136,31 @@ with sync_playwright() as pw:
  point=page.evaluate('bubbleUI.inspect().find(p=>p.mode==="poppable"&&p.eligible&&!p.popped&&p.y>180)')
  page.mouse.click(point['x'],point['y'])
  page.wait_for_function('document.querySelector("[data-live=score]")?.getAttribute("aria-label")==="$10"')
+ page.wait_for_function('document.querySelector("[data-live=rate]")?.getAttribute("aria-label")==="1"')
  check('the first manual pop scores the base value',page.locator('[data-live=score]').get_attribute('aria-label')=='$10')
+ check('pop rate rounds up to a whole number',page.locator('[data-live=rate]').get_attribute('aria-label')=='1')
  popped=page.evaluate('bubbleUI.getStats().popped')
  page.keyboard.press('Space')
  page.wait_for_timeout(200)
  check('level 1 ignores a refresh while the sheet is in play',page.evaluate('bubbleUI.getStats().popped')==popped)
+ page.evaluate('''() => {
+   const left=bubbleUI.getGameBubbles().filter(b=>b.eligible&&!b.popped);
+   left.slice(0,-1).forEach(b=>bubbleUI.popForGame(b.index,{type:'manual',input:'mouse',gestureId:'bulk'}));
+   const last=bubbleUI.getGameBubbles().find(b=>b.eligible&&!b.popped);
+   bubbleUI.popForGame(last.index,{type:'manual',input:'mouse',gestureId:'last'});
+   window.slideStartedImmediately=bubbleUI.refreshing;
+ }''')
+ check('the last pop settles before the sheet slides',page.evaluate('window.slideStartedImmediately===false'))
+ page.wait_for_function('''() => {
+   const root=document.querySelector('#game-root');
+   if(root&&root.dataset.screen==='run-won') return true;
+   if(!bubbleUI.refreshing) bubbleUI.getGameBubbles().filter(b=>b.eligible&&!b.popped).forEach(b=>bubbleUI.popForGame(b.index,{type:'manual',input:'mouse',gestureId:'finish'}));
+   return false;
+ }''',timeout=15000)
+ page.locator('[data-level-action=retry]').click()
+ page.locator('[data-level-action=play]').click()
+ page.wait_for_function('bubbleUI.getStats().popped===0 && bubbleUI.refreshLocked===true')
+ check('retry starts on a fresh locked sheet',page.evaluate('bubbleUI.getStats().popped===0'))
  check('fixture UI produces no JavaScript page errors',not errors)
  browser.close()
 

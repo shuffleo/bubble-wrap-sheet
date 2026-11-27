@@ -37,9 +37,9 @@ export function gameVendors():GameVendorBundle {
  return window.GameVendors;
 }
 
-export function animatedNumber(value:number,{currency=false,continuous=true,minimumIntegerDigits=1}:{currency?:boolean;continuous?:boolean;minimumIntegerDigits?:number}={}):NumberFlowElement {
+export function animatedNumber(value:number,{currency=false,continuous=true,minimumIntegerDigits=1,maximumFractionDigits=2}:{currency?:boolean;continuous?:boolean;minimumIntegerDigits?:number;maximumFractionDigits?:number}={}):NumberFlowElement {
  const element=document.createElement('number-flow') as NumberFlowElement;
- element.format={minimumFractionDigits:0,maximumFractionDigits:2,minimumIntegerDigits,useGrouping:true};
+ element.format={minimumFractionDigits:0,maximumFractionDigits,minimumIntegerDigits,useGrouping:true};
  if(currency)element.numberPrefix='$';
  if(continuous)element.plugins=[gameVendors().continuous];
  element.setAttribute('aria-label',currency?`$${value}`:String(value));
