@@ -288,7 +288,7 @@ It measures robust active windows rather than total level duration. The result i
 - Objective: clear 5 L sheets.
 - Timer: calibrated hard deadline.
 - Failure: timeout ends the run.
-- Target range: 16–28 seconds after clamping.
+- The calibrated result stays clamped to 16–28 seconds. Level 3 then adds `deadlineBonusSeconds` (25) so the countdown the player sees is 41–53 seconds.
 - Base formula uses actual eligible bubbles, level-2 manual rate, transition allowance, and an initial 0.85 challenge factor.
 - Completion opens shop 2.
 

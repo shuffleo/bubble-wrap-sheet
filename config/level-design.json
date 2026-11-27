@@ -95,6 +95,7 @@
         "sheetCount": 2,
         "bubbleSize": "M",
         "timer": "none",
+        "deadlineBonusSeconds": 0,
         "medals": {
           "metric": "score",
           "bronze": 1500,
@@ -109,6 +110,7 @@
         "sheetCount": 5,
         "bubbleSize": "M",
         "timer": "soft",
+        "deadlineBonusSeconds": 0,
         "medals": {
           "metric": "timeSeconds",
           "bronze": 180,
@@ -123,6 +125,7 @@
         "sheetCount": 5,
         "bubbleSize": "L",
         "timer": "calibrated-hard",
+        "deadlineBonusSeconds": 25,
         "medals": {
           "metric": "timeSeconds",
           "bronze": 140,
@@ -137,6 +140,7 @@
         "sheetCount": 3,
         "bubbleSize": "M",
         "timer": "calibrated-hard",
+        "deadlineBonusSeconds": 0,
         "medals": {
           "metric": "score",
           "bronze": 5000,
@@ -151,6 +155,7 @@
         "sheetCount": 0,
         "bubbleSize": "M",
         "timer": "conveyor",
+        "deadlineBonusSeconds": 0,
         "medals": {
           "metric": "clearancePercent",
           "bronze": 90,

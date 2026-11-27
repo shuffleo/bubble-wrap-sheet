@@ -35,6 +35,18 @@ test('calibrated hard deadlines stay inside configured bounds',()=>{
  assert.equal(maximum,GAME_CONFIG.calibration.hardDeadlineMaxSeconds*1000);
 });
 
+test('level 3 adds its configured bonus after the hard-deadline clamp',()=>{
+ const level=GAME_CONFIG.run.levels.find(item=>item.id===3);
+ assert.equal(level.deadlineBonusSeconds,25);
+ const slow=calibratedDeadlineMs(1,1,{popsPerSecond:20,sampledWindowMs:3000});
+ const fast=calibratedDeadlineMs(1000,5,{popsPerSecond:2,sampledWindowMs:3000});
+ assert.equal(slow,GAME_CONFIG.calibration.hardDeadlineMinSeconds*1000);
+ assert.equal(fast,GAME_CONFIG.calibration.hardDeadlineMaxSeconds*1000);
+ assert.equal(slow+level.deadlineBonusSeconds*1000,41_000);
+ assert.equal(fast+level.deadlineBonusSeconds*1000,53_000);
+ assert.equal(GAME_CONFIG.run.levels.find(item=>item.id===4).deadlineBonusSeconds,0);
+});
+
 test('hazard allowance multiplies active workload before deadline clamping',()=>{
  const calibration={popsPerSecond:8,sampledWindowMs:3000};
  const base=calibratedDeadlineMs(120,3,calibration);

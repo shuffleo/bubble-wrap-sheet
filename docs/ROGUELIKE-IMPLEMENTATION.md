@@ -466,7 +466,7 @@ Implemented through the Level 3 checkpoint:
 - One live encounter state now carries score, category, RNG, sheet plan, and attributable score rows across Levels 1–3.
 - Level 2 derives its soft target from actual responsive bubble workload and category tuning, settles remaining time, and never fails at zero.
 - Calibration samples manual-pop active windows only, closes windows across transitions and visibility loss, clamps by category, and persists diagnostics for the development drawer.
-- Level 3 derives a bounded hard deadline from the calibrated pace and actual L-sheet workload, exposes danger state, and resets the full run after timeout.
+- Level 3 derives a bounded hard deadline from the calibrated pace and actual L-sheet workload, adds the configured 25-second bonus after that clamp, exposes danger state, and resets the full run after timeout.
 - Hard-deadline danger now adds the final-10-second neon treatment, while a shader-backed exposure reminder helps locate one of the final one to three idle bubbles.
 - The completed Level 2 now hands off to the Stage E shop instead of bypassing its reducer phase.
 

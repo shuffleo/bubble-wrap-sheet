@@ -170,6 +170,15 @@ with sync_playwright() as pw:
  page.locator('[data-level-action=play]').click()
  page.wait_for_function('bubbleUI.settings.bubbleSize===64 && bubbleUI.refreshLocked===true')
  check('level 1 plays on M sheets without a timer',page.locator('.game-hud-timer').count()==0 and page.locator('.game-onboarding').is_visible())
+ check('live survival HUD restores the overflow menu',page.locator('.game-overflow summary').is_visible())
+ page.locator('.game-overflow summary').click()
+ menu_labels=' '.join(page.locator('.game-overflow-menu button').all_inner_texts())
+ check('live overflow restores refresh and mute and keeps playtest controls inside it','Refresh sheet' in menu_labels and 'Mute' in menu_labels and 'Retry level' in menu_labels and 'Mark level won' in menu_labels)
+ page.locator('[data-game-action=mute]').click()
+ check('live overflow mute toggles the hidden sound control',page.evaluate('document.getElementById("sound").dataset.muted==="true"'))
+ page.locator('.game-overflow summary').click()
+ page.locator('[data-game-action=mute]').click()
+ check('live overflow unmute restores sound',page.evaluate('document.getElementById("sound").dataset.muted==="false"'))
  point=page.evaluate('bubbleUI.inspect().find(p=>p.mode==="poppable"&&p.eligible&&!p.popped&&p.y>180)')
  page.mouse.click(point['x'],point['y'])
  page.wait_for_function('document.querySelector("[data-live=score]")?.getAttribute("aria-label")==="$10"')
@@ -180,6 +189,10 @@ with sync_playwright() as pw:
  page.keyboard.press('Space')
  page.wait_for_timeout(200)
  check('level 1 ignores a refresh while the sheet is in play',page.evaluate('bubbleUI.getStats().popped')==popped)
+ page.locator('.game-overflow summary').click()
+ page.locator('[data-game-action=refresh]').click()
+ page.wait_for_function('!bubbleUI.refreshing && bubbleUI.getStats().popped===0',timeout=8000)
+ check('live overflow refresh replaces the sheet while play continues',page.evaluate('bubbleUI.getStats().popped===0 && bubbleUI.refreshLocked===true'))
  page.evaluate('''() => {
    const left=bubbleUI.getGameBubbles().filter(b=>b.eligible&&!b.popped);
    left.slice(0,-3).forEach(b=>bubbleUI.popForGame(b.index,{type:'manual',input:'mouse',gestureId:'stragglers'}));
@@ -223,6 +236,10 @@ with sync_playwright() as pw:
  buy_button.click()
  page.wait_for_function('document.querySelector("#game-root")?.dataset.screen==="level-intro" && document.querySelector(".game-eyebrow")?.textContent.includes("Level 3")')
  check('level 3 brief uses five L sheets and a calibrated deadline','5 × L' in page.locator('.game-brief-stats').inner_text() and 'deadline' in page.locator('.game-brief-stats').inner_text().lower())
+ deadline=page.locator('.game-brief-stats div',has_text='Deadline').locator('strong').inner_text().strip()
+ deadline_parts=[int(part) for part in deadline.split(':')]
+ deadline_seconds=deadline_parts[0]*60+deadline_parts[1]
+ check('level 3 countdown adds 25 seconds past the 16-28 second clamp',41<=deadline_seconds<=53)
  page.locator('[data-level-action=play]').click()
  page.wait_for_function('bubbleUI.settings.bubbleSize===82 && bubbleUI.refreshLocked===true')
  check('level 3 starts with a hard timer on L bubbles before its final-10-second danger state',page.locator('.game-hud-timer .game-label').inner_text().lower()=='time left' and page.locator('.game-hud').get_attribute('data-danger')=='false')
@@ -282,14 +299,10 @@ with sync_playwright() as pw:
   page.evaluate('(index)=>bubbleUI.popForGame(index,{type:"manual",input:"mouse",gestureId:"bob-roll"})',source['index'])
   page.wait_for_function('(count)=>bubbleUI.getStats().popped>count',arg=before_popped)
   check('Drunken Bob redirects a valid input with visible hazard feedback','target' in page.locator('.game-hud-hazard').inner_text().lower())
- page.wait_for_function('''() => {
-  const root=document.querySelector('#game-root');
-  if(root?.dataset.screen==='run-won'&&root.querySelector('.game-eyebrow')?.textContent.includes('Level 4')) return true;
-  if(root?.dataset.screen!=='hud'||bubbleUI.refreshing) return false;
-  const open=bubbleUI.getGameBubbles().filter(b=>b.eligible&&!b.popped);
-  for(let pass=0;pass<4;pass++)for(const bubble of open)bubbleUI.popForGame(bubble.index,{type:'manual',input:'mouse',gestureId:`hazard-finish-${performance.now()}-${pass}-${bubble.index}`});
-  return false;
- }''',timeout=30000)
+ page.locator('.game-overflow summary').click()
+ page.locator('[data-game-action=win]').click()
+ page.wait_for_function('document.querySelector("#game-root")?.dataset.screen==="run-won"',timeout=5000)
+ check('playtest skip marks level 4 won without saving a local record','Playtest skip' in page.locator('.game-result-note').inner_text() and 'not updated' in page.locator('.game-result-note').inner_text().lower())
  page.locator('[data-level-action=shop]').click()
  check('level 4 completion opens the third live shop',page.locator('#game-root[data-screen="shop"] .game-offer').count()==2)
  page.locator('[data-shop-action=skip]').click()

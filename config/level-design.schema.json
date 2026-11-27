@@ -159,7 +159,7 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["id", "name", "sheetCount", "bubbleSize", "timer", "medals"],
+            "required": ["id", "name", "sheetCount", "bubbleSize", "timer", "deadlineBonusSeconds", "medals"],
             "properties": {
               "id": {"$ref": "#/definitions/positiveInteger"},
               "name": {
@@ -175,6 +175,11 @@
               "bubbleSize": {"$ref": "#/definitions/sizeName"},
               "timer": {
                 "enum": ["none", "soft", "calibrated-hard", "conveyor"]
+              },
+              "deadlineBonusSeconds": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 120
               },
               "medals": {"$ref": "#/definitions/medalTargets"}
             }
