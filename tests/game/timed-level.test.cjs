@@ -1,7 +1,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {GAME_CONFIG}=require('../../.compiled/game/game-config');
-const {CalibrationCollector,calibratePace,calibratedDeadlineMs,remainingTimeSettlement,softParMs}=require('../../.compiled/game/timed-level');
+const {CalibrationCollector,calibratePace,calibratedDeadlineMs,remainingTimeSettlement,resolveSecondWind,softParMs}=require('../../.compiled/game/timed-level');
 
 test('soft par uses actual bubble workload and transition allowance',()=>{
  const expected=100*GAME_CONFIG.categories.touch.softParSecondsPerBubble*1000+4*GAME_CONFIG.calibration.sheetTransitionAllowanceSeconds*1000;
@@ -42,4 +42,23 @@ test('remaining-time settlement rewards time but never punishes soft expiry',()=
  assert.equal(early.bonus,25);
  assert.equal(early.total,125);
  assert.deepEqual(expired,{subtotal:100,multiplier:1,bonus:0,total:100,remainingMs:0});
+});
+
+test('Second Wind extends one hard deadline only when it prevents failure',()=>{
+ const totalMs=20_000;
+ const triggered=resolveSecondWind({totalMs,elapsedMs:totalMs,owned:true,usesRemaining:1,hardTimer:true});
+ assert.deepEqual(triggered,{
+  triggered:true,
+  totalMs:totalMs+GAME_CONFIG.upgrades.secondWind.addedSeconds*1000,
+  usesRemaining:0
+ });
+ assert.equal(resolveSecondWind({totalMs,elapsedMs:totalMs,owned:true,usesRemaining:0,hardTimer:true}).triggered,false);
+ assert.equal(resolveSecondWind({totalMs,elapsedMs:totalMs,owned:true,usesRemaining:1,hardTimer:false}).triggered,false);
+ assert.equal(resolveSecondWind({
+  totalMs,
+  elapsedMs:totalMs+GAME_CONFIG.upgrades.secondWind.addedSeconds*1000,
+  owned:true,
+  usesRemaining:1,
+  hardTimer:true
+ }).triggered,false);
 });

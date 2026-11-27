@@ -22,7 +22,10 @@ export interface LevelPlayState {
  prompt:boolean;
  rng:GameRngState;
  encounterManualPops:number;
- breakdown:{base:number;cleanSweep:number;hotKey:number;assisted:number;assistedByUpgrade:Partial<Record<UpgradeId,number>>;remainingTime:number};
+ manualPopTimes:number[];
+ currentVelocityMultiplier:number;
+ currentDeadlineMultiplier:number;
+ breakdown:{base:number;cleanSweep:number;hotKey:number;sureHands:number;velocityBoost:number;deadlineBoost:number;assisted:number;assistedByUpgrade:Partial<Record<UpgradeId,number>>;remainingTime:number};
 }
 export type LevelOneState=LevelPlayState;
 
@@ -62,7 +65,10 @@ export function createLevelState(source:GameSessionState,levelId:LevelId):LevelP
   prompt:true,
   rng:session.rng,
   encounterManualPops:0,
-  breakdown:{base:0,cleanSweep:0,hotKey:0,assisted:0,assistedByUpgrade:{},remainingTime:0}
+  manualPopTimes:[],
+  currentVelocityMultiplier:1,
+  currentDeadlineMultiplier:1,
+  breakdown:{base:0,cleanSweep:0,hotKey:0,sureHands:0,velocityBoost:0,deadlineBoost:0,assisted:0,assistedByUpgrade:{},remainingTime:0}
  };
 }
 
@@ -85,6 +91,7 @@ export function applyManualPop(state:LevelPlayState,input:{
  neighbours:readonly number[];
  keyCode:string|null;
  availableKeyCodes:readonly string[];
+ hardDeadline?:{totalMs:number;elapsedMs:number}|null;
 }):{state:LevelPlayState;notice:ManualPopNotice} {
  if(state.cleared||state.session.run.phase!=='playing')return {state,notice:noticeOf(state,0,'none')};
  const category=state.category??categoryForManualInput(input.input);
@@ -96,7 +103,10 @@ export function applyManualPop(state:LevelPlayState,input:{
   gestureOrdinal:gesture?.ordinal??1,
   adjacent:gesture?gesture.adjacent:false,
   hotKey:keyboard&&!!input.keyCode&&state.hotKeys.includes(input.keyCode),
-  combo:state.combo
+  combo:state.combo,
+  owned:state.session.run.upgrades as UpgradeId[],
+  manualPopTimes:state.manualPopTimes,
+  hardDeadline:input.hardDeadline
  });
  let hotKeys=state.hotKeys;
  let rng=state.rng;
@@ -111,9 +121,13 @@ export function applyManualPop(state:LevelPlayState,input:{
   ...state.breakdown,
   base:state.breakdown.base+GAME_CONFIG.scoring.normalBase,
   cleanSweep:state.breakdown.cleanSweep+(scored.skill==='clean-sweep'?GAME_CONFIG.scoring.skillBonus:0),
-  hotKey:state.breakdown.hotKey+(scored.skill==='hot-key'?GAME_CONFIG.scoring.skillBonus:0)
+  hotKey:state.breakdown.hotKey+(scored.skill==='hot-key'?GAME_CONFIG.scoring.skillBonus:0),
+  sureHands:state.breakdown.sureHands+scored.sureHandsBonus,
+  velocityBoost:state.breakdown.velocityBoost+scored.velocityBoost,
+  deadlineBoost:state.breakdown.deadlineBoost+scored.deadlineBoost
  };
- const nextState={...state,session,combo:scored.combo,category,gesture:keyboard?state.gesture:gesture,hotKeys,rng,prompt:false,encounterManualPops:state.encounterManualPops+1,breakdown};
+ const manualPopTimes=[...state.manualPopTimes,input.now].filter(time=>time>=input.now-GAME_CONFIG.scoring.velocity.windowMs);
+ const nextState={...state,session,combo:scored.combo,category,gesture:keyboard?state.gesture:gesture,hotKeys,rng,prompt:false,encounterManualPops:state.encounterManualPops+1,manualPopTimes,currentVelocityMultiplier:scored.velocityMultiplier,currentDeadlineMultiplier:scored.deadlineMultiplier,breakdown};
  return {state:nextState,notice:noticeOf(nextState,scored.points,scored.skill)};
 }
 
@@ -130,7 +144,7 @@ export function applyAssistedPop(state:LevelPlayState,upgrade?:UpgradeId):{state
 }
 
 export function clearLevelCombo(state:LevelPlayState):LevelPlayState {
- return {...state,combo:EMPTY_COMBO};
+ return {...state,combo:EMPTY_COMBO,currentVelocityMultiplier:1,currentDeadlineMultiplier:1};
 }
 
 export function noteSheetCleared(state:LevelPlayState):{state:LevelPlayState;kind:'next-sheet'|'cleared'} {
@@ -138,10 +152,10 @@ export function noteSheetCleared(state:LevelPlayState):{state:LevelPlayState;kin
   const advanced=reduceSession(state.session,{type:'begin-sheet-transition'});
   const finished=reduceSession(advanced.state,{type:'finish-sheet-transition'});
   const sheet=state.sheet+1;
-  return {kind:'next-sheet',state:placeOnSheet({...state,session:finished.state,gesture:null,combo:EMPTY_COMBO,prompt:false},sheet)};
+  return {kind:'next-sheet',state:placeOnSheet({...state,session:finished.state,gesture:null,combo:EMPTY_COMBO,currentVelocityMultiplier:1,currentDeadlineMultiplier:1,prompt:false},sheet)};
  }
  const completed=reduceSession(state.session,{type:'complete-level'});
- return {kind:'cleared',state:{...state,session:completed.state,cleared:true,gesture:null,combo:EMPTY_COMBO,prompt:false}};
+ return {kind:'cleared',state:{...state,session:completed.state,cleared:true,gesture:null,combo:EMPTY_COMBO,currentVelocityMultiplier:1,currentDeadlineMultiplier:1,prompt:false}};
 }
 
 function placeOnSheet(state:LevelPlayState,sheet:number):LevelPlayState {

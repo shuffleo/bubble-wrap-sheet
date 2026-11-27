@@ -95,6 +95,30 @@ export interface TimeSettlement {
  remainingMs:number;
 }
 
+export interface SecondWindResolution {
+ triggered:boolean;
+ totalMs:number;
+ usesRemaining:number;
+}
+
+export function resolveSecondWind(input:{
+ totalMs:number;
+ elapsedMs:number;
+ owned:boolean;
+ usesRemaining:number;
+ hardTimer:boolean;
+}):SecondWindResolution {
+ const addedMs=GAME_CONFIG.upgrades.secondWind.addedSeconds*1000;
+ const canPreventFailure=input.hardTimer
+  &&input.owned
+  &&input.usesRemaining>0
+  &&input.elapsedMs>=input.totalMs
+  &&input.elapsedMs<input.totalMs+addedMs;
+ return canPreventFailure
+  ?{triggered:true,totalMs:input.totalMs+addedMs,usesRemaining:input.usesRemaining-1}
+  :{triggered:false,totalMs:input.totalMs,usesRemaining:input.usesRemaining};
+}
+
 export function remainingTimeSettlement(subtotal:number,totalMs:number,elapsedMs:number):TimeSettlement {
  const remainingMs=Math.max(0,totalMs-elapsedMs);
  const fraction=totalMs>0?remainingMs/totalMs:0;

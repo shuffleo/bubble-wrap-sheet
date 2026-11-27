@@ -8,6 +8,10 @@ export const LIVE_SHOP_UPGRADES:readonly UpgradeId[]=[
  'roughTable',
  'knuckleCrack',
  'staticDischarge',
+ 'velocityBuff',
+ 'deadlineFighter',
+ 'sureHands',
+ 'secondWind',
  'rateHikeCycle',
  'priorityBanking',
  'flatRate'

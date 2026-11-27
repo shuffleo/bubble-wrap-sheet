@@ -10,7 +10,7 @@ import {BubbleGameAdapter} from './bubble-game-adapter';
 import {medalStripMarkup,roadmapMarkup,titleCase} from './dossier-ui';
 import {readLevelRecords,recordLevelResult} from './level-records';
 import {awardedMedal,formatDuration,nextMedal} from './level-presentation';
-import {CalibrationCollector,calibratedDeadlineMs,settleTimedLevel,softParMs,type CalibrationSummary,type TimeSettlement,withCalibration} from './timed-level';
+import {CalibrationCollector,calibratedDeadlineMs,resolveSecondWind,settleTimedLevel,softParMs,type CalibrationSummary,type TimeSettlement,withCalibration} from './timed-level';
 import {reduceSession} from './game-reducer';
 import type {LevelId} from './game-types';
 import {saveCalibrationDiagnostics} from './calibration-diagnostics';
@@ -18,6 +18,7 @@ import {advanceGameClock,setClockHidden} from './game-clock';
 import {UPGRADE_COPY} from './game-copy';
 import {buyLiveShopUpgrade,createLiveShop,rerollLiveShop,skipLiveShop,upgradePrice,type LiveShopState} from './shops';
 import {advanceRoughTable,resolveManualUpgradeProcs} from './upgrades';
+import {deadlineScoreMultiplier} from './scoring';
 
 export interface SurvivalRun {
  start():void;
@@ -75,13 +76,14 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   if(detail.source.type!=='manual')return;
   const code=detail.source.input==='keyboard'?detail.source.gestureId.replace(/^key:/,''):null;
   const applied=applyManualPop(state,{
-   now:performance.now(),
+   now:levelElapsedMs,
    input:detail.source.input,
    gestureId:detail.source.gestureId,
    index:detail.index,
    neighbours:engine.getGameNeighbours(detail.index),
    keyCode:code,
-   availableKeyCodes:engine.getKeyboardMap().filter(group=>group.remaining>0).map(group=>group.code)
+   availableKeyCodes:engine.getKeyboardMap().filter(group=>group.remaining>0).map(group=>group.code),
+   hardDeadline:timerKind==='hard'?{totalMs:timerTotalMs,elapsedMs:levelElapsedMs}:null
   });
   state=applied.state;
   if(state.levelId===2)calibrationCollector?.recordManualPop(levelElapsedMs);
@@ -109,9 +111,10 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
  const onCleared=()=>{
   if(!state||state.cleared)return;
   advanceElapsedNow();
+  expireComboIfNeeded();
   calibrationCollector?.endActivePeriod(levelElapsedMs);
   clearBubbleReminder();
-  if(timerKind==='hard'&&levelElapsedMs>=timerTotalMs){showLoss();return;}
+  if(timerKind==='hard'&&levelElapsedMs>=timerTotalMs&&!tryUseSecondWind()){showLoss();return;}
   const step=noteSheetCleared(state);
   state=step.state;
   if(step.kind==='next-sheet'){applySheet(state);refreshGoal();reminderWaitingForSheet=true;engine.forceReset();return;}
@@ -255,6 +258,9 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
    ['Manual pops',state.breakdown.base],
    ['Clean Sweep bonus',state.breakdown.cleanSweep],
    ['Hot Key bonus',state.breakdown.hotKey],
+   ['Sure Hands bonus',state.breakdown.sureHands],
+   ['Velocity Buff boost',state.breakdown.velocityBoost],
+   ['Deadline Fighter boost',state.breakdown.deadlineBoost],
    ...Object.entries(state.breakdown.assistedByUpgrade).map(([id,value])=>[`${UPGRADE_COPY[id as UpgradeId].name} assists`,value??0] as const),
    ['Other assisted pops',state.breakdown.assisted-Object.values(state.breakdown.assistedByUpgrade).reduce((sum,value)=>sum+(value??0),0)],
    ['Remaining-time bonus',state.breakdown.remainingTime]
@@ -362,10 +368,11 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
  function tickLevelTimer(){
   if(!state||state.cleared||state.session.run.phase!=='playing')return;
   advanceElapsedNow();
+  expireComboIfNeeded();
   tickRoughTable();
+  if(timerKind==='hard'&&levelElapsedMs>=timerTotalMs&&!tryUseSecondWind()){showLoss();return;}
   refreshTimer();
   refreshBubbleReminder();
-  if(timerKind==='hard'&&levelElapsedMs>=timerTotalMs)showLoss();
  }
  function advanceElapsedNow(){
   const now=performance.now();
@@ -389,8 +396,25 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   hud.dataset.danger=String(timerKind==='hard'&&remaining<=dangerMs);
   hud.dataset.softExpired=String(timerKind==='soft'&&remaining<=0);
   root.querySelector<HTMLElement>('.game-hud-timer')?.setAttribute('aria-label',`${clockText(remaining)} remaining`);
+  refreshUpgradeValues();
  }
  function clearBubbleReminder(){engine.setBubbleReminder(null);reminderBubbleIndex=-1;}
+ function tryUseSecondWind():boolean {
+  if(!state)return false;
+  const run=state.session.run;
+  const resolved=resolveSecondWind({
+   totalMs:timerTotalMs,
+   elapsedMs:levelElapsedMs,
+   owned:run.upgrades.includes('secondWind'),
+   usesRemaining:run.secondWindUsesRemaining,
+   hardTimer:timerKind==='hard'
+  });
+  if(!resolved.triggered)return false;
+  timerTotalMs=resolved.totalMs;
+  state={...state,session:{...state.session,run:{...run,secondWindUsesRemaining:resolved.usesRemaining}}};
+  refreshUpgradeValues();
+  return true;
+ }
  function tickRoughTable(){
   if(!state||!adapter)return;
   const delta=Math.max(0,levelElapsedMs-roughTableLastTickMs);
@@ -436,6 +460,12 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
  }
  function refreshScore(){if(state)updateAnimatedNumber(root?.querySelector('[data-live=score]')??null,state.session.run.score);}
  function refreshCombo(){const slot=root?.querySelector<HTMLElement>('[data-live-combo]');if(!slot||!state)return;const visible=state.combo.count>1;slot.hidden=!visible;slot.textContent=visible?`${state.combo.count} combo`:'';}
+ function expireComboIfNeeded(){
+  if(!state||state.combo.expiresAt===0||levelElapsedMs<=state.combo.expiresAt)return;
+  state=clearLevelCombo(state);
+  refreshCombo();
+  refreshUpgradeValues();
+ }
  function refreshUpgradeValues(){
   if(!state||!root)return;
   for(const node of Array.from(root.querySelectorAll<HTMLElement>('[data-upgrade-value]'))){
@@ -452,6 +482,12 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   if(id==='knuckleCrack')return `${state.combo.count%GAME_CONFIG.upgrades.knuckleCrack.manualComboInterval}/${GAME_CONFIG.upgrades.knuckleCrack.manualComboInterval}`;
   if(id==='staticDischarge')return `${state.encounterManualPops%GAME_CONFIG.upgrades.staticDischarge.manualPopInterval}/${GAME_CONFIG.upgrades.staticDischarge.manualPopInterval}`;
   if(id==='roughTable')return `${Math.ceil((GAME_CONFIG.upgrades.roughTable.intervalMs-roughTableElapsedMs)/1000)}s`;
+  if(id==='velocityBuff')return state.currentVelocityMultiplier>1?`${formatGameNumber(state.currentVelocityMultiplier)}×`:'';
+  if(id==='deadlineFighter'&&timerKind==='hard'){
+   const multiplier=deadlineScoreMultiplier(timerTotalMs,Math.max(0,timerTotalMs-levelElapsedMs),state.combo.expiresAt!==0&&levelElapsedMs<=state.combo.expiresAt);
+   return multiplier>1?`${formatGameNumber(multiplier)}×`:'';
+  }
+  if(id==='secondWind')return state.session.run.secondWindUsesRemaining>0?`${state.session.run.secondWindUsesRemaining}×`:'used';
   return '';
  }
  function refreshGoal(){const slot=root?.querySelector('.game-hud-goal strong number-flow');if(state)updateAnimatedNumber(slot??null,state.sheet);}

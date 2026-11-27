@@ -50,7 +50,7 @@ test('reset clears every transient run subsystem',()=>{
   ...base,
   clock:{gameTimeMs:9000,paused:true,hidden:true},
   rng:{seed:1,cursor:99},
-  run:{...base.run,phase:'shop',level:3,score:400,upgrades:['fatFinger'],rerollUsed:true,calibration:{popsPerSecond:8,sampledWindowMs:3000},encounter:{levelId:3,sheetIndex:2,sheetCount:5,bubblesRemaining:4,hazardId:'memoryFoam'},stats:{manualPops:12,assistedPops:3,scoreEvents:15}}
+  run:{...base.run,phase:'shop',level:3,score:400,upgrades:['fatFinger'],rerollUsed:true,secondWindUsesRemaining:0,calibration:{popsPerSecond:8,sampledWindowMs:3000},encounter:{levelId:3,sheetIndex:2,sheetCount:5,bubblesRemaining:4,hazardId:'memoryFoam'},stats:{manualPops:12,assistedPops:3,scoreEvents:15}}
  };
  const result=reduceSession(dirty,{type:'reset',seed:42});
  assert.equal(result.accepted,true);

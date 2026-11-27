@@ -47,6 +47,7 @@ export interface RunState {
  score:number;
  upgrades:string[];
  rerollUsed:boolean;
+ secondWindUsesRemaining:number;
  calibration:CalibrationResult|null;
  encounter:EncounterState|null;
  stats:RunStats;
