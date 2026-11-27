@@ -1,0 +1,299 @@
+{
+  "schemaVersion": 1,
+  "revision": "gdd-v0.4",
+  "sizes": {
+    "XXXS": 24,
+    "XXS": 32,
+    "XS": 40,
+    "S": 52,
+    "M": 64,
+    "L": 82,
+    "XL": 100,
+    "XXL": 124,
+    "XXXL": 148
+  },
+  "categories": {
+    "touch": {
+      "softParSecondsPerBubble": 0.3,
+      "calibrationMinPopsPerSecond": 2,
+      "calibrationMaxPopsPerSecond": 12,
+      "rerollPrice": 250,
+      "upgradePrices": {
+        "fatFinger": 1200,
+        "knuckleCrack": 850,
+        "roughTable": 800,
+        "staticDischarge": 700,
+        "velocityBuff": 1100,
+        "deadlineFighter": 850,
+        "sureHands": 750,
+        "secondWind": 650,
+        "bubbleInsurance": 500,
+        "rateHikeCycle": 950,
+        "priorityBanking": 650,
+        "flatRate": 600,
+        "clusterBomb": 1400,
+        "keyboardCover": 500
+      }
+    },
+    "keyboardPointer": {
+      "softParSecondsPerBubble": 0.2,
+      "calibrationMinPopsPerSecond": 2,
+      "calibrationMaxPopsPerSecond": 16,
+      "rerollPrice": 625,
+      "upgradePrices": {
+        "fatFinger": 3000,
+        "knuckleCrack": 2125,
+        "roughTable": 2000,
+        "staticDischarge": 1750,
+        "velocityBuff": 2750,
+        "deadlineFighter": 2125,
+        "sureHands": 1875,
+        "secondWind": 1625,
+        "bubbleInsurance": 1250,
+        "rateHikeCycle": 2375,
+        "priorityBanking": 1625,
+        "flatRate": 1500,
+        "clusterBomb": 3500,
+        "keyboardCover": 1250
+      }
+    }
+  },
+  "scoring": {
+    "normalBase": 10,
+    "hardenedBase": 30,
+    "assistedBase": 2,
+    "skillBonus": 20,
+    "sureHandsBonus": 10,
+    "comboGraceMs": 1000,
+    "cleanSweepStartsAt": 3,
+    "hotKeyTargetCount": 3,
+    "remainingTimeMaxMultiplier": 1.5,
+    "sheetPattern": {
+      "multiplier": 1.5,
+      "minimumManualPops": 6,
+      "minimumCoverage": 0.6
+    },
+    "velocity": {
+      "windowMs": 1500,
+      "activationPopsPerSecond": 2,
+      "minimumMultiplier": 2,
+      "maximumMultiplier": 5,
+      "diminishingRate": 6
+    },
+    "deadline": {
+      "dangerZoneFraction": 0.25,
+      "dangerZoneMaxSeconds": 10,
+      "minimumMultiplier": 1,
+      "maximumMultiplier": 2
+    }
+  },
+  "run": {
+    "levelCount": 5,
+    "shopsAfterLevels": [
+      2,
+      3,
+      4
+    ],
+    "shopOfferCount": 2,
+    "shopPurchaseLimit": 1,
+    "shopRerollLimit": 3,
+    "levels": [
+      {
+        "id": 1,
+        "name": "Orientation",
+        "sheetCount": 2,
+        "bubbleSize": "M",
+        "timer": "none",
+        "deadlineBonusSeconds": 0,
+        "medals": {
+          "metric": "score",
+          "bronze": 1500,
+          "silver": 2500,
+          "gold": 4000,
+          "titanium": 6000
+        }
+      },
+      {
+        "id": 2,
+        "name": "Tempo",
+        "sheetCount": 5,
+        "bubbleSize": "M",
+        "timer": "soft",
+        "deadlineBonusSeconds": 0,
+        "medals": {
+          "metric": "timeSeconds",
+          "bronze": 180,
+          "silver": 140,
+          "gold": 100,
+          "titanium": 75
+        }
+      },
+      {
+        "id": 3,
+        "name": "Pressure",
+        "sheetCount": 5,
+        "bubbleSize": "L",
+        "timer": "calibrated-hard",
+        "deadlineBonusSeconds": 25,
+        "medals": {
+          "metric": "timeSeconds",
+          "bronze": 140,
+          "silver": 110,
+          "gold": 80,
+          "titanium": 60
+        }
+      },
+      {
+        "id": 4,
+        "name": "Hazard",
+        "sheetCount": 3,
+        "bubbleSize": "M",
+        "timer": "calibrated-hard",
+        "deadlineBonusSeconds": 0,
+        "medals": {
+          "metric": "score",
+          "bronze": 5000,
+          "silver": 7500,
+          "gold": 10000,
+          "titanium": 14000
+        }
+      },
+      {
+        "id": 5,
+        "name": "Conveyor",
+        "sheetCount": 0,
+        "bubbleSize": "M",
+        "timer": "conveyor",
+        "deadlineBonusSeconds": 0,
+        "medals": {
+          "metric": "clearancePercent",
+          "bronze": 90,
+          "silver": 93,
+          "gold": 96,
+          "titanium": 99
+        }
+      }
+    ]
+  },
+  "economy": {
+    "decimalPlaces": 2,
+    "shopInterestRate": 0.02,
+    "shopInterestCap": {
+      "touch": 500,
+      "keyboardPointer": 1250
+    },
+    "rerollPriceGrowthMultiplier": 1.5
+  },
+  "calibration": {
+    "sourceLevel": 2,
+    "activeWindowMs": 3000,
+    "minimumManualPopsPerWindow": 2,
+    "sheetTransitionAllowanceSeconds": 0.72,
+    "hardDeadlineChallengeFactor": 0.85,
+    "hardDeadlineMinSeconds": 16,
+    "hardDeadlineMaxSeconds": 28
+  },
+  "upgrades": {
+    "fatFinger": {
+      "neighbourCount": 1
+    },
+    "knuckleCrack": {
+      "manualComboInterval": 5,
+      "neighbourCount": 2
+    },
+    "roughTable": {
+      "intervalMs": 4000
+    },
+    "staticDischarge": {
+      "manualPopInterval": 12
+    },
+    "velocityBuff": {
+      "enabled": true
+    },
+    "deadlineFighter": {
+      "enabled": true
+    },
+    "sureHands": {
+      "additionalSkillBonus": 10
+    },
+    "secondWind": {
+      "usesPerRun": 1,
+      "addedSeconds": 5
+    },
+    "bubbleInsurance": {
+      "insuredMisses": 3
+    },
+    "rateHikeCycle": {
+      "interestRate": 0.05
+    },
+    "priorityBanking": {
+      "interestCapMultiplier": 2
+    },
+    "flatRate": {
+      "enabled": true
+    },
+    "clusterBomb": {
+      "sheetFraction": 0.25,
+      "maximumArms": 3
+    },
+    "keyboardCover": {
+      "enabled": true
+    }
+  },
+  "hazards": {
+    "selectionWeights": {
+      "doubleLayer": 1,
+      "memoryFoam": 1,
+      "hardenedBubbles": 1,
+      "drunkenBob": 1
+    },
+    "doubleLayer": {
+      "bubbleRatio": 0.2,
+      "layers": 2,
+      "deadlineWorkloadMultiplier": 1.15
+    },
+    "memoryFoam": {
+      "intervalMs": 3000,
+      "warningMs": 1000,
+      "deadlineWorkloadMultiplier": 1.1
+    },
+    "hardenedBubbles": {
+      "bubbleRatio": 0.2,
+      "holdMs": 1500,
+      "releaseDecayMs": 400,
+      "deadlineWorkloadMultiplier": 1.6
+    },
+    "drunkenBob": {
+      "maximumFailedRolls": 3,
+      "deadlineWorkloadMultiplier": 1.35
+    }
+  },
+  "conveyor": {
+    "durationMs": 45000,
+    "cleanupWindowMs": 3000,
+    "spawnIntervalMs": 600,
+    "baseTravelMs": 6000,
+    "clearanceTarget": 0.9,
+    "missScorePenalty": 10,
+    "speedStages": [
+      {
+        "atMs": 0,
+        "multiplier": 1
+      },
+      {
+        "atMs": 15000,
+        "multiplier": 1.2
+      },
+      {
+        "atMs": 30000,
+        "multiplier": 1.4
+      }
+    ]
+  },
+  "ui": {
+    "levelIntroMs": 1800,
+    "scorePulseMs": 220,
+    "hazardWarningMs": 1000,
+    "resultCountUpMs": 900
+  }
+}

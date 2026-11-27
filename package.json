@@ -5,10 +5,12 @@
   "description": "A tactile bubble-wrap sheet with bundled recorded audio, keyboard popping, and sliding sheet exchanges.",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "test": "npm run build && node --test tests/*.test.cjs",
+    "test": "npm run build && node --test tests/*.test.cjs tests/game/*.test.cjs",
     "dev": "node scripts/serve.mjs",
+    "game:dev": "node scripts/game-dev.mjs",
     "serve": "node scripts/serve.mjs",
     "test:browser": "python3 tests/release_browser.py",
+    "test:game-ui": "python3 tests/game_ui_browser.py",
     "atlas": "python3 scripts/build_atlas.py",
     "audio": "python3 scripts/process_audio.py",
     "social": "python3 scripts/make_social_assets.py && npm run build",
@@ -17,12 +19,14 @@
     "package": "python3 scripts/package_release.py"
   },
   "devDependencies": {
+    "ajv": "^8.20.0",
+    "esbuild": "^0.28.2",
     "typescript": "5.8.3"
   },
   "peerDependencies": {
+    "bootstrap": "^5.3.6",
     "react": ">=19",
-    "react-dom": ">=19",
-    "bootstrap": "^5.3.6"
+    "react-dom": ">=19"
   },
   "peerDependenciesMeta": {
     "react": {
@@ -34,5 +38,11 @@
     "bootstrap": {
       "optional": true
     }
+  },
+  "dependencies": {
+    "material-symbols": "^0.49.0",
+    "number-flow": "^0.6.2",
+    "smoothie": "^1.36.1",
+    "tweakpane": "^4.0.5"
   }
 }

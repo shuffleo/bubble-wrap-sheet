@@ -18,7 +18,7 @@ export interface KeyboardMapping {groups:KeyGroup[];byCode:Map<string,KeyGroup>;
  * This is rebuilt only for geometry changes, not after pops or reset.
  */
 export function buildKeyboardMapping(points:readonly BubblePoint[]):KeyboardMapping {
- const eligible=points.map((point,index)=>({point,index})).filter(({point:p})=>p.mode==='poppable'&&p.eligible!==false&&!p.cut)
+ const eligible=points.map((point,index)=>({point,index})).filter(({point:p})=>p.mode==='poppable'&&p.eligible!==false&&!p.cut&&p.visible!==false)
   .sort((a,b)=>a.point.y-b.point.y||a.point.x-b.point.x||a.point.key.localeCompare(b.point.key));
  const n=eligible.length,k=BUBBLE_KEYS.length;
  const quotas=BUBBLE_KEYS.map((_,i)=>Math.floor((i+1)*n/k+.5)-Math.floor(i*n/k+.5));

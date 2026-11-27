@@ -27,7 +27,7 @@ with sync_playwright() as pw:
  check('all uploaded defaults applied, with M size override',page.evaluate('bubbleUI.settings')==DEFAULT)
  check('brand reads bubble wrap',page.locator('.brand-name').inner_text()=='bubble wrap')
  check('counter is in header and horizontally centered',page.evaluate('(()=>{const r=document.querySelector("header .counter").getBoundingClientRect();return Math.abs(r.x+r.width/2-innerWidth/2)<1})()'))
- check('sizes are only in the collapsed sidebar',page.locator('header [data-size]').count()==0 and page.locator('#settings-panel [data-size]').count()==5 and not page.locator('.sizes').is_visible())
+ check('sizes are only in the collapsed sidebar',page.locator('header [data-size]').count()==0 and page.locator('#settings-panel [data-size]').count()==9 and not page.locator('.sizes').is_visible())
  check('four invisible corner targets remain reachable',page.evaluate('Array.from(document.querySelectorAll(".corner-grip")).length===4&&Array.from(document.querySelectorAll(".corner-grip")).every(n=>!n.hidden&&getComputedStyle(n,"::after").content==="none"&&getComputedStyle(n).backgroundColor==="rgba(0, 0, 0, 0)")'))
  check('initial cut bubbles do not enable refresh',page.evaluate('bubbleUI.inspect().some(p=>p.cut&&p.popped)&&bubbleUI.getStats().popped===0&&document.getElementById("reset").disabled'))
  check('footer buttons contain icons only, no labels or key badges',page.evaluate('Array.from(document.querySelectorAll("footer button")).length===2&&Array.from(document.querySelectorAll("footer button")).every(n=>n.textContent.trim()===""&&n.querySelector("svg")&&n.getAttribute("aria-label"))&&document.querySelectorAll("footer kbd").length===0'))

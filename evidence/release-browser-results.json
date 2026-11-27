@@ -20,6 +20,10 @@
     "passed": true
   },
   {
+    "test": "validated level design is embedded for offline game startup",
+    "passed": true
+  },
+  {
     "test": "one shared WebGL canvas and draw call",
     "passed": true
   },
@@ -156,7 +160,7 @@
     "passed": true
   },
   {
-    "test": "68 sidebar controls include both refresh modes",
+    "test": "68 sidebar controls include both refresh modes and nine sizes",
     "passed": true
   },
   {

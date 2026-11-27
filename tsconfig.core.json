@@ -14,7 +14,8 @@
   },
   "include": [
     "src/main.ts",
-    "src/components/bubble-ui/core/**/*.ts"
+    "src/components/bubble-ui/core/**/*.ts",
+    "src/game/**/*.ts"
   ],
   "exclude": [
     "src/**/*.tsx"
