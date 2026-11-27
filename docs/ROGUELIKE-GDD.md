@@ -8,7 +8,7 @@ Branch: `cursor/roguelike-2ece`
 
 Bubble Wrap: Survival Run is a tactile survival roguelike built on the existing bubble-wrap simulation. The player clears increasingly hostile sheets, sacrifices score to buy a small build, and survives a 45-second conveyor miniboss.
 
-The current experience remains available as **Free Pop**. Game mode is a separate entry point and does not remove the studio, material controls, accessibility behavior, audio, haptics, or responsive renderer.
+The current experience remains available as **Endless Mode**. Game mode is a separate entry point and does not remove the studio, material controls, accessibility behavior, audio, haptics, or responsive renderer.
 
 The MVP is a pure run-based game:
 
@@ -41,7 +41,7 @@ Hazards can be chaotic, but outcomes must be visibly attributable. Hidden pity r
 
 The start screen offers:
 
-- **Free Pop:** current application behavior.
+- **Endless Mode:** current free-pop behavior.
 - **Survival Run:** the five-level game.
 
 A run category locks on the first manual pop:
@@ -242,7 +242,7 @@ Bubble-size labels retain their current meaning:
 - XXXL means 148-pixel bubbles.
 - Larger bubbles produce fewer eligible bubbles on the same viewport.
 
-All nine presets are available in Free Pop and to future game encounters. The five-level MVP currently uses M and L only.
+All nine presets are available in Endless Mode and to future game encounters. The five-level MVP currently uses M and L only.
 
 Actual bubble count remains responsive. Touch and Keyboard & Pointer scores are compared separately.
 
@@ -429,7 +429,7 @@ Normal dragging is slightly resisted. The bubble under the initial press still p
 
 #### Fuzzy Keyboard
 
-Without the upgrade, each bubble belongs to exactly one keyboard key. Fuzzy Keyboard also accepts the nearest key on each side in the same keyboard row, so each bubble answers to three keys. Those neighbours follow the bubble's position on the sheet: a bubble in one horizontal band also answers to the keys covering the adjacent bands. One key press still pops only one unpopped bubble. Overlapping key membership exists only while this upgrade is owned. Free Pop keeps the one-key mapping.
+Without the upgrade, each bubble belongs to exactly one keyboard key. Fuzzy Keyboard also accepts the nearest key on each side in the same keyboard row, so each bubble answers to three keys. Those neighbours follow the bubble's position on the sheet: a bubble in one horizontal band also answers to the keys covering the adjacent bands. One key press still pops only one unpopped bubble. Overlapping key membership exists only while this upgrade is owned. Endless Mode keeps the one-key mapping.
 
 - Proposed extra keys: 1 on each side, 3 total.
 - Proposed prices: Touch 750; Keyboard & Pointer 1,875.
@@ -506,12 +506,29 @@ The conveyor is a distinct encounter layout, not repeated sheet refreshes.
 
 ## 15. HUD and screens
 
-### Start
+### Selected flow: Run Dossier
 
-- Free Pop
+The chosen direction combines Moving Out's clear job brief and medal result with Balatro's forward stakes and run ledger. Each screen answers one decision at a time, while optional detail sits one tap deeper. Bonus objectives are deliberately excluded.
+
+### Mode start
+
+- Endless Mode
 - Survival Run
 - Local high scores by category
 - Sound, haptic, reduced-motion, and keyboard-help access
+
+### Level brief
+
+- Lead with level name, best time, required sheets, size, and total bubble workload.
+- Show Bronze, Silver, Gold, and Titanium together, each with an exact score, time, or clearance threshold.
+- Keep the immediate objective and skill hint short.
+- A second page previews the next three levels, each as one row containing its goal, medal thresholds, and one-line timer or hazard warning. This is planning information for upgrade decisions, not a tutorial.
+
+### Level result
+
+- Reveal the score calculation progressively: base/manual value first, then skill, upgrade, boost, penalty, and settlement effects as separate attributable rows.
+- Show clear time, earned medal, personal best, and the exact improvement needed for the next medal.
+- Effects that were not active do not create noisy zero rows, except during onboarding where an explicit “no upgrades active” note explains the empty category.
 
 ### Encounter HUD
 
@@ -538,12 +555,10 @@ The sheet remains the visual focus. During Survival Run, remove the page title a
 ### Run end
 
 - Win or failure reason
-- Final score
-- Category
-- Per-level time and score
-- Purchases and spending
-- Manual, assisted, missed, and skill-pop counts
-- Retry and Free Pop
+- Final score, category, and run time
+- Balatro-style run statistics including best-scoring level, total bubbles, manual and assisted pops, highest combo, and rerolls
+- Per-level score ledger and final build
+- New Run and Endless Mode
 
 ## 16. Accessibility and platform behavior
 
@@ -566,6 +581,7 @@ Persist locally:
 
 - Best completed Touch score.
 - Best completed Keyboard & Pointer score.
+- Best time and score for each level.
 - Audio, haptic, reduced-motion, and help preferences.
 
 Do not persist:

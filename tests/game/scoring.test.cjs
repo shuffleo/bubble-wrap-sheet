@@ -48,6 +48,9 @@ test('level 1 scores two manual sheets and keeps the first category',()=>{
  const assisted=applyAssistedPop(level);
  level=assisted.state;
  assert.equal(assisted.points,GAME_CONFIG.scoring.assistedBase);
+ assert.equal(level.breakdown.base,GAME_CONFIG.scoring.normalBase*2);
+ assert.equal(level.breakdown.assisted,GAME_CONFIG.scoring.assistedBase);
+ assert.equal(level.breakdown.base+level.breakdown.cleanSweep+level.breakdown.hotKey+level.breakdown.assisted,level.session.run.score);
  assert.equal(level.combo.count,second.state.combo.count);
  let step=noteSheetCleared(level);
  assert.equal(step.kind,'next-sheet');

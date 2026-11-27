@@ -159,7 +159,7 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["id", "name", "sheetCount", "bubbleSize", "timer"],
+            "required": ["id", "name", "sheetCount", "bubbleSize", "timer", "medals"],
             "properties": {
               "id": {"$ref": "#/definitions/positiveInteger"},
               "name": {
@@ -175,7 +175,8 @@
               "bubbleSize": {"$ref": "#/definitions/sizeName"},
               "timer": {
                 "enum": ["none", "soft", "calibrated-hard", "conveyor"]
-              }
+              },
+              "medals": {"$ref": "#/definitions/medalTargets"}
             }
           }
         }
@@ -495,6 +496,20 @@
     },
     "sizeName": {
       "enum": ["XXXS", "XXS", "XS", "S", "M", "L", "XL", "XXL", "XXXL"]
+    },
+    "medalTargets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["metric", "bronze", "silver", "gold", "titanium"],
+      "properties": {
+        "metric": {
+          "enum": ["score", "timeSeconds", "clearancePercent"]
+        },
+        "bronze": {"$ref": "#/definitions/positiveNumber"},
+        "silver": {"$ref": "#/definitions/positiveNumber"},
+        "gold": {"$ref": "#/definitions/positiveNumber"},
+        "titanium": {"$ref": "#/definitions/positiveNumber"}
+      }
     },
     "upgradePrices": {
       "type": "object",

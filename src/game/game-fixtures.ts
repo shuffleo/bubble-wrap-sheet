@@ -56,6 +56,9 @@ export interface ResultFixture {
  assistedPops:number;
  purchaseHistory:UpgradeId[];
  levelScores:{level:LevelId;score:number}[];
+ runTimeMs:number;
+ highestCombo:number;
+ rerolls:number;
 }
 
 const touch=GAME_CONFIG.categories.touch;
@@ -119,7 +122,10 @@ export const GAME_FIXTURES={
   manualPops:GAME_CONFIG.scoring.hotKeyTargetCount*100,
   assistedPops:GAME_CONFIG.upgrades.bubbleInsurance.insuredMisses,
   purchaseHistory:['fatFinger','velocityBuff'],
-  levelScores:GAME_CONFIG.run.levels.map(level=>({level:level.id as LevelId,score:GAME_CONFIG.scoring.normalBase*level.id*10}))
+  levelScores:GAME_CONFIG.run.levels.map(level=>({level:level.id as LevelId,score:GAME_CONFIG.scoring.normalBase*level.id*10})),
+  runTimeMs:8*60*1000+42_000,
+  highestCombo:47,
+  rerolls:2
  } satisfies ResultFixture,
  runLost:{
   outcome:'lost',
@@ -129,6 +135,9 @@ export const GAME_FIXTURES={
   manualPops:GAME_CONFIG.scoring.cleanSweepStartsAt*50,
   assistedPops:0,
   purchaseHistory:['roughTable'],
-  levelScores:GAME_CONFIG.run.levels.slice(0,3).map(level=>({level:level.id as LevelId,score:GAME_CONFIG.scoring.normalBase*level.id*10}))
+  levelScores:GAME_CONFIG.run.levels.slice(0,3).map(level=>({level:level.id as LevelId,score:GAME_CONFIG.scoring.normalBase*level.id*10})),
+  runTimeMs:6*60*1000+18_000,
+  highestCombo:21,
+  rerolls:0
  } satisfies ResultFixture
 } as const;

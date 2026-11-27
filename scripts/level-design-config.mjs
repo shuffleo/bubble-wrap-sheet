@@ -55,6 +55,12 @@ function semanticIssues(config){
   if(level.id!==index+1)add(`/run/levels/${index}/id`,`must be ${index+1} so levels stay ordered`);
   if(level.timer==='conveyor'&&level.sheetCount!==0)add(`/run/levels/${index}/sheetCount`,'must be 0 for a conveyor level');
   if(level.timer!=='conveyor'&&level.sheetCount===0)add(`/run/levels/${index}/sheetCount`,'must be positive outside a conveyor level');
+  const targets=['bronze','silver','gold','titanium'].map(name=>level.medals[name]);
+  const lowerIsBetter=level.medals.metric==='timeSeconds';
+  for(let target=1;target<targets.length;target++){
+   const ordered=lowerIsBetter?targets[target]<targets[target-1]:targets[target]>targets[target-1];
+   if(!ordered)add(`/run/levels/${index}/medals/${['bronze','silver','gold','titanium'][target]}`,`must be ${lowerIsBetter?'lower':'higher'} than the preceding medal`);
+  }
  });
  config.run.shopsAfterLevels.forEach((level,index)=>{
   if(level>=config.run.levelCount)add(`/run/shopsAfterLevels/${index}`,'must refer to a level before the final level');

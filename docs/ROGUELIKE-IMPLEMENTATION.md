@@ -1,6 +1,6 @@
 # Survival Run implementation scaffold
 
-This plan implements `docs/ROGUELIKE-GDD.md` without coupling game rules to WebGL rendering. Each milestone leaves Free Pop functional and adds independently testable game behavior.
+This plan implements `docs/ROGUELIKE-GDD.md` without coupling game rules to WebGL rendering. Each milestone leaves Endless Mode functional and adds independently testable game behavior.
 
 ## Architecture principles
 
@@ -9,7 +9,7 @@ This plan implements `docs/ROGUELIKE-GDD.md` without coupling game rules to WebG
 3. Represent every resolved bubble action as a typed event with an explicit source.
 4. Use seeded randomness for shops, hazards, Drunken Bob, and assisted targets.
 5. Make game time pausable and independent from `AudioContext.currentTime`.
-6. Keep Free Pop as the default compatibility path until Game mode is explicitly selected.
+6. Keep Endless Mode as the default compatibility path until Game mode is explicitly selected.
 7. Add behavior behind stable APIs; do not reach into engine private fields from the game layer.
 
 ## Variant tests
@@ -200,7 +200,7 @@ For every slice:
 
 1. Implement only the named behavior.
 2. Add focused unit and browser coverage.
-3. Run the existing Free Pop regression suite.
+3. Run the existing Endless Mode regression suite.
 4. Commit and push the slice.
 5. Update the Netlify deploy preview.
 6. At designated checkpoints, stop and give the user a short test script.
@@ -239,7 +239,7 @@ Tests:
 
 - All nine values sanitize and render.
 - Unknown values are rejected.
-- Free Pop size changes still reset safely.
+- Endless Mode size changes still reset safely.
 - Small and large extremes retain valid hit targets and finite geometry.
 
 ### Slice A3: pure game foundations
@@ -266,8 +266,8 @@ This stage deliberately uses fixture data. No encounter functionality is require
 
 Build:
 
-- Add a minimal entry screen with Free Pop and Survival Run.
-- Keep Free Pop behavior unchanged.
+- Add a minimal entry screen with Endless Mode and Survival Run.
+- Keep Endless Mode behavior unchanged.
 - Add local high-score placeholders for both categories.
 - Add route/query support for opening a screen directly during development.
 
@@ -275,7 +275,7 @@ Build:
 
 Build:
 
-- Hide the Free Pop title and remove the spring-return bubble from the WebGL scene while Survival Run is active.
+- Hide the Endless Mode title and remove the spring-return bubble from the WebGL scene while Survival Run is active.
 - Put animated `$` score at top left, a small Smoothie Charts `pop/s` trace at top centre, and the goal count in large type with its unit caption underneath at top right.
 - Put the countdown at bottom left, with colon and danger-zone blink states and no status caption.
 - Group owned upgrades into one bottom-centre panel. One popover explains every owned upgrade, and an active value sits beside its icon.
@@ -311,11 +311,11 @@ Build:
 Stop and ask the user to test:
 
 - Mode selector hierarchy and copy.
-- Free Pop still opening and behaving normally.
+- Endless Mode still opening and behaving normally.
 - HUD legibility on phone and desktop.
 - Shop offer density and upgrade descriptions.
 - Result screen usefulness.
-- All nine sizes in Free Pop.
+- All nine sizes in Endless Mode.
 - Tuning Drawer editing, restart labels, and JSON export.
 
 Do not wire gameplay until this checkpoint is approved.
@@ -362,7 +362,7 @@ Record these mechanics in the GDD only until a later slice is explicitly request
 - Fuzzy Keyboard adds the neighbouring key on each side of the same keyboard row, chosen from the bubble's sheet position.
 - Each owned-upgrade bubble answers to three keys.
 - One press still pops one unpopped bubble.
-- Free Pop does not gain overlapping keys.
+- Endless Mode does not gain overlapping keys.
 
 ## Stage C: level 1 and basic scoring
 
@@ -373,7 +373,7 @@ Build:
 - Add typed manual, assisted, hazard, and system pop sources.
 - Add bounded engine adapter methods.
 - Lock run category on the first manual pop.
-- Keep Free Pop callbacks backward-compatible.
+- Keep Endless Mode callbacks backward-compatible.
 
 ### Slice C2: level-1 state machine
 
@@ -412,6 +412,21 @@ Ask the user to clear level 1 using:
 - Mixed input after category lock.
 
 Collect feedback on HUD obstruction, score readability, skill feedback, sheet transitions, audio, and haptics before adding timers.
+
+### Checkpoint 2 decision: Run Dossier
+
+Status: **selected and approved for implementation**. Product behavior and content hierarchy live in GDD section 15; this plan only records the engineering work.
+
+- Extend each level's validated config with one medal metric and four ordered numeric thresholds.
+- Keep medal evaluation, target formatting, next-medal deltas, goal summaries, and three-level previews in a pure presentation module.
+- Store per-level best time and score in a versioned local record, independently of category high scores.
+- Reuse shared medal and roadmap markup between fixture routes and live encounters.
+- Accumulate attributable scoring components during each level so result rows come from settled score events rather than reverse calculation.
+- Stagger result-row entrance without delaying navigation or assistive access to the complete result.
+- Expand run-result fixtures and later live telemetry with the statistics required by the GDD.
+- Retain direct fixture routes for briefing, roadmap, win, and loss regression coverage.
+- Rename the player-facing free-play destination to Endless Mode while keeping the underlying compatibility path unchanged.
+- Do not add a bonus-objective subsystem.
 
 ## Stage D: timers and pressure
 
@@ -608,7 +623,7 @@ Validation:
 Exit:
 
 - Every GDD balance gate passes.
-- Free Pop has no regression.
+- Endless Mode has no regression.
 - No timer, audio, animation, or input lock survives background/foreground.
 
 ## Implementation risks

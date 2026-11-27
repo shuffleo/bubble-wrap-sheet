@@ -91,6 +91,17 @@ test('levels, shops, and calibration references are internally consistent',()=>{
  for(const level of config.run.levels){
   assert.ok(['none','soft','calibrated-hard','conveyor'].includes(level.timer));
   assert.equal(level.sheetCount===0,level.timer==='conveyor');
+  assert.deepEqual(Object.keys(level.medals),['metric','bronze','silver','gold','titanium']);
+ }
+});
+
+test('medal thresholds get harder from bronze through titanium',()=>{
+ for(const level of config.run.levels){
+  const values=['bronze','silver','gold','titanium'].map(name=>level.medals[name]);
+  for(let index=1;index<values.length;index++){
+   if(level.medals.metric==='timeSeconds')assert.ok(values[index]<values[index-1]);
+   else assert.ok(values[index]>values[index-1]);
+  }
  }
 });
 

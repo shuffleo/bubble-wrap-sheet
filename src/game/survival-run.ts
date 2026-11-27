@@ -7,6 +7,9 @@ import {animatedNumber,updateAnimatedNumber} from './game-vendors';
 import {bindVelocityPops,displayPopRate,mountVelocityChart,type VelocityChart} from './velocity-chart';
 import type {GamePopDetail} from './bubble-game-adapter';
 import {BubbleGameAdapter} from './bubble-game-adapter';
+import {medalStripMarkup,roadmapMarkup,titleCase} from './dossier-ui';
+import {readLevelRecords,recordLevelResult} from './level-records';
+import {awardedMedal,formatDuration,nextMedal} from './level-presentation';
 
 export interface SurvivalRun {
  start():void;
@@ -20,6 +23,7 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
  let chart:VelocityChart|null=null;
  let unbindPops:()=>void=()=>{};
  let previousSize=engine.settings.bubbleSize;
+ let levelStartedAt=0;
  const onVisibility=()=>{if(document.hidden&&state)state=clearLevelCombo(state);refreshCombo();};
  const onPop=(event:Event)=>{
   if(!state||state.cleared||state.session.run.phase!=='playing')return;
@@ -48,8 +52,6 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   const step=noteSheetCleared(state);
   state=step.state;
   if(step.kind==='next-sheet'){applySheet(state);refreshGoal();engine.forceReset();return;}
-  const category=state.category??'touch';
-  recordGameHighScore(category,state.session.run.score);
   showCleared();
  };
  return {start,stop};
@@ -57,8 +59,9 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
  function start(){
   stop();
   previousSize=engine.settings.bubbleSize;
-  engine.freshSheet();
   state=createLevelOne((Math.random()*0xffffffff)>>>0);
+  applySheet(state);
+  engine.freshSheet();
   document.addEventListener('visibilitychange',onVisibility);
   showIntro();
  }
@@ -80,10 +83,21 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   document.body.dataset.gameMode='survival';
   root!.dataset.screen='level-intro';
   const level=GAME_CONFIG.run.levels[0];
-  root!.innerHTML=`<div class="game-scrim"></div><section class="game-card game-intro-card" aria-labelledby="level-one-heading"><p class="game-eyebrow">Level ${level.id} of ${GAME_CONFIG.run.levelCount}</p><h2 id="level-one-heading">${level.name}</h2><p class="game-lede">Clear ${state.sheets} ${state.size}-size sheets. No timer, no shop, no upgrades. A drag scores more from the third bubble, and the keyboard can light Hot Keys.</p><div class="game-inline-actions"><button class="game-button game-button-secondary" type="button" data-level-action="exit">Free Pop</button><button class="game-button" type="button" data-level-action="play">Play</button></div></section>`;
+  const best=readLevelRecords()[1]?.bestTimeMs;
+  const bubbles=engine.getStats().total*state.sheets;
+  root!.innerHTML=`<div class="game-scrim"></div><section class="game-card game-intro-card game-dossier" aria-labelledby="level-one-heading"><p class="game-eyebrow">Level ${level.id} of ${GAME_CONFIG.run.levelCount}</p><h2 id="level-one-heading">${level.name}</h2><div class="game-brief-stats"><div><span>Best time</span><strong>${best===null||best===undefined?'—':formatDuration(best)}</strong></div><div><span>Sheets</span><strong>${state.sheets} × ${state.size}</strong></div><div><span>Bubbles</span><strong>${bubbles}</strong></div></div><p class="game-lede">Clear every bubble. Drag through adjacent bubbles for Clean Sweep, or hit highlighted Hot Keys.</p><h3 class="game-section-title">Medal targets · score at least</h3>${medalStripMarkup(1)}<div class="game-inline-actions game-dossier-actions"><button class="game-button game-button-secondary" type="button" data-level-action="exit">Endless Mode</button><button class="game-button game-button-secondary" type="button" data-level-action="preview">Next 3 levels</button><button class="game-button" type="button" data-level-action="play">Start</button></div></section>`;
   root!.querySelector<HTMLButtonElement>('[data-level-action=exit]')!.addEventListener('click',()=>{stop();onExit();});
+  root!.querySelector<HTMLButtonElement>('[data-level-action=preview]')!.addEventListener('click',showRoadmap);
   root!.querySelector<HTMLButtonElement>('[data-level-action=play]')!.addEventListener('click',play);
   root!.querySelector<HTMLButtonElement>('[data-level-action=play]')!.focus();
+ }
+ function showRoadmap(){
+  if(!root)return;
+  root.dataset.screen='level-intro';
+  root.innerHTML=`<div class="game-scrim"></div><section class="game-card game-dossier" aria-labelledby="roadmap-heading"><p class="game-eyebrow">Plan your build</p><h2 id="roadmap-heading">Next 3 levels</h2><p class="game-lede">Preview the stakes and hazards before spending score on upgrades.</p>${roadmapMarkup(1)}<div class="game-inline-actions game-dossier-actions"><button class="game-button game-button-secondary" type="button" data-level-action="back">Back</button><button class="game-button" type="button" data-level-action="play">Start level 1</button></div></section>`;
+  root.querySelector<HTMLButtonElement>('[data-level-action=back]')!.addEventListener('click',showIntro);
+  root.querySelector<HTMLButtonElement>('[data-level-action=play]')!.addEventListener('click',play);
+  root.querySelector<HTMLButtonElement>('[data-level-action=back]')!.focus();
  }
  function play(){
   if(!state)return;
@@ -91,6 +105,7 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   engine.freshSheet();
   engine.setRefreshLocked(true);
   sheet.update({onAllPopped:onCleared});
+  levelStartedAt=performance.now();
   state=beginLevelOne(state,engine.getKeyboardMap().map(group=>group.code));
   adapter=new BubbleGameAdapter(engine);
   adapter.addEventListener('gamepop',onPop);
@@ -118,8 +133,18 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   engine.setRefreshLocked(false);engine.setHotKeys(null);
   const scores=recordGameHighScore(state.category??'touch',state.session.run.score);
   const best=state.category==='keyboard-pointer'?scores.keyboardPointer:scores.touch;
+  const timeMs=Math.max(0,performance.now()-levelStartedAt);
+  const records=recordLevelResult(1,{timeMs,score:state.session.run.score});
+  const medal=awardedMedal(1,state.session.run.score);
+  const next=nextMedal(1,state.session.run.score);
+  const rows=[
+   ['Manual pops',state.breakdown.base],
+   ['Clean Sweep bonus',state.breakdown.cleanSweep],
+   ['Hot Key bonus',state.breakdown.hotKey],
+   ['Assisted pops',state.breakdown.assisted]
+  ] as const;
   root.dataset.screen='run-won';
-  root.innerHTML=`<div class="game-scrim"></div><section class="game-card" aria-labelledby="level-cleared-heading"><p class="game-eyebrow">Level 1 cleared</p><h2 id="level-cleared-heading">Two sheets down</h2><div class="game-result-score"><span>Score</span><strong>${formatGameCurrency(state.session.run.score)}</strong><small>${state.category==='keyboard-pointer'?'Keyboard & Pointer':'Touch'}</small></div><p class="game-lede">Best in this category: ${formatGameCurrency(best??0)}. Level 2 waits until the timer slice.</p><div class="game-inline-actions"><button class="game-button game-button-secondary" type="button" data-level-action="exit">Free Pop</button><button class="game-button" type="button" data-level-action="retry">Retry</button></div></section>`;
+  root.innerHTML=`<div class="game-scrim"></div><section class="game-card game-result-card game-dossier" aria-labelledby="level-cleared-heading"><p class="game-eyebrow">Level 1 cleared</p><h2 id="level-cleared-heading">${medal?`${titleCase(medal)} medal`:'Clear complete'}</h2><div class="game-result-hero"><div><span>Clear time</span><strong>${formatDuration(timeMs)}</strong><small>Best ${formatDuration(records[1]?.bestTimeMs??timeMs)}</small></div><div><span>Final score</span><strong>${formatGameCurrency(state.session.run.score)}</strong><small>${state.category==='keyboard-pointer'?'Keyboard & Pointer':'Touch'}</small></div></div>${medalStripMarkup(1,medal)}<p class="game-medal-gap">${next?`${titleCase(next.name)} needs ${next.gap}.`:'Titanium secured — all medal targets cleared.'}</p><h3 class="game-section-title">Score calculation</h3><div class="game-score-calculation">${rows.map(([label,value],index)=>`<div style="--result-delay:${index*90}ms"><span>${label}</span><strong>+${formatGameCurrency(value)}</strong></div>`).join('')}<div class="game-score-total" style="--result-delay:${rows.length*90}ms"><span>Level total</span><strong>${formatGameCurrency(state.session.run.score)}</strong></div></div><p class="game-result-note">No upgrades were active in Orientation. Upgrade and boost contributions will appear as their own rows.</p><p class="game-lede">Category best: ${formatGameCurrency(best??0)}.</p><div class="game-inline-actions game-dossier-actions"><button class="game-button game-button-secondary" type="button" data-level-action="exit">Endless Mode</button><button class="game-button" type="button" data-level-action="retry">Retry</button></div></section>`;
   root.querySelector<HTMLButtonElement>('[data-level-action=exit]')!.addEventListener('click',()=>{stop();onExit();});
   root.querySelector<HTMLButtonElement>('[data-level-action=retry]')!.addEventListener('click',start);
  }

@@ -18,6 +18,7 @@ export interface LevelOneState {
  cleared:boolean;
  prompt:boolean;
  rng:GameRngState;
+ breakdown:{base:number;cleanSweep:number;hotKey:number;assisted:number};
 }
 
 export interface ManualPopNotice {
@@ -48,7 +49,8 @@ export function createLevelOne(seed:number):LevelOneState {
   gesture:null,
   cleared:false,
   prompt:true,
-  rng:selected.state.rng
+  rng:selected.state.rng,
+  breakdown:{base:0,cleanSweep:0,hotKey:0,assisted:0}
  };
 }
 
@@ -89,7 +91,13 @@ export function applyManualPop(state:LevelOneState,input:{
  }
  const run=state.session.run;
  const session={...state.session,run:{...run,category,score:run.score+scored.points,stats:{...run.stats,manualPops:run.stats.manualPops+1,scoreEvents:run.stats.scoreEvents+1}}};
- const nextState={...state,session,combo:scored.combo,category,gesture:keyboard?state.gesture:gesture,hotKeys,rng,prompt:false};
+ const breakdown={
+  ...state.breakdown,
+  base:state.breakdown.base+GAME_CONFIG.scoring.normalBase,
+  cleanSweep:state.breakdown.cleanSweep+(scored.skill==='clean-sweep'?GAME_CONFIG.scoring.skillBonus:0),
+  hotKey:state.breakdown.hotKey+(scored.skill==='hot-key'?GAME_CONFIG.scoring.skillBonus:0)
+ };
+ const nextState={...state,session,combo:scored.combo,category,gesture:keyboard?state.gesture:gesture,hotKeys,rng,prompt:false,breakdown};
  return {state:nextState,notice:noticeOf(nextState,scored.points,scored.skill)};
 }
 
@@ -98,7 +106,7 @@ export function applyAssistedPop(state:LevelOneState):{state:LevelOneState;point
  const run=state.session.run;
  return {
   points,
-  state:{...state,session:{...state.session,run:{...run,score:run.score+points,stats:{...run.stats,assistedPops:run.stats.assistedPops+1,scoreEvents:run.stats.scoreEvents+1}}},combo:state.combo}
+  state:{...state,session:{...state.session,run:{...run,score:run.score+points,stats:{...run.stats,assistedPops:run.stats.assistedPops+1,scoreEvents:run.stats.scoreEvents+1}}},combo:state.combo,breakdown:{...state.breakdown,assisted:state.breakdown.assisted+points}}
  };
 }
 

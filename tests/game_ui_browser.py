@@ -37,6 +37,13 @@ with sync_playwright() as pw:
  page.locator('#game-open').click()
  page.wait_for_selector('#game-root[data-screen="mode-select"]')
  check('entry button opens both mode choices',page.locator('[data-game-action=free],[data-game-action=survival]').count()==2)
+ check('free play is named Endless Mode',page.locator('[data-game-action=free] strong').inner_text()=='Endless Mode')
+ load(page,'?game=1&screen=level-intro')
+ check('level brief leads with workload and four medal targets',page.locator('.game-brief-stats>div').count()==3 and page.locator('.game-medal').count()==4)
+ check('highest medal is named Titanium',page.locator('.game-medal[data-medal=titanium] span').inner_text().lower()=='titanium' and page.locator('.game-medal[data-medal=platinum]').count()==0)
+ page.locator('[data-game-action=roadmap]').click()
+ check('planning page previews the next three levels',page.locator('.game-roadmap-level').count()==3 and page.locator('.game-roadmap-medals span').count()==12)
+ check('planning page keeps each hazard preview to one line of content',page.locator('.game-roadmap-level>p').count()==3)
  load(page,'?game=1&screen=hud')
  check('level intro continues to the responsive HUD',page.locator('#game-root[data-screen="hud"] .game-hud-goal').count()==1)
  page.wait_for_function('getComputedStyle(document.querySelector(".brand")).display==="none" && bubbleUI.inspect().every(point=>point.mode!=="spring-return")')
@@ -108,7 +115,8 @@ with sync_playwright() as pw:
  check('skipping applies interest and closes the shop',page.locator('#game-root[data-screen="hud"]').count()==1 and page.locator('.game-hud-score number-flow').get_attribute('aria-label')!=before)
 
  load(page,'?game=1&screen=run-won')
- check('win result includes score breakdown and retry',page.locator('.game-level-breakdown li').count()==5 and page.locator('[data-game-action=retry]').is_visible())
+ check('win result includes a run ledger, statistics, and new run',page.locator('.game-level-breakdown li').count()==5 and page.locator('.game-run-stats>div').count()==6 and page.locator('[data-game-action=retry]').inner_text()=='New Run')
+ check('game ending offers Endless Mode',page.locator('[data-game-action=free]').inner_text()=='Endless Mode')
  load(page,'?game=1&screen=run-lost')
  check('loss result remains useful before retry',page.locator('.game-result-grid').is_visible() and 'reached level' in page.locator('.game-eyebrow').inner_text().lower())
 
@@ -129,7 +137,8 @@ with sync_playwright() as pw:
  load(page)
  page.locator('#game-open').click()
  page.locator('[data-game-action=survival]').click()
- check('level 1 intro uses the configured sheet count and size','2' in page.locator('.game-lede').inner_text() and 'M-size' in page.locator('.game-lede').inner_text())
+ check('level 1 intro uses the configured workload','2 × M' in page.locator('.game-brief-stats').inner_text() and page.locator('.game-medal').count()==4)
+ check('level 1 intro exposes the next-three planning page',page.locator('[data-level-action=preview]').is_visible())
  page.locator('[data-level-action=play]').click()
  page.wait_for_function('bubbleUI.settings.bubbleSize===64 && bubbleUI.refreshLocked===true')
  check('level 1 plays on M sheets without a timer',page.locator('.game-hud-timer').count()==0 and page.locator('.game-onboarding').is_visible())
@@ -157,6 +166,8 @@ with sync_playwright() as pw:
    if(!bubbleUI.refreshing) bubbleUI.getGameBubbles().filter(b=>b.eligible&&!b.popped).forEach(b=>bubbleUI.popForGame(b.index,{type:'manual',input:'mouse',gestureId:'finish'}));
    return false;
  }''',timeout=15000)
+ check('level result attributes its score progressively',page.locator('.game-score-calculation>div').count()==5 and page.locator('.game-medal[data-passed=true]').count()>=1)
+ check('level result shows clear time and next medal guidance','clear time' in page.locator('.game-result-hero').inner_text().lower() and ('needs' in page.locator('.game-medal-gap').inner_text().lower() or 'secured' in page.locator('.game-medal-gap').inner_text().lower()))
  page.locator('[data-level-action=retry]').click()
  page.locator('[data-level-action=play]').click()
  page.wait_for_function('bubbleUI.getStats().popped===0 && bubbleUI.refreshLocked===true')

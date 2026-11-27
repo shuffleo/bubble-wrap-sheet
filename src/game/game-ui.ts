@@ -7,6 +7,9 @@ import {animatedNumber,updateAnimatedNumber} from './game-vendors';
 import {bindVelocityPops,mountVelocityChart,type VelocityChart} from './velocity-chart';
 import {createTuningDrawer} from './tuning/tuning-drawer';
 import type {GameRoute,GameScreen} from './game-route';
+import {medalStripMarkup,roadmapMarkup} from './dossier-ui';
+import {readLevelRecords} from './level-records';
+import {formatDuration} from './level-presentation';
 
 export interface GameUiHandle {
  readonly root:HTMLElement|null;
@@ -117,7 +120,7 @@ export function createGameUi(route:GameRoute,onFreePop:()=>void,options:GameUiOp
    <h2 id="game-mode-heading">Choose how to pop</h2>
    <p class="game-lede">Keep it meditative, or turn five sheets into a survival run.</p>
    <div class="game-mode-options">
-    <button class="game-mode-option" type="button" data-game-action="free"><strong>Free Pop</strong><span>The original endless sheet, with all material controls.</span></button>
+    <button class="game-mode-option" type="button" data-game-action="free"><strong>Endless Mode</strong><span>Pop freely, with all material controls.</span></button>
     <button class="game-mode-option game-mode-option-primary" type="button" data-game-action="survival"><strong>Survival Run</strong><span>Five levels, tactical upgrades, hazards, and a conveyor finale.</span></button>
    </div>
    <div class="game-high-scores" aria-label="Local high scores"><span>Touch best <strong>${score(scores.touch)}</strong></span><span>Keyboard &amp; Pointer best <strong>${score(scores.keyboardPointer)}</strong></span></div>
@@ -132,16 +135,29 @@ export function createGameUi(route:GameRoute,onFreePop:()=>void,options:GameUiOp
  function renderLevelIntro(){
   const level=GAME_CONFIG.run.levels[0],node=ensureRoot();node.dataset.screen='level-intro';
   clearVelocityChart();setMode('survival');
-  node.innerHTML=`<div class="game-scrim"></div><section class="game-card game-intro-card" aria-labelledby="game-intro-heading">
+  const best=readLevelRecords()[1]?.bestTimeMs;
+  node.innerHTML=`<div class="game-scrim"></div><section class="game-card game-intro-card game-dossier" aria-labelledby="game-intro-heading">
    <p class="game-eyebrow">Level ${level.id} of ${GAME_CONFIG.run.levelCount}</p>
    <h2 id="game-intro-heading">${level.name}</h2>
-   <p class="game-lede">Clear ${level.sheetCount} M-size sheets. No timer, no shop, no upgrades—learn the rhythm.</p>
-   <div class="game-inline-actions"><button class="game-button game-button-secondary" type="button" data-game-action="back">Back</button><button class="game-button" type="button" data-game-action="continue">Continue</button></div>
+   <div class="game-brief-stats"><div><span>Best time</span><strong>${best===null||best===undefined?'—':formatDuration(best)}</strong></div><div><span>Sheets</span><strong>${level.sheetCount} × ${level.bubbleSize}</strong></div><div><span>Goal</span><strong>All bubbles</strong></div></div>
+   <p class="game-lede">Clear every bubble. Drag through adjacent bubbles for Clean Sweep, or hit highlighted Hot Keys.</p>
+   <h3 class="game-section-title">Medal targets · score at least</h3>${medalStripMarkup(1)}
+   <div class="game-inline-actions game-dossier-actions"><button class="game-button game-button-secondary" type="button" data-game-action="back">Endless Mode</button><button class="game-button game-button-secondary" type="button" data-game-action="roadmap">Next 3 levels</button><button class="game-button" type="button" data-game-action="continue">Start</button></div>
   </section>`;
-  node.querySelector<HTMLButtonElement>('[data-game-action=back]')!.addEventListener('click',renderModeSelect);
+  node.querySelector<HTMLButtonElement>('[data-game-action=back]')!.addEventListener('click',close);
+  node.querySelector<HTMLButtonElement>('[data-game-action=roadmap]')!.addEventListener('click',renderLevelRoadmap);
   node.querySelector<HTMLButtonElement>('[data-game-action=continue]')!.addEventListener('click',()=>showScreen('hud'));
   live.textContent=`Level ${level.id}: ${level.name}.`;
   node.querySelector<HTMLButtonElement>('[data-game-action=continue]')!.focus();
+ }
+
+ function renderLevelRoadmap(){
+  const node=ensureRoot();node.dataset.screen='level-intro';
+  clearVelocityChart();setMode('survival');
+  node.innerHTML=`<div class="game-scrim"></div><section class="game-card game-dossier" aria-labelledby="game-roadmap-heading"><p class="game-eyebrow">Plan your build</p><h2 id="game-roadmap-heading">Next 3 levels</h2><p class="game-lede">Preview the stakes and hazards before spending score on upgrades.</p>${roadmapMarkup(1)}<div class="game-inline-actions game-dossier-actions"><button class="game-button game-button-secondary" type="button" data-game-action="brief">Back</button><button class="game-button" type="button" data-game-action="continue">Start level 1</button></div></section>`;
+  node.querySelector<HTMLButtonElement>('[data-game-action=brief]')!.addEventListener('click',renderLevelIntro);
+  node.querySelector<HTMLButtonElement>('[data-game-action=continue]')!.addEventListener('click',()=>showScreen('hud'));
+  node.querySelector<HTMLButtonElement>('[data-game-action=brief]')!.focus();
  }
 
  function hudFixture():HudFixture {
@@ -254,13 +270,15 @@ export function createGameUi(route:GameRoute,onFreePop:()=>void,options:GameUiOp
   const node=ensureRoot();node.dataset.screen=fixture.outcome==='won'?'run-won':'run-lost';
   clearVelocityChart();setMode('survival');
   const title=fixture.outcome==='won'?'Run cleared':'Run over';
-  node.innerHTML=`<div class="game-scrim"></div><section class="game-card game-result-card" aria-labelledby="game-result-heading">
+  const bestRound=fixture.levelScores.reduce((best,row)=>row.score>best.score?row:best,fixture.levelScores[0]);
+  const totalBubbles=fixture.manualPops+fixture.assistedPops;
+  node.innerHTML=`<div class="game-scrim"></div><section class="game-card game-result-card game-dossier" aria-labelledby="game-result-heading">
    <p class="game-eyebrow">${fixture.outcome==='won'?'Survival complete':`Reached level ${fixture.reachedLevel}`}</p><h2 id="game-result-heading">${title}</h2>
-   <div class="game-result-score"><span>Final score</span><strong>${numberSlot(fixture.finalScore,{currency:true})}</strong><small>${fixture.category==='touch'?'Touch':'Keyboard & Pointer'}</small></div>
-   <div class="game-result-grid"><div><span>Manual pops</span><strong>${numberSlot(fixture.manualPops)}</strong></div><div><span>Assisted pops</span><strong>${numberSlot(fixture.assistedPops)}</strong></div><div><span>Upgrades bought</span><strong>${numberSlot(fixture.purchaseHistory.length)}</strong></div></div>
-   <ol class="game-level-breakdown">${fixture.levelScores.map(row=>`<li><span>Level ${row.level} · ${GAME_CONFIG.run.levels[row.level-1].name}</span><strong>${numberSlot(row.score,{currency:true})}</strong></li>`).join('')}</ol>
+   <div class="game-result-hero"><div><span>Final score</span><strong>${numberSlot(fixture.finalScore,{currency:true})}</strong><small>${fixture.category==='touch'?'Touch':'Keyboard & Pointer'}</small></div><div><span>Run time</span><strong>${formatDuration(fixture.runTimeMs)}</strong><small>${fixture.outcome==='won'?'5 levels cleared':`Stopped at level ${fixture.reachedLevel}`}</small></div></div>
+   <h3 class="game-section-title">Run statistics</h3><div class="game-result-grid game-run-stats"><div><span>Best round</span><strong>Level ${bestRound.level}</strong><small>${numberSlot(bestRound.score,{currency:true})}</small></div><div><span>Total bubbles</span><strong>${numberSlot(totalBubbles)}</strong></div><div><span>Manual pops</span><strong>${numberSlot(fixture.manualPops)}</strong></div><div><span>Assisted pops</span><strong>${numberSlot(fixture.assistedPops)}</strong></div><div><span>Highest combo</span><strong>${numberSlot(fixture.highestCombo)}</strong></div><div><span>Rerolls</span><strong>${numberSlot(fixture.rerolls)}</strong></div></div>
+   <h3 class="game-section-title">Level ledger</h3><ol class="game-level-breakdown">${fixture.levelScores.map(row=>`<li><span>Level ${row.level} · ${GAME_CONFIG.run.levels[row.level-1].name}</span><strong>${numberSlot(row.score,{currency:true})}</strong></li>`).join('')}</ol>
    <div class="game-purchase-history"><span class="game-label">Build</span>${fixture.purchaseHistory.length?fixture.purchaseHistory.map(id=>`<span>${UPGRADE_COPY[id].name}</span>`).join(''):'<span>No upgrades</span>'}</div>
-   <div class="game-inline-actions"><button class="game-button game-button-secondary" type="button" data-game-action="free">Free Pop</button><button class="game-button" type="button" data-game-action="retry">Retry run</button></div>
+   <div class="game-inline-actions game-dossier-actions"><button class="game-button game-button-secondary" type="button" data-game-action="free">Endless Mode</button><button class="game-button" type="button" data-game-action="retry">New Run</button></div>
   </section>`;
   hydrateNumbers(node);
   node.querySelector<HTMLButtonElement>('[data-game-action=free]')!.addEventListener('click',close);

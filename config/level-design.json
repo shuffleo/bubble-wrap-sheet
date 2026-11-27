@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "revision": "gdd-v0.3",
+  "revision": "gdd-v0.4",
   "sizes": {
     "XXXS": 24,
     "XXS": 32,
@@ -94,35 +94,70 @@
         "name": "Orientation",
         "sheetCount": 2,
         "bubbleSize": "M",
-        "timer": "none"
+        "timer": "none",
+        "medals": {
+          "metric": "score",
+          "bronze": 1500,
+          "silver": 2500,
+          "gold": 4000,
+          "titanium": 6000
+        }
       },
       {
         "id": 2,
         "name": "Tempo",
         "sheetCount": 5,
         "bubbleSize": "M",
-        "timer": "soft"
+        "timer": "soft",
+        "medals": {
+          "metric": "timeSeconds",
+          "bronze": 180,
+          "silver": 140,
+          "gold": 100,
+          "titanium": 75
+        }
       },
       {
         "id": 3,
         "name": "Pressure",
         "sheetCount": 5,
         "bubbleSize": "L",
-        "timer": "calibrated-hard"
+        "timer": "calibrated-hard",
+        "medals": {
+          "metric": "timeSeconds",
+          "bronze": 140,
+          "silver": 110,
+          "gold": 80,
+          "titanium": 60
+        }
       },
       {
         "id": 4,
         "name": "Hazard",
         "sheetCount": 3,
         "bubbleSize": "M",
-        "timer": "calibrated-hard"
+        "timer": "calibrated-hard",
+        "medals": {
+          "metric": "score",
+          "bronze": 5000,
+          "silver": 7500,
+          "gold": 10000,
+          "titanium": 14000
+        }
       },
       {
         "id": 5,
         "name": "Conveyor",
         "sheetCount": 0,
         "bubbleSize": "M",
-        "timer": "conveyor"
+        "timer": "conveyor",
+        "medals": {
+          "metric": "clearancePercent",
+          "bronze": 90,
+          "silver": 93,
+          "gold": 96,
+          "titanium": 99
+        }
       }
     ]
   },
