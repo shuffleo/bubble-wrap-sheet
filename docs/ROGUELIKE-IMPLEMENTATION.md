@@ -467,7 +467,8 @@ Implemented through the Level 3 checkpoint:
 - Level 2 derives its soft target from actual responsive bubble workload and category tuning, settles remaining time, and never fails at zero.
 - Calibration samples manual-pop active windows only, closes windows across transitions and visibility loss, clamps by category, and persists diagnostics for the development drawer.
 - Level 3 derives a bounded hard deadline from the calibrated pace and actual L-sheet workload, exposes danger state, and resets the full run after timeout.
-- Stage E shops are intentionally bypassed between Levels 2 and 3 until the economy checkpoint begins.
+- Hard-deadline danger now adds the final-10-second neon treatment, while a shader-backed exposure reminder helps locate one of the final one to three idle bubbles.
+- The completed Level 2 now hands off to the Stage E shop instead of bypassing its reducer phase.
 
 ### User checkpoint 3: difficulty baseline
 
@@ -501,6 +502,13 @@ Build:
 - Assisted score fixed at 2.
 - No assisted recursion.
 - Implement Fat Finger only.
+
+### Stage E first-checkpoint status
+
+- The Level 2 result now opens a live seeded shop with two unowned offers, score-paid rerolls, immediate purchase dismissal, and capped skip interest.
+- The active offer pool contains Fat Finger plus the three economy upgrades; effects scheduled for later Stage E slices remain unavailable until implemented.
+- Fat Finger resolves through the manual-only deterministic proc queue, attributes its fixed assisted score separately, and appears in the live build HUD.
+- Buying or skipping advances through the reducer's existing shop phase into Level 3; no Stage F hazard behavior is enabled yet.
 
 ### User checkpoint 4: economy and first upgrade
 

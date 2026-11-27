@@ -81,6 +81,11 @@ with sync_playwright() as pw:
 
  load(page,'?game=1&screen=hud&hud=danger')
  check('danger route exposes a distinct timer state',page.locator('.game-hud[data-danger="true"]').count()==1)
+ check('danger state uses neon-red countdown and a responsive 4px viewport border',page.evaluate('''() => {
+   const hud=document.querySelector('.game-hud'),timer=document.querySelector('.game-hud-timer');
+   const border=getComputedStyle(hud,'::before'),timerStyle=getComputedStyle(timer);
+   return timerStyle.color==='rgb(255, 23, 68)' && border.borderTopWidth==='4px' && border.borderTopColor==='rgb(255, 23, 68)' && border.position==='fixed';
+ }'''))
  check('game development routes are noindexed',page.locator('meta[name=robots]').get_attribute('content')=='noindex,follow')
 
  page.set_viewport_size({'width':390,'height':844})
@@ -155,6 +160,13 @@ with sync_playwright() as pw:
  check('level 1 ignores a refresh while the sheet is in play',page.evaluate('bubbleUI.getStats().popped')==popped)
  page.evaluate('''() => {
    const left=bubbleUI.getGameBubbles().filter(b=>b.eligible&&!b.popped);
+   left.slice(0,-3).forEach(b=>bubbleUI.popForGame(b.index,{type:'manual',input:'mouse',gestureId:'stragglers'}));
+ }''')
+ page.wait_for_function('bubbleUI.inspectBubbleReminder().active',timeout=5000)
+ page.wait_for_timeout(250)
+ check('one of the final three idle bubbles receives a rhythmic exposure reminder',page.evaluate('bubbleUI.inspectBubbleReminder().active && bubbleUI.inspectBubbleReminder().exposure>0.1'))
+ page.evaluate('''() => {
+   const left=bubbleUI.getGameBubbles().filter(b=>b.eligible&&!b.popped);
    left.slice(0,-1).forEach(b=>bubbleUI.popForGame(b.index,{type:'manual',input:'mouse',gestureId:'bulk'}));
    const last=bubbleUI.getGameBubbles().find(b=>b.eligible&&!b.popped);
    bubbleUI.popForGame(last.index,{type:'manual',input:'mouse',gestureId:'last'});
@@ -182,12 +194,28 @@ with sync_playwright() as pw:
    return false;
  }''',timeout=30000)
  check('level 2 result settles time bonus and calibration',page.locator('.game-score-calculation').inner_text().find('Remaining-time bonus')>=0 and 'Calibrated pace' in page.locator('.game-result-note').inner_text())
- page.locator('[data-level-action=continue]').click()
+ page.locator('[data-level-action=shop]').click()
+ check('level 2 opens a live two-offer shop',page.locator('#game-root[data-screen="shop"] .game-offer').count()==2)
+ if page.locator('[data-shop-buy="fatFinger"]').count()==0:
+  page.locator('[data-shop-action=reroll]').click()
+ check('seeded reroll can surface Fat Finger',page.locator('[data-shop-buy="fatFinger"]').count()==1)
+ page.locator('[data-shop-buy="fatFinger"]').click()
  page.wait_for_function('document.querySelector("#game-root")?.dataset.screen==="level-intro" && document.querySelector(".game-eyebrow")?.textContent.includes("Level 3")')
  check('level 3 brief uses five L sheets and a calibrated deadline','5 × L' in page.locator('.game-brief-stats').inner_text() and 'deadline' in page.locator('.game-brief-stats').inner_text().lower())
  page.locator('[data-level-action=play]').click()
  page.wait_for_function('bubbleUI.settings.bubbleSize===82 && bubbleUI.refreshLocked===true')
- check('level 3 starts with a hard timer on L bubbles',page.locator('.game-hud-timer .game-label').inner_text().lower()=='time left')
+ check('level 3 starts with a hard timer on L bubbles before its final-10-second danger state',page.locator('.game-hud-timer .game-label').inner_text().lower()=='time left' and page.locator('.game-hud').get_attribute('data-danger')=='false')
+ check('purchased Fat Finger appears in the live build HUD',page.locator('.game-upgrade[data-upgrade="fatFinger"]').count()==1)
+ page.evaluate('''() => {
+   window.beforeFatFingerPopped=bubbleUI.getStats().popped;
+   const available=bubbleUI.getGameBubbles().filter(b=>b.eligible&&!b.popped);
+   const selected=available.find(b=>bubbleUI.getGameNeighbours(b.index).some(index=>available.some(candidate=>candidate.index===index)));
+   bubbleUI.popForGame(selected.index,{type:'manual',input:'mouse',gestureId:'fat-finger'});
+ }''')
+ page.wait_for_function('bubbleUI.getStats().popped>=window.beforeFatFingerPopped+2')
+ check('Fat Finger resolves one non-recursive assisted neighbour',page.evaluate('bubbleUI.getStats().popped===window.beforeFatFingerPopped+2'))
+ page.wait_for_function('document.querySelector(".game-hud")?.dataset.danger==="true"',timeout=25000)
+ check('live hard deadline enters the neon danger treatment for its final 10 seconds',page.locator('.game-hud').get_attribute('data-danger')=='true')
  page.wait_for_selector('#game-root[data-screen="run-lost"]',timeout=35000)
  check('level 3 timeout ends the run with a reset choice','time’s up' in page.locator('#run-lost-heading').inner_text().lower() and page.locator('[data-level-action=retry]').is_visible())
  page.locator('[data-level-action=retry]').click()

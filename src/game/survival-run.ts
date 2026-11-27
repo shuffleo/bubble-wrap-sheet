@@ -1,8 +1,8 @@
 import type {BubbleEngine,SurfaceHandle} from '../components/bubble-ui/core/bubble-engine';
-import {GAME_CONFIG,levelDefinition} from './game-config';
+import {GAME_CONFIG,levelDefinition,type UpgradeId} from './game-config';
 import {recordGameHighScore} from './game-high-scores';
 import {applyAssistedPop,applyManualPop,beginLevel,clearLevelCombo,createLevelOne,createLevelState,noteSheetCleared,type LevelPlayState} from './level-one';
-import {formatGameCurrency} from './economy';
+import {formatGameCurrency,formatGameNumber,rerollPrice,shopInterest} from './economy';
 import {animatedNumber,updateAnimatedNumber} from './game-vendors';
 import {bindVelocityPops,displayPopRate,mountVelocityChart,type VelocityChart} from './velocity-chart';
 import type {GamePopDetail} from './bubble-game-adapter';
@@ -15,6 +15,9 @@ import {reduceSession} from './game-reducer';
 import type {LevelId} from './game-types';
 import {saveCalibrationDiagnostics} from './calibration-diagnostics';
 import {advanceGameClock,setClockHidden} from './game-clock';
+import {UPGRADE_COPY} from './game-copy';
+import {buyLiveShopUpgrade,createLiveShop,rerollLiveShop,skipLiveShop,upgradePrice,type LiveShopState} from './shops';
+import {resolveManualUpgradeProcs} from './upgrades';
 
 export interface SurvivalRun {
  start():void;
@@ -27,6 +30,7 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
  let adapter:BubbleGameAdapter|null=null;
  let chart:VelocityChart|null=null;
  let unbindPops:()=>void=()=>{};
+ let unbindUpgradePanel:()=>void=()=>{};
  let previousSize=engine.settings.bubbleSize;
  let levelElapsedMs=0;
  let levelClockStartMs=0;
@@ -38,11 +42,16 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
  let calibrationCollector:CalibrationCollector|null=null;
  let calibrationSummary:CalibrationSummary|null=null;
  let timeSettlement:TimeSettlement|null=null;
+ let lastBubbleProgressMs=0;
+ let reminderBubbleIndex=-1;
+ let reminderWaitingForSheet=false;
+ let liveShop:LiveShopState|null=null;
  const onVisibility=()=>{
   if(state)state={...state,session:{...state.session,clock:setClockHidden(state.session.clock,document.hidden)}};
   if(document.hidden&&state){
    state=clearLevelCombo(state);
    calibrationCollector?.endActivePeriod(levelElapsedMs);
+   clearBubbleReminder();
   }
   lastTick=performance.now();
   refreshCombo();
@@ -51,6 +60,8 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   if(!state||state.cleared||state.session.run.phase!=='playing')return;
   advanceElapsedNow();
   const detail=(event as CustomEvent<GamePopDetail>).detail;
+  lastBubbleProgressMs=levelElapsedMs;
+  clearBubbleReminder();
   if(detail.source.type==='assisted'){const scored=applyAssistedPop(state);state=scored.state;refreshScore();return;}
   if(detail.source.type!=='manual')return;
   const code=detail.source.input==='keyboard'?detail.source.gestureId.replace(/^key:/,''):null;
@@ -70,15 +81,25 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   const prompt=root?.querySelector<HTMLElement>('.game-onboarding');
   if(!state.prompt)prompt?.remove();
   if(state.category==='keyboard-pointer')engine.setHotKeys(state.hotKeys);
+  const procs=resolveManualUpgradeProcs({
+   owned:state.session.run.upgrades as UpgradeId[],
+   neighbours:engine.getGameNeighbours(detail.index),
+   bubbles:engine.getGameBubbles()
+  });
+  if(procs.length)queueMicrotask(()=>{
+   if(!state||state.cleared||state.session.run.phase!=='playing'||!adapter)return;
+   for(const proc of procs)adapter.pop(proc.index,{type:'assisted',upgrade:proc.upgrade});
+  });
  };
  const onCleared=()=>{
   if(!state||state.cleared)return;
   advanceElapsedNow();
   calibrationCollector?.endActivePeriod(levelElapsedMs);
+  clearBubbleReminder();
   if(timerKind==='hard'&&levelElapsedMs>=timerTotalMs){showLoss();return;}
   const step=noteSheetCleared(state);
   state=step.state;
-  if(step.kind==='next-sheet'){applySheet(state);refreshGoal();engine.forceReset();return;}
+  if(step.kind==='next-sheet'){applySheet(state);refreshGoal();reminderWaitingForSheet=true;engine.forceReset();return;}
   stopLevelTimer();
   if(state.levelId===2){
    const category=state.category??'touch';
@@ -102,6 +123,7 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   stop();
   previousSize=engine.settings.bubbleSize;
   state=createLevelOne((Math.random()*0xffffffff)>>>0);
+  liveShop=null;
   document.addEventListener('visibilitychange',onVisibility);
   prepareLevel();
   showIntro();
@@ -110,9 +132,11 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   stopLevelTimer();
   document.removeEventListener('visibilitychange',onVisibility);
   unbindPops();unbindPops=()=>{};
+  unbindUpgradePanel();unbindUpgradePanel=()=>{};
   chart?.destroy();chart=null;
   adapter?.dispose();adapter=null;
   engine.setRefreshLocked(false);
+  clearBubbleReminder();
   engine.setHotKeys(null);
   if(engine.settings.bubbleSize!==previousSize)engine.setSettings({bubbleSize:previousSize});
   sheet.update({onAllPopped:()=>{}});
@@ -151,6 +175,8 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   sheet.update({onAllPopped:onCleared});
   levelElapsedMs=0;
   levelClockStartMs=state.session.clock.gameTimeMs;
+  lastBubbleProgressMs=0;
+  reminderWaitingForSheet=false;
   lastTick=performance.now();
   state=beginLevel(state,engine.getKeyboardMap().map(group=>group.code));
   adapter=new BubbleGameAdapter(engine);
@@ -163,7 +189,9 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   root.dataset.screen='hud';
   const timer=timerKind==='none'?'':`<div class="game-hud-timer" aria-label="${clockText(timerTotalMs)} remaining"><span class="game-label">${timerKind==='soft'?'Target':'Time left'}</span><strong><span data-live-minutes></span><span class="game-timer-colon">:</span><span data-live-seconds></span></strong></div>`;
   const prompt=state.levelId===1?`Pop all ${state.sheets} sheets. From the third bubble in one drag, each pop scores more.`:state.levelId===2?'The timer is a target, not a failure. Active manual-pop windows calibrate Level 3.':'Hard deadline. Clear every sheet before time reaches zero.';
-  root.innerHTML=`<section class="game-hud" aria-label="Level ${state.session.run.level}" data-danger="false" data-soft-expired="false" data-paused="false" data-hidden="false"><div class="game-hud-score"><span class="game-label">Score</span><strong data-live-score></strong><small data-live-combo hidden></small></div><div class="game-hud-velocity"><div class="game-velocity-readout"><strong data-live-rate></strong><span class="game-label">Pop / s</span></div><div class="game-velocity-chart" role="img" aria-label="Pop velocity over the last 30 seconds"></div></div><div class="game-hud-goal"><span class="game-label">Level ${state.session.run.level}</span><strong><span data-live-sheet></span><span class="game-goal-sep">/</span><span data-live-sheets></span></strong><small>sheets</small></div>${timer}<p class="game-onboarding">${prompt}</p></section>`;
+  const owned=state.session.run.upgrades.filter((id):id is UpgradeId=>id in UPGRADE_COPY);
+  const build=owned.length?`<div class="game-hud-build"><button type="button" class="game-upgrade-panel" aria-expanded="false" aria-label="Owned upgrades"><span class="game-upgrade-icons">${owned.map(id=>{const copy=UPGRADE_COPY[id],value=id==='fatFinger'?`+${GAME_CONFIG.upgrades.fatFinger.neighbourCount}`:'';return `<span class="game-upgrade" data-upgrade="${id}" data-active="${Boolean(value)}"><span class="material-symbols-rounded" aria-hidden="true">${copy.icon}</span>${value?`<b>${value}</b>`:''}</span>`;}).join('')}</span></button><div class="game-upgrade-popover" role="tooltip">${owned.map(id=>`<span class="game-upgrade-note"><strong>${UPGRADE_COPY[id].name}</strong><span>${UPGRADE_COPY[id].description}</span></span>`).join('')}</div></div>`:'';
+  root.innerHTML=`<section class="game-hud" aria-label="Level ${state.session.run.level}" data-danger="false" data-soft-expired="false" data-paused="false" data-hidden="false"><div class="game-hud-score"><span class="game-label">Score</span><strong data-live-score></strong><small data-live-combo hidden></small></div><div class="game-hud-velocity"><div class="game-velocity-readout"><strong data-live-rate></strong><span class="game-label">Pop / s</span></div><div class="game-velocity-chart" role="img" aria-label="Pop velocity over the last 30 seconds"></div></div><div class="game-hud-goal"><span class="game-label">Level ${state.session.run.level}</span><strong><span data-live-sheet></span><span class="game-goal-sep">/</span><span data-live-sheets></span></strong><small>sheets</small></div>${timer}${build}<p class="game-onboarding">${prompt}</p></section>`;
   mountNumber(root.querySelector('[data-live-score]'),state.session.run.score,true);
   mountNumber(root.querySelector('[data-live-rate]'),0,false,0);
   const sheetSlot=root.querySelector<HTMLElement>('[data-live-sheet]');
@@ -180,12 +208,22 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
    chart=mountVelocityChart(host,[0],{rateWindowMs:GAME_CONFIG.scoring.velocity.windowMs,running:true,onRate:rate=>updateAnimatedNumber(root?.querySelector('[data-live=rate]')??null,displayPopRate(rate))});
    unbindPops=bindVelocityPops(chart,engine);
   }
+  const buildNode=root.querySelector<HTMLElement>('.game-hud-build');
+  const panel=buildNode?.querySelector<HTMLButtonElement>('.game-upgrade-panel');
+  if(buildNode&&panel){
+   const setOpen=(open:boolean)=>{buildNode.dataset.open=String(open);panel.setAttribute('aria-expanded',String(open));};
+   const toggle=(event:Event)=>{event.stopPropagation();setOpen(buildNode.dataset.open!=='true');};
+   const outside=(event:Event)=>{const target=event.target;if(buildNode.dataset.open==='true'&&target instanceof Node&&!buildNode.contains(target))setOpen(false);};
+   panel.addEventListener('click',toggle);document.addEventListener('pointerdown',outside);
+   unbindUpgradePanel=()=>{panel.removeEventListener('click',toggle);document.removeEventListener('pointerdown',outside);};
+  }
  }
  function showCleared(){
   if(!state||!root)return;
   chart?.destroy();chart=null;unbindPops();unbindPops=()=>{};
+  unbindUpgradePanel();unbindUpgradePanel=()=>{};
   adapter?.dispose();adapter=null;
-  engine.setRefreshLocked(false);engine.setHotKeys(null);
+  engine.setRefreshLocked(false);clearBubbleReminder();engine.setHotKeys(null);
   const scores=recordGameHighScore(state.category??'touch',state.session.run.score);
   const best=state.category==='keyboard-pointer'?scores.keyboardPointer:scores.touch;
   const levelId=state.levelId;
@@ -195,33 +233,82 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   const medalValue=level.medals.metric==='score'?levelScore:levelElapsedMs/1000;
   const medal=awardedMedal(levelId,medalValue);
   const next=nextMedal(levelId,medalValue);
+  const owned=state.session.run.upgrades.filter((id):id is UpgradeId=>id in UPGRADE_COPY);
   const candidateRows:Array<readonly [string,number]>=[
    ['Manual pops',state.breakdown.base],
    ['Clean Sweep bonus',state.breakdown.cleanSweep],
    ['Hot Key bonus',state.breakdown.hotKey],
-   ['Assisted pops',state.breakdown.assisted],
+   [owned.includes('fatFinger')?'Fat Finger assists':'Assisted pops',state.breakdown.assisted],
    ['Remaining-time bonus',state.breakdown.remainingTime]
   ];
   const rows=candidateRows.filter(([,value],index)=>value>0||index===0||(levelId===1&&index<3)||(timerKind!=='none'&&index===4));
   const calibrationNote=levelId===2&&calibrationSummary?`Calibrated pace: ${calibrationSummary.popsPerSecond.toFixed(2)} pop/s from ${calibrationSummary.windows.length} active ${calibrationSummary.windows.length===1?'window':'windows'}.`:'';
   const timerNote=timeSettlement?`Time settlement: ${timeSettlement.multiplier.toFixed(2)}×.`:'';
-  const nextAction=levelId<3?`<button class="game-button" type="button" data-level-action="continue">Continue</button>`:`<button class="game-button" type="button" data-level-action="retry">Retry run</button>`;
+  const upgradeNote=owned.length?`Owned build: ${owned.map(id=>UPGRADE_COPY[id].name).join(', ')}.`:'No upgrades are active yet.';
+  const nextAction=levelId===2&&state.session.run.phase==='shop'?`<button class="game-button" type="button" data-level-action="shop">Open shop</button>`:levelId<3?`<button class="game-button" type="button" data-level-action="continue">Continue</button>`:`<button class="game-button" type="button" data-level-action="retry">Retry run</button>`;
   root.dataset.screen='run-won';
-  root.innerHTML=`<div class="game-scrim"></div><section class="game-card game-result-card game-dossier" aria-labelledby="level-cleared-heading"><p class="game-eyebrow">Level ${levelId} cleared · ${level.name}</p><h2 id="level-cleared-heading">${medal?`${titleCase(medal)} medal`:'Clear complete'}</h2><div class="game-result-hero"><div><span>Clear time</span><strong>${formatDuration(levelElapsedMs)}</strong><small>Best ${formatDuration(records[levelId]?.bestTimeMs??levelElapsedMs)}</small></div><div><span>Level score</span><strong>${formatGameCurrency(levelScore)}</strong><small>Run balance ${formatGameCurrency(state.session.run.score)}</small></div></div>${medalStripMarkup(levelId,medal)}<p class="game-medal-gap">${next?`${titleCase(next.name)} needs ${next.gap}.`:'Titanium secured — all medal targets cleared.'}</p><h3 class="game-section-title">Score calculation</h3><div class="game-score-calculation">${rows.map(([label,value],index)=>`<div style="--result-delay:${index*90}ms"><span>${label}</span><strong>+${formatGameCurrency(value)}</strong></div>`).join('')}<div class="game-score-total" style="--result-delay:${rows.length*90}ms"><span>Level total</span><strong>${formatGameCurrency(levelScore)}</strong></div></div><p class="game-result-note">No upgrades are active yet. ${timerNote} ${calibrationNote}</p><p class="game-lede">Category best: ${formatGameCurrency(best??0)}.</p><div class="game-inline-actions game-dossier-actions"><button class="game-button game-button-secondary" type="button" data-level-action="exit">Endless Mode</button>${nextAction}</div></section>`;
+  root.innerHTML=`<div class="game-scrim"></div><section class="game-card game-result-card game-dossier" aria-labelledby="level-cleared-heading"><p class="game-eyebrow">Level ${levelId} cleared · ${level.name}</p><h2 id="level-cleared-heading">${medal?`${titleCase(medal)} medal`:'Clear complete'}</h2><div class="game-result-hero"><div><span>Clear time</span><strong>${formatDuration(levelElapsedMs)}</strong><small>Best ${formatDuration(records[levelId]?.bestTimeMs??levelElapsedMs)}</small></div><div><span>Level score</span><strong>${formatGameCurrency(levelScore)}</strong><small>Run balance ${formatGameCurrency(state.session.run.score)}</small></div></div>${medalStripMarkup(levelId,medal)}<p class="game-medal-gap">${next?`${titleCase(next.name)} needs ${next.gap}.`:'Titanium secured — all medal targets cleared.'}</p><h3 class="game-section-title">Score calculation</h3><div class="game-score-calculation">${rows.map(([label,value],index)=>`<div style="--result-delay:${index*90}ms"><span>${label}</span><strong>+${formatGameCurrency(value)}</strong></div>`).join('')}<div class="game-score-total" style="--result-delay:${rows.length*90}ms"><span>Level total</span><strong>${formatGameCurrency(levelScore)}</strong></div></div><p class="game-result-note">${upgradeNote} ${timerNote} ${calibrationNote}</p><p class="game-lede">Category best: ${formatGameCurrency(best??0)}.</p><div class="game-inline-actions game-dossier-actions"><button class="game-button game-button-secondary" type="button" data-level-action="exit">Endless Mode</button>${nextAction}</div></section>`;
   root.querySelector<HTMLButtonElement>('[data-level-action=exit]')!.addEventListener('click',()=>{stop();onExit();});
   root.querySelector<HTMLButtonElement>('[data-level-action=retry]')?.addEventListener('click',start);
   root.querySelector<HTMLButtonElement>('[data-level-action=continue]')?.addEventListener('click',advanceLevel);
+  root.querySelector<HTMLButtonElement>('[data-level-action=shop]')?.addEventListener('click',showLiveShop);
  }
  function advanceLevel(){
   if(!state)return;
-  let session={...state.session,rng:state.rng};
-  if(session.run.phase==='shop'){
-   const left=reduceSession(session,{type:'leave-shop'});
-   if(!left.accepted)return;
-   session=left.state;
-  }
+  const session={...state.session,rng:state.rng};
   if(session.run.phase!=='level-intro')return;
   state=createLevelState(session,session.run.level);
+  prepareLevel();
+  showIntro();
+ }
+ function showLiveShop(){
+  if(!state||state.session.run.phase!=='shop')return;
+  if(!liveShop)liveShop=createLiveShop({
+   category:state.category??'touch',
+   score:state.session.run.score,
+   owned:state.session.run.upgrades as UpgradeId[],
+   rng:state.rng
+  });
+  renderLiveShop();
+ }
+ function renderLiveShop(){
+  if(!state||!root||!liveShop)return;
+  const shop=liveShop;
+  root.dataset.screen='shop';
+  const rerollCost=rerollPrice(shop.category,shop.rerollsUsed,shop.owned);
+  const rerollsLeft=Math.max(0,GAME_CONFIG.run.shopRerollLimit-shop.rerollsUsed);
+  const interest=shopInterest(shop.score,shop.category,shop.owned);
+  const interestRate=shop.owned.includes('rateHikeCycle')?GAME_CONFIG.upgrades.rateHikeCycle.interestRate:GAME_CONFIG.economy.shopInterestRate;
+  root.innerHTML=`<div class="game-scrim"></div><section class="game-card game-shop-card" aria-labelledby="live-shop-heading"><div class="game-screen-heading"><div><p class="game-eyebrow">After level ${state.levelId}</p><h2 id="live-shop-heading">Choose one edge</h2></div><div class="game-balance"><span>Available score</span><strong>${formatGameCurrency(shop.score)}</strong></div></div><p class="game-lede">Buy one upgrade, reroll both offers, or bank your score and earn interest.</p><div class="game-offers">${shop.offers.map(id=>{const copy=UPGRADE_COPY[id],price=upgradePrice(shop.category,id),affordable=shop.score>=price;return `<article class="game-offer" data-upgrade="${id}" data-affordable="${affordable}" data-owned="false"><div><span class="game-offer-icon material-symbols-rounded" aria-hidden="true">${copy.icon}</span><span class="game-offer-status">${affordable?'Affordable':`Need ${formatGameCurrency(price-shop.score)}`}</span><h3>${copy.name}</h3><p>${copy.description}</p></div><button type="button" data-shop-buy="${id}" ${affordable?'':'disabled'}>Buy <b>${formatGameCurrency(price)}</b></button></article>`;}).join('')}</div><div class="game-shop-actions"><div><button class="game-button game-button-secondary" type="button" data-shop-action="reroll" ${rerollsLeft===0||shop.score<rerollCost?'disabled':''}><span class="material-symbols-rounded" aria-hidden="true">refresh</span>Reroll · ${formatGameCurrency(rerollCost)}</button><small>${rerollsLeft} rerolls left</small></div><div><button class="game-button" type="button" data-shop-action="skip">Skip</button><small>Earn ${formatGameNumber(interestRate*100)}% interest · ${formatGameCurrency(interest)}</small></div></div><p class="game-result-note" role="status">Offers are seeded for this run. Buying closes the shop immediately.</p></section>`;
+  for(const button of Array.from(root.querySelectorAll<HTMLButtonElement>('[data-shop-buy]')))button.addEventListener('click',()=>{
+   if(!liveShop)return;
+   const bought=buyLiveShopUpgrade(liveShop,button.dataset.shopBuy as UpgradeId);
+   if(!bought.accepted)return;
+   liveShop=bought.state;syncLiveShop();finishLiveShop();
+  });
+  root.querySelector<HTMLButtonElement>('[data-shop-action=reroll]')!.addEventListener('click',()=>{
+   if(!liveShop)return;
+   const rerolled=rerollLiveShop(liveShop);
+   if(!rerolled.accepted)return;
+   liveShop=rerolled.state;syncLiveShop();renderLiveShop();
+  });
+  root.querySelector<HTMLButtonElement>('[data-shop-action=skip]')!.addEventListener('click',()=>{
+   if(!liveShop)return;
+   liveShop=skipLiveShop(liveShop).state;syncLiveShop();finishLiveShop();
+  });
+ }
+ function syncLiveShop(){
+  if(!state||!liveShop)return;
+  const run=state.session.run;
+  const session={...state.session,rng:liveShop.rng,run:{...run,score:liveShop.score,upgrades:[...liveShop.owned],rerollUsed:liveShop.rerollsUsed>0}};
+  state={...state,session,rng:liveShop.rng};
+ }
+ function finishLiveShop(){
+  if(!state)return;
+  const left=reduceSession(state.session,{type:'leave-shop'});
+  if(!left.accepted)return;
+  liveShop=null;
+  state=createLevelState(left.state,left.state.run.level);
   prepareLevel();
   showIntro();
  }
@@ -256,6 +343,7 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   if(!state||state.cleared||state.session.run.phase!=='playing')return;
   advanceElapsedNow();
   refreshTimer();
+  refreshBubbleReminder();
   if(timerKind==='hard'&&levelElapsedMs>=timerTotalMs)showLoss();
  }
  function advanceElapsedNow(){
@@ -276,10 +364,21 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   updateAnimatedNumber(root.querySelector('[data-live=seconds]'),parts.seconds);
   const hud=root.querySelector<HTMLElement>('.game-hud');
   if(!hud)return;
-  const dangerMs=Math.min(timerTotalMs*GAME_CONFIG.scoring.deadline.dangerZoneFraction,GAME_CONFIG.scoring.deadline.dangerZoneMaxSeconds*1000);
+  const dangerMs=GAME_CONFIG.scoring.deadline.dangerZoneMaxSeconds*1000;
   hud.dataset.danger=String(timerKind==='hard'&&remaining<=dangerMs);
   hud.dataset.softExpired=String(timerKind==='soft'&&remaining<=0);
   root.querySelector<HTMLElement>('.game-hud-timer')?.setAttribute('aria-label',`${clockText(remaining)} remaining`);
+ }
+ function clearBubbleReminder(){engine.setBubbleReminder(null);reminderBubbleIndex=-1;}
+ function refreshBubbleReminder(){
+  if(!state||state.session.run.phase!=='playing'||document.hidden){clearBubbleReminder();return;}
+  if(engine.refreshing){reminderWaitingForSheet=true;clearBubbleReminder();return;}
+  if(reminderWaitingForSheet){reminderWaitingForSheet=false;lastBubbleProgressMs=levelElapsedMs;return;}
+  const remaining=engine.getGameBubbles().filter(bubble=>bubble.eligible&&!bubble.popped);
+  if(remaining.length<1||remaining.length>3||levelElapsedMs-lastBubbleProgressMs<3000){clearBubbleReminder();return;}
+  if(remaining.some(bubble=>bubble.index===reminderBubbleIndex))return;
+  reminderBubbleIndex=remaining[0].index;
+  if(!engine.setBubbleReminder(reminderBubbleIndex))reminderBubbleIndex=-1;
  }
  function showLoss(){
   if(!state||!root)return;
@@ -288,8 +387,9 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   const lost=reduceSession(state.session,{type:'declare-run-lost'});
   if(lost.accepted)state={...state,session:lost.state,cleared:true,combo:{count:0,expiresAt:0}};
   chart?.destroy();chart=null;unbindPops();unbindPops=()=>{};
+  unbindUpgradePanel();unbindUpgradePanel=()=>{};
   adapter?.dispose();adapter=null;
-  engine.setRefreshLocked(false);engine.setHotKeys(null);
+  engine.setRefreshLocked(false);clearBubbleReminder();engine.setHotKeys(null);
   sheet.update({onAllPopped:()=>{}});
   root.dataset.screen='run-lost';
   root.innerHTML=`<div class="game-scrim"></div><section class="game-card game-result-card game-dossier" aria-labelledby="run-lost-heading"><p class="game-eyebrow">Level ${state.levelId} · ${levelDefinition(state.levelId).name}</p><h2 id="run-lost-heading">Time’s up</h2><div class="game-result-hero"><div><span>Deadline</span><strong>${clockText(timerTotalMs)}</strong><small>Hard timer expired</small></div><div><span>Run score</span><strong>${formatGameCurrency(state.session.run.score)}</strong><small>${state.category==='keyboard-pointer'?'Keyboard & Pointer':'Touch'}</small></div></div><p class="game-lede">The run resets to Level 1. Your local records remain.</p><div class="game-inline-actions game-dossier-actions"><button class="game-button game-button-secondary" type="button" data-level-action="exit">Endless Mode</button><button class="game-button" type="button" data-level-action="retry">Retry run</button></div></section>`;

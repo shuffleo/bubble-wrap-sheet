@@ -537,10 +537,11 @@ The sheet remains the visual focus. During Survival Run, remove the page title a
 - **Top left:** current `$` score. Pop gains update immediately with a continuous digit transition.
 - **Top centre:** the current rate, then the label `pop / s`, above a 30-second velocity chart drawn with bundled Smoothie Charts. Keep it narrow and at the top. The trace scrolls, its vertical scale eases as the range changes, and manual pops update the rate. The velocity multiplier appears only on its upgrade icon.
 - **Top right:** level number, then the goal count in the largest white type, then a smaller unit caption such as “sheets popped” or “bubbles popped”. The level name is omitted.
-- **Bottom left:** time remaining only. The colon blinks once per second; the whole countdown blinks in the configured danger-zone window. Do not add a status caption under the time.
+- **Bottom left:** time remaining only. The colon blinks once per second. During the final 10 seconds of a hard deadline, the countdown flashes neon red and a responsive 4-pixel neon-red line frames the viewport. Reduced motion keeps the warning static. Do not add a status caption under the time.
 - **Bottom centre:** owned-upgrade icons with no surrounding panel. Hover, focus, or tap opens one explanation covering every upgrade. Tap the icons again, or tap an empty area, to dismiss it. While an effect is active, its current value appears beside its icon.
 - Deadline Fighter does not occupy a permanent top-row chip; its active value appears on its upgrade icon.
 - Combo, Hot Key, hazard, and onboarding feedback appear contextually rather than competing with the primary KPI.
+- If one to three eligible bubbles remain without a pop for three active seconds, one remaining bubble receives a rhythmic, bounce-eased exposure glow. Any pop, transition, visibility loss, or new sheet clears and restarts that reminder delay.
 - Game type uses a tighter line height than body copy so the HUD stays compact on a phone.
 - One Material Symbols overflow button at the bottom right contains Refresh sheet, Mute, Shop preview, Modes, Run won preview, and Tuning panel. Refresh and mute are not separate corner buttons during Survival Run.
 

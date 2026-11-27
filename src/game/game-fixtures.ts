@@ -64,7 +64,7 @@ export interface ResultFixture {
 const touch=GAME_CONFIG.categories.touch;
 const keyboard=GAME_CONFIG.categories.keyboardPointer;
 const hardTimerMs=GAME_CONFIG.calibration.hardDeadlineMaxSeconds*1000;
-const dangerTimerMs=Math.min(hardTimerMs*GAME_CONFIG.scoring.deadline.dangerZoneFraction,GAME_CONFIG.scoring.deadline.dangerZoneMaxSeconds*1000);
+const dangerTimerMs=GAME_CONFIG.scoring.deadline.dangerZoneMaxSeconds*1000;
 
 export const GAME_FIXTURES={
  modeSelect:{touchBest:null,keyboardPointerBest:null} satisfies ModeSelectFixture,

@@ -38,7 +38,9 @@ export class BubbleEngine extends EventTarget {
  private keyboard:KeyboardMapping=buildKeyboardMapping([]);private keyboardHints:HTMLDivElement|null=null;private hintNodes=new Map<number,HTMLElement>();
  private points:BubblePoint[]=[];private physics=new BubblePhysics([],()=>{});private coordMap=new Map<string,number>();
  private pendingPopSources=new Map<number,BubblePopSource>();private refreshLocked=false;private hotCodes:Set<string>|null=null;private labelSnapshot:boolean|null=null;private completionToken:object|null=null;
+ private lastPopBySurface=new Map<string,number>();
  private exchange:SheetExchange|null=null;private currentAttributes:Float32Array[]=[];private renderInstances=0;
+ private reminderIndex=-1;private reminderStartedAt=0;private reminderExposure=new Float32Array();
  get refreshing(){return this.exchange!==null;}
  private frame=0;private last=0;private destroyed=false;private dirty=true;private dpr=1;private frames=0;private lost=false;private queued=false;
  private reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -62,7 +64,7 @@ export class BubbleEngine extends EventTarget {
   const vertices:number[]=[];const hex=[[-.5,-.288675135],[0,-.57735027],[.5,-.288675135],[.5,.288675135],[0,.57735027],[-.5,.288675135]];
   const triangle=(a:number[],b:number[],c:number[],level:number)=>{if(level===0){vertices.push(...a,...b,...c);return;}const ab=[(a[0]+b[0])/2,(a[1]+b[1])/2],bc=[(b[0]+c[0])/2,(b[1]+c[1])/2],ca=[(c[0]+a[0])/2,(c[1]+a[1])/2];triangle(a,ab,ca,level-1);triangle(ab,b,bc,level-1);triangle(ca,bc,c,level-1);triangle(ab,bc,ca,level-1);};
   for(let i=0;i<6;i++)triangle([0,0],hex[i],hex[(i+1)%6],2);this.vertexCount=vertices.length/2;
-  for(let location=0;location<14;location++){const b=g.createBuffer()!;this.buffers.push(b);g.bindBuffer(g.ARRAY_BUFFER,b);g.enableVertexAttribArray(location);const size=location===0?2:location===13?1:location===12?4:location>=6?3:location>=4?1:4;g.vertexAttribPointer(location,size,g.FLOAT,false,0,0);if(location)g.vertexAttribDivisor(location,1);else g.bufferData(g.ARRAY_BUFFER,new Float32Array(vertices),g.STATIC_DRAW);}
+  for(let location=0;location<15;location++){const b=g.createBuffer()!;this.buffers.push(b);g.bindBuffer(g.ARRAY_BUFFER,b);g.enableVertexAttribArray(location);const size=location===0?2:location===12?4:location>=6&&location<=11?3:location>=4?1:4;g.vertexAttribPointer(location,size,g.FLOAT,false,0,0);if(location)g.vertexAttribDivisor(location,1);else g.bufferData(g.ARRAY_BUFFER,new Float32Array(vertices),g.STATIC_DRAW);}
   // Seeded noise texture: repeatable reference-free optical microstructure.
   const data=new Uint8Array(256*256*4);let seed=0x20ab34cd;const rnd=()=>{seed^=seed<<13;seed^=seed>>>17;seed^=seed<<5;return(seed>>>0)/4294967296;};for(let i=0;i<data.length;i+=4){data[i]=rnd()*255;data[i+1]=rnd()*255;data[i+2]=rnd()*255;data[i+3]=255;}
   this.texture=g.createTexture()!;g.activeTexture(g.TEXTURE0);g.bindTexture(g.TEXTURE_2D,this.texture);g.texImage2D(g.TEXTURE_2D,0,g.RGBA,256,256,0,g.RGBA,g.UNSIGNED_BYTE,data);g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MIN_FILTER,g.LINEAR);g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MAG_FILTER,g.LINEAR);g.texParameteri(g.TEXTURE_2D,g.TEXTURE_WRAP_S,g.REPEAT);g.texParameteri(g.TEXTURE_2D,g.TEXTURE_WRAP_T,g.REPEAT);
@@ -108,12 +110,13 @@ export class BubbleEngine extends EventTarget {
   this.points.forEach((p,i)=>{const s=this.surfaces.get(p.surface)!;edges.set([s.config.layout==='single'?-1:(s.config.edgeRoughness??0),s.config.edgeScale??24,s.config.edgeSeed??17,s.config.cornerVariation??0],i*4);const pitch=p.radius*2+Math.max(0,s.config.gap??4);a.set([p.x,p.y,p.radius,pitch],i*4);clip.set([s.rect.left,s.rect.top,s.rect.left+s.rect.width,s.rect.top+s.rect.height],i*4);style.set([hash(p.row*1023+p.col*17),s.config.cornerRadius??5,materialVariant(p.row+Math.floor(this.settings.variantSeed),p.col),materialVariant(p.row+Math.floor(this.settings.variantSeed),p.col,true)],i*4);});
   this.neighborData=Array.from({length:6},()=>new Float32Array(n*3));
   this.points.forEach((p,i)=>{const odd=p.row&1,offsets=[[0,-1],[0,1],[-1,odd-1],[-1,odd],[1,odd-1],[1,odd]];for(let k=0;k<6;k++){const j=this.physics.neighbors[i*6+k],np=j>=0?this.points[j]:null,row=np?.row??p.row+offsets[k][0],col=np?.col??p.col+offsets[k][1];this.neighborData[k].set([materialVariant(row+Math.floor(this.settings.variantSeed),col),materialVariant(row+Math.floor(this.settings.variantSeed),col,true),j>=0?this.physics.squish[j]:1],i*3);}});
-  this.currentAttributes=[a,clip,style,this.physics.squish,this.physics.bounce,...this.neighborData,edges];
+  this.reminderExposure=new Float32Array(n);
+  this.currentAttributes=[a,clip,style,this.physics.squish,this.physics.bounce,...this.neighborData,edges,this.reminderExposure];
   const previous=this.exchange?.slide?this.exchange:null,oldCount=previous?.oldCount??0;
   this.renderInstances=n+oldCount;
   const roles=new Float32Array(this.renderInstances);if(previous){this.points.forEach((p,i)=>{if(p.mode==='poppable')roles[i]=2;});roles.fill(1,n);}
   const g=this.gl;g.bindVertexArray(this.vao);
-  [...this.currentAttributes,roles].forEach((data,j)=>{let payload=data;if(previous&&j<12){payload=new Float32Array(data.length+previous.old[j].length);payload.set(data);payload.set(previous.old[j],data.length);}
+  [...this.currentAttributes,roles].forEach((data,j)=>{let payload=data;if(previous&&j<13){payload=new Float32Array(data.length+previous.old[j].length);payload.set(data);payload.set(previous.old[j],data.length);}
    g.bindBuffer(g.ARRAY_BUFFER,this.buffers[j+1]);g.bufferData(g.ARRAY_BUFFER,payload,j>=3?g.DYNAMIC_DRAW:g.STATIC_DRAW);});
  }
  private inside(s:Surface,x:number,y:number){return boundaryDistance(s.rect,x,y,s.config.cornerRadius??5,s.config.edgeRoughness??0,s.config.edgeScale??24,s.config.edgeSeed??17,s.config.cornerVariation??0)<=0;}
@@ -137,8 +140,9 @@ export class BubbleEngine extends EventTarget {
  private pointerUp(e:PointerEvent,cancelled:boolean){const p=this.pointers.get(e.pointerId);if(!p)return;this.pointers.delete(e.pointerId);if(!cancelled&&!p.gentle){for(const i of p.visited)this.popWithSource(i,{type:'manual',input:p.input,gestureId:p.gestureId});}for(const i of p.visited){let held=false;for(const other of this.pointers.values())if(other.visited.has(i))held=true;if(!held){this.physics.release(i);if(!this.physics.isPopped[i])this.pendingPopSources.delete(i);}}this.wake();}
  private cancelPointers(){for(const p of this.pointers.values())for(const i of p.visited){this.physics.release(i);if(!this.physics.isPopped[i])this.pendingPopSources.delete(i);}this.pointers.clear();this.points.forEach((p,i)=>{if(!p.cut&&!this.physics.isPopped[i]){this.physics.release(i);this.pendingPopSources.delete(i);}});for(let i=0;i<4;i++)this.motion.release(i);}
  private didPop(index:number){
+  if(index===this.reminderIndex)this.setBubbleReminder(null);
   this.hintNodes.get(index)?.setAttribute('data-popped','true');
-  this.audio.pop();const point=this.points[index],surface=this.surfaces.get(point.surface),source=this.pendingPopSources.get(index)??{type:'system' as const,reason:'physics'};this.pendingPopSources.delete(index);this.physics.jiggle(index);this.motion.impulse(point.x,point.y,.7);this.dispatchEvent(new CustomEvent<BubblePopDetail>('bubblepop',{detail:{index,key:point.key,surface:point.surface,source}}));queueMicrotask(()=>{if(this.destroyed)return;this.notify();if(surface){let count=0,total=0;this.points.forEach((p,i)=>{if(p.surface===point.surface&&p.eligible){total++;count+=this.physics.isPopped[i];}});surface.config.onPop?.(count);if(count===total&&total>0&&!surface.completed){surface.completed=true;this.finishWhenSettled(index,surface);}}});
+  this.audio.pop();const point=this.points[index],surface=this.surfaces.get(point.surface),source=this.pendingPopSources.get(index)??{type:'system' as const,reason:'physics'};if(surface)this.lastPopBySurface.set(surface.id,index);this.pendingPopSources.delete(index);this.physics.jiggle(index);this.motion.impulse(point.x,point.y,.7);this.dispatchEvent(new CustomEvent<BubblePopDetail>('bubblepop',{detail:{index,key:point.key,surface:point.surface,source}}));queueMicrotask(()=>{if(this.destroyed)return;this.notify();if(surface){let count=0,total=0;this.points.forEach((p,i)=>{if(p.surface===point.surface&&p.eligible){total++;count+=this.physics.isPopped[i];}});surface.config.onPop?.(count);if(count===total&&total>0&&!surface.completed){surface.completed=true;this.finishWhenSettled(this.lastPopBySurface.get(surface.id)??index,surface);}}});
  }
  /** Let the last bubble finish collapsing before the sheet is allowed to leave. */
  private finishWhenSettled(index:number,surface:Surface){
@@ -154,11 +158,21 @@ export class BubbleEngine extends EventTarget {
  }
  private notify(){if(this.queued)return;this.queued=true;queueMicrotask(()=>{this.queued=false;if(!this.destroyed)this.dispatchEvent(new CustomEvent('change',{detail:this.getStats()}));});}
  setMuted(muted:boolean){this.audio.unlock();this.audio.setMuted(muted);this.notify();}
+ setBubbleReminder(index:number|null){
+  const next=index===null?-1:index;
+  if(next>=0){
+   const point=this.points[next];
+   if(!Number.isInteger(next)||!point||point.mode!=='poppable'||point.eligible===false||point.cut||this.physics.isPopped[next])return false;
+  }
+  if(next===this.reminderIndex)return true;
+  this.reminderExposure.fill(0);this.reminderIndex=next;this.reminderStartedAt=performance.now();this.dirty=true;this.wake();this.notify();return true;
+ }
+ inspectBubbleReminder(){return {index:this.reminderIndex,active:this.reminderIndex>=0,exposure:this.reminderIndex>=0?this.reminderExposure[this.reminderIndex]??0:0};}
  /** Snapshot the old sheet's material and popped state once, not every frame.
   * New + old instances share the same context, program, atlases and draw call. */
  private snapshotSheet(surface?:string):{old:Float32Array[];oldCount:number}{
   const indices=this.points.flatMap((p,i)=>p.mode==='poppable'&&(!surface||p.surface===surface)?[i]:[]);
-  const widths=[4,4,4,1,1,3,3,3,3,3,3,4];
+  const widths=[4,4,4,1,1,3,3,3,3,3,3,4,1];
   return {oldCount:indices.length,old:this.currentAttributes.map((data,j)=>{const width=widths[j],out=new Float32Array(indices.length*width);indices.forEach((i,k)=>out.set(data.subarray(i*width,(i+1)*width),k*width));return out;})};
  }
  private finishRefresh(cancelSound=false,upload=true){
@@ -190,6 +204,7 @@ export class BubbleEngine extends EventTarget {
  reset(surface?:string,immediate=false){
   this.completionToken=null;
   if(this.refreshLocked||this.destroyed||this.lost||(!immediate&&this.refreshing))return;
+  this.setBubbleReminder(null);
   if(immediate)this.finishRefresh(true,false);
   let popped=0,total=0;this.points.forEach((p,i)=>{if((!surface||p.surface===surface)&&p.mode==='poppable'&&p.eligible){total++;popped+=this.physics.isPopped[i];}});
   const slide=this.settings.refreshMode===1&&!immediate&&!this.reduced;
@@ -199,7 +214,7 @@ export class BubbleEngine extends EventTarget {
   const floor=this.settings.refreshMode===1?this.settings.slideMinimum:(popped===0?.55:0);
   const timeline=!immediate?this.audio.refill(this.settings.resetDuration,popped,total,floor):null;
   this.setSettings(freshSeedSettings(this.settings));
-  for(const item of this.surfaces.values())if(!surface||item.id===surface)item.completed=false;
+  for(const item of this.surfaces.values())if(!surface||item.id===surface){item.completed=false;this.lastPopBySurface.delete(item.id);}
   if(slide)this.motion.clear();
   this.physics.reset(surface,immediate||slide||this.reduced,timeline??undefined);
   if(slide){this.physics.bounce.fill(0);this.physics.bounceVelocity.fill(0);}
@@ -210,11 +225,24 @@ export class BubbleEngine extends EventTarget {
  /** Both per-seed refresh buttons intentionally re-roll the whole seed set. */
  refreshSeeds(){this.reset();}
  private wake(){if(this.destroyed||this.lost||document.hidden)return;this.dirty=true;if(!this.frame){this.last=performance.now();this.frame=requestAnimationFrame(this.tick);}}
+ private updateBubbleReminder(time:number):boolean {
+  const index=this.reminderIndex,point=this.points[index];
+  if(index<0||!point||this.physics.isPopped[index]){if(index>=0)this.setBubbleReminder(null);return false;}
+  this.reminderExposure.fill(0);
+  if(this.reduced){this.reminderExposure[index]=.65;return false;}
+  const phase=((time-this.reminderStartedAt)%1800)/1800;
+  const progress=phase<.5?phase*2:(1-phase)*2;
+  const bounce=(value:number)=>value<1/2.75?7.5625*value*value:value<2/2.75?7.5625*(value-=1.5/2.75)*value+.75:value<2.5/2.75?7.5625*(value-=2.25/2.75)*value+.9375:7.5625*(value-=2.625/2.75)*value+.984375;
+  this.reminderExposure[index]=bounce(progress)*.9;
+  this.dirty=true;
+  return true;
+ }
  private tick=(time:number)=>{
   this.frame=0;if(this.destroyed||this.lost)return;const dt=Math.min(.05,(time-this.last)/1000);this.last=time;const active=this.physics.step(dt),flex=this.motion.step(dt);
+  const reminder=this.updateBubbleReminder(time);
   if(this.exchange){const duration=this.exchange.timeline.duration,elapsed=this.exchange.timeline.elapsed();this.exchange.progress=Number.isFinite(elapsed)&&duration>0?Math.max(0,Math.min(1,elapsed/duration)):1;if(this.exchange.progress>=1)this.finishRefresh();}
   if(this.dirty||active||flex||this.exchange){const g=this.gl;g.useProgram(this.program);g.bindVertexArray(this.vao);g.activeTexture(g.TEXTURE0);g.bindTexture(g.TEXTURE_2D,this.texture);g.activeTexture(g.TEXTURE1);g.bindTexture(g.TEXTURE_2D,this.atlas);g.activeTexture(g.TEXTURE2);g.bindTexture(g.TEXTURE_2D,this.collapsedAtlas);g.uniform1f(this.uniforms.uAtlasReady,this.atlasReady);g.bindBuffer(g.ARRAY_BUFFER,this.buffers[4]);g.bufferSubData(g.ARRAY_BUFFER,0,this.physics.squish);g.uniform2f(this.uniforms.uResolution,innerWidth,innerHeight);g.uniform1f(this.uniforms.uDpr,this.dpr);
-   g.bindBuffer(g.ARRAY_BUFFER,this.buffers[5]);g.bufferSubData(g.ARRAY_BUFFER,0,this.physics.bounce);
+   g.bindBuffer(g.ARRAY_BUFFER,this.buffers[5]);g.bufferSubData(g.ARRAY_BUFFER,0,this.physics.bounce);g.bindBuffer(g.ARRAY_BUFFER,this.buffers[13]);g.bufferSubData(g.ARRAY_BUFFER,0,this.reminderExposure);
    for(let k=0;k<6;k++){const data=this.neighborData[k];for(let i=0;i<this.points.length;i++){const j=this.physics.neighbors[i*6+k];data[i*3+2]=j>=0?this.physics.squish[j]:1;}g.bindBuffer(g.ARRAY_BUFFER,this.buffers[6+k]);g.bufferSubData(g.ARRAY_BUFFER,0,data);}
    const s=this.settings,e=this.exchange;g.uniform4f(this.uniforms.uSlide,e?sheetEase(e.progress):0,e?.distance??0,s.slideFlex,e?.slide?1:0);g.uniform3fv(this.uniforms.uCorners,this.motion.corners);g.uniform4fv(this.uniforms.uRipples,this.motion.ripples);
    g.uniform4f(this.uniforms.uMotion,s.cornerInfluence,s.rippleStrength,s.rippleSpeed,s.rippleWidth);g.uniform1f(this.uniforms.uPerspective,s.perspective);g.uniform1f(this.uniforms.uTime,this.motion.time);g.uniform1f(this.uniforms.uMotionEnabled,s.motion?1:0);
@@ -222,7 +250,7 @@ export class BubbleEngine extends EventTarget {
    g.uniform4f(this.uniforms.uReveal,s.revealStart,s.revealEnd,s.revealCurve,s.linearReveal?1:0);g.uniform2f(this.uniforms.uPressure,s.pressureBulge,s.pressureWrinkle);
    g.uniform4f(this.uniforms.uTone,s.exposure,s.contrast,s.blackPoint,s.whitePoint);g.uniform4f(this.uniforms.uGrade,s.gamma,s.highlights,s.grain,s.sharpness);g.uniform4f(this.uniforms.uLayer,s.blendMode,s.layerOpacity,s.backingLevel,0);g.uniform1f(this.uniforms.uGuides,s.showContours?1:0);
    this.syncHandles();this.syncKeyboardHints();g.clear(g.COLOR_BUFFER_BIT);g.drawArraysInstanced(g.TRIANGLES,0,this.vertexCount,this.renderInstances);this.frames++;this.dirty=false;}
-  if(active||flex||this.pointers.size||this.exchange)this.frame=requestAnimationFrame(this.tick);
+  if(active||flex||reminder||this.pointers.size||this.exchange)this.frame=requestAnimationFrame(this.tick);
  };
  /** Updates shader uniforms and imperative solvers without React renders. */
  setSettings(patch:Partial<Settings>){
