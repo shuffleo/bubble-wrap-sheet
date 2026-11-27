@@ -459,6 +459,16 @@ Build:
 - Timeout loss and full run reset.
 - No upgrades yet, so base difficulty can be validated first.
 
+### Stage D implementation status
+
+Implemented through the Level 3 checkpoint:
+
+- One live encounter state now carries score, category, RNG, sheet plan, and attributable score rows across Levels 1–3.
+- Level 2 derives its soft target from actual responsive bubble workload and category tuning, settles remaining time, and never fails at zero.
+- Calibration samples manual-pop active windows only, closes windows across transitions and visibility loss, clamps by category, and persists diagnostics for the development drawer.
+- Level 3 derives a bounded hard deadline from the calibrated pace and actual L-sheet workload, exposes danger state, and resets the full run after timeout.
+- Stage E shops are intentionally bypassed between Levels 2 and 3 until the economy checkpoint begins.
+
 ### User checkpoint 3: difficulty baseline
 
 Ask the user for repeated Touch and Keyboard & Pointer runs. Confirm:

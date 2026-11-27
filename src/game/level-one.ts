@@ -3,10 +3,12 @@ import {planLevelSheets,type SheetPlan} from './sheet-plan';
 import {initialSession,reduceSession} from './game-reducer';
 import {EMPTY_COMBO,categoryForManualInput,chooseHotKeys,scoreAssistedPop,scoreManualPop,type ComboState,type ScoreInputKind,type ScoreSkill} from './scoring';
 import type {GameRngState} from './game-rng';
-import type {GameSessionState,RunCategory} from './game-types';
+import type {GameSessionState,LevelId,RunCategory} from './game-types';
 
-export interface LevelOneState {
+export interface LevelPlayState {
  session:GameSessionState;
+ levelId:LevelId;
+ startScore:number;
  sheet:number;
  sheets:number;
  size:string;
@@ -18,8 +20,9 @@ export interface LevelOneState {
  cleared:boolean;
  prompt:boolean;
  rng:GameRngState;
- breakdown:{base:number;cleanSweep:number;hotKey:number;assisted:number};
+ breakdown:{base:number;cleanSweep:number;hotKey:number;assisted:number;remainingTime:number};
 }
+export type LevelOneState=LevelPlayState;
 
 export interface ManualPopNotice {
  points:number;
@@ -32,36 +35,46 @@ export interface ManualPopNotice {
 }
 
 export function createLevelOne(seed:number):LevelOneState {
- const level=levelDefinition(1);
- const plans=planLevelSheets(1);
  const selected=reduceSession(initialSession(seed),{type:'select-survival-run'});
- const encounter=selected.state.run.encounter;
- const session=encounter?{...selected.state,run:{...selected.state.run,encounter:{...encounter,sheetHazardIds:plans[0]?.hazardIds??[]}}}:selected.state;
+ return createLevelState(selected.state,1);
+}
+
+export function createLevelState(source:GameSessionState,levelId:LevelId):LevelPlayState {
+ const level=levelDefinition(levelId);
+ const plans=planLevelSheets(levelId);
+ const encounter=source.run.encounter;
+ const session=encounter?{...source,run:{...source.run,encounter:{...encounter,sheetHazardIds:plans[0]?.hazardIds??[]}}}:source;
  return {
   session,
+  levelId,
+  startScore:session.run.score,
   sheet:1,
   sheets:level.sheetCount,
   size:level.bubbleSize,
   plans,
   combo:EMPTY_COMBO,
   hotKeys:[],
-  category:null,
+  category:session.run.category,
   gesture:null,
   cleared:false,
   prompt:true,
-  rng:selected.state.rng,
-  breakdown:{base:0,cleanSweep:0,hotKey:0,assisted:0}
+  rng:session.rng,
+  breakdown:{base:0,cleanSweep:0,hotKey:0,assisted:0,remainingTime:0}
  };
 }
 
 export function beginLevelOne(state:LevelOneState,keyCodes:readonly string[]):LevelOneState {
+ return beginLevel(state,keyCodes);
+}
+
+export function beginLevel(state:LevelPlayState,keyCodes:readonly string[]):LevelPlayState {
  const started=reduceSession(state.session,{type:'finish-level-intro'});
  if(!started.accepted)return state;
  const hot=chooseHotKeys(keyCodes,GAME_CONFIG.scoring.hotKeyTargetCount,state.rng);
  return {...state,session:started.state,hotKeys:hot.codes,rng:hot.state,prompt:true,gesture:null,combo:EMPTY_COMBO};
 }
 
-export function applyManualPop(state:LevelOneState,input:{
+export function applyManualPop(state:LevelPlayState,input:{
  now:number;
  input:ScoreInputKind;
  gestureId:string;
@@ -69,7 +82,7 @@ export function applyManualPop(state:LevelOneState,input:{
  neighbours:readonly number[];
  keyCode:string|null;
  availableKeyCodes:readonly string[];
-}):{state:LevelOneState;notice:ManualPopNotice} {
+}):{state:LevelPlayState;notice:ManualPopNotice} {
  if(state.cleared||state.session.run.phase!=='playing')return {state,notice:noticeOf(state,0,'none')};
  const category=state.category??categoryForManualInput(input.input);
  const keyboard=input.input==='keyboard';
@@ -101,7 +114,7 @@ export function applyManualPop(state:LevelOneState,input:{
  return {state:nextState,notice:noticeOf(nextState,scored.points,scored.skill)};
 }
 
-export function applyAssistedPop(state:LevelOneState):{state:LevelOneState;points:number} {
+export function applyAssistedPop(state:LevelPlayState):{state:LevelPlayState;points:number} {
  const points=scoreAssistedPop();
  const run=state.session.run;
  return {
@@ -110,11 +123,11 @@ export function applyAssistedPop(state:LevelOneState):{state:LevelOneState;point
  };
 }
 
-export function clearLevelCombo(state:LevelOneState):LevelOneState {
+export function clearLevelCombo(state:LevelPlayState):LevelPlayState {
  return {...state,combo:EMPTY_COMBO};
 }
 
-export function noteSheetCleared(state:LevelOneState):{state:LevelOneState;kind:'next-sheet'|'cleared'} {
+export function noteSheetCleared(state:LevelPlayState):{state:LevelPlayState;kind:'next-sheet'|'cleared'} {
  if(state.sheet<state.sheets){
   const advanced=reduceSession(state.session,{type:'begin-sheet-transition'});
   const finished=reduceSession(advanced.state,{type:'finish-sheet-transition'});
@@ -125,20 +138,20 @@ export function noteSheetCleared(state:LevelOneState):{state:LevelOneState;kind:
  return {kind:'cleared',state:{...state,session:completed.state,cleared:true,gesture:null,combo:EMPTY_COMBO,prompt:false}};
 }
 
-function placeOnSheet(state:LevelOneState,sheet:number):LevelOneState {
+function placeOnSheet(state:LevelPlayState,sheet:number):LevelPlayState {
  const plan=state.plans[sheet-1];
  const encounter=state.session.run.encounter;
  const session=encounter?{...state.session,run:{...state.session.run,encounter:{...encounter,sheetIndex:sheet-1,sheetHazardIds:plan?.hazardIds??[]}}}:state.session;
  return {...state,session,sheet};
 }
 
-function nextGesture(current:LevelOneState['gesture'],id:string,index:number,neighbours:readonly number[]) {
+function nextGesture(current:LevelPlayState['gesture'],id:string,index:number,neighbours:readonly number[]) {
  const same=current?.id===id?current:null;
  const ordinal=(same?.ordinal??0)+1;
  const adjacent=!!same&&neighbours.includes(same.lastIndex);
  return {id,lastIndex:index,ordinal,adjacent};
 }
 
-function noticeOf(state:LevelOneState,points:number,skill:ScoreSkill):ManualPopNotice {
+function noticeOf(state:LevelPlayState,points:number,skill:ScoreSkill):ManualPopNotice {
  return {points,skill,total:state.session.run.score,category:state.category??'touch',hotKeys:state.hotKeys,combo:state.combo.count,prompt:state.prompt};
 }

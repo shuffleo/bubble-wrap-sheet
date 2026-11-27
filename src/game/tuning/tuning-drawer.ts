@@ -1,6 +1,8 @@
 import {RESTART_POLICY_LABEL} from './tuning-policy';
 import {setTuningValue,tuningFields,validateTuningValue,type JsonSchemaNode,type TuningField} from './tuning-fields';
 import {gameVendors} from '../game-vendors';
+import {calibrationDiagnosticsText,clearCalibrationDiagnostics,readCalibrationDiagnostics} from '../calibration-diagnostics';
+import type {CalibrationSummary} from '../timed-level';
 
 const SESSION_KEY='bubble-survival-tuning-v1';
 
@@ -37,6 +39,7 @@ export function createTuningDrawer():TuningDrawerHandle {
  const drawer=document.createElement('aside');drawer.id='tuning-drawer';drawer.setAttribute('aria-labelledby','tuning-heading');
  drawer.innerHTML=`<header class="tuning-head"><div><span class="game-label">Development only</span><h2 id="tuning-heading">Level design</h2></div><button type="button" data-tuning-action="close" aria-label="Close tuning drawer"><span class="material-symbols-rounded" aria-hidden="true">close</span></button></header>
   <div class="tuning-meta"><span>Revision <b>${String(base.revision)}</b></span><span id="tuning-status" role="status" data-valid="true">Schema fields ready</span></div>
+  <section class="tuning-diagnostics" aria-labelledby="calibration-diagnostics-heading"><span class="game-label" id="calibration-diagnostics-heading">Calibration diagnostics</span><p data-calibration-diagnostics>${calibrationDiagnosticsText(readCalibrationDiagnostics())}</p></section>
   <div id="tuning-pane-host"></div>
   <footer class="tuning-footer"><button type="button" data-tuning-action="reset">Reset session</button><button type="button" data-tuning-action="export">Export JSON</button></footer>`;
  document.body.append(drawer);
@@ -66,9 +69,15 @@ export function createTuningDrawer():TuningDrawerHandle {
    });
   }
  }
- const close=()=>{pane.dispose();drawer.remove();};
+ const diagnostics=drawer.querySelector<HTMLElement>('[data-calibration-diagnostics]')!;
+ const onCalibration=(event:Event)=>{
+  const detail=(event as CustomEvent<CalibrationSummary>).detail;
+  diagnostics.textContent=calibrationDiagnosticsText(detail);
+ };
+ window.addEventListener('bubble:calibration',onCalibration);
+ const close=()=>{window.removeEventListener('bubble:calibration',onCalibration);pane.dispose();drawer.remove();};
  drawer.querySelector<HTMLButtonElement>('[data-tuning-action=close]')!.addEventListener('click',close);
- drawer.querySelector<HTMLButtonElement>('[data-tuning-action=reset]')!.addEventListener('click',()=>{sessionStorage.removeItem(SESSION_KEY);location.reload();});
+ drawer.querySelector<HTMLButtonElement>('[data-tuning-action=reset]')!.addEventListener('click',()=>{sessionStorage.removeItem(SESSION_KEY);clearCalibrationDiagnostics();location.reload();});
  drawer.querySelector<HTMLButtonElement>('[data-tuning-action=export]')!.addEventListener('click',()=>{
   const blob=new Blob([`${JSON.stringify(merged,null,2)}\n`],{type:'application/json'});
   const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download='level-design.json';link.click();URL.revokeObjectURL(url);

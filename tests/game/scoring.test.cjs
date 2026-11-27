@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const {GAME_CONFIG}=require('../../.compiled/game/game-config');
 const {createGameRng}=require('../../.compiled/game/game-rng');
 const {EMPTY_COMBO,chooseHotKeys,scoreAssistedPop,scoreManualPop}=require('../../.compiled/game/scoring');
-const {applyAssistedPop,applyManualPop,beginLevelOne,createLevelOne,noteSheetCleared}=require('../../.compiled/game/level-one');
+const {applyAssistedPop,applyManualPop,beginLevel,beginLevelOne,createLevelOne,createLevelState,noteSheetCleared}=require('../../.compiled/game/level-one');
 
 test('clean sweep starts at the configured gesture crossing',()=>{
  const early=scoreManualPop({now:0,input:'mouse',gestureOrdinal:GAME_CONFIG.scoring.cleanSweepStartsAt-1,adjacent:true,hotKey:false,combo:EMPTY_COMBO});
@@ -57,4 +57,9 @@ test('level 1 scores two manual sheets and keeps the first category',()=>{
  step=noteSheetCleared(step.state);
  assert.equal(step.kind,'cleared');
  assert.equal(step.state.session.run.level,2);
+ const level2=beginLevel(createLevelState(step.state.session,2),['KeyA','KeyS','KeyD']);
+ assert.equal(level2.levelId,2);
+ assert.equal(level2.sheets,GAME_CONFIG.run.levels[1].sheetCount);
+ assert.equal(level2.category,'touch');
+ assert.equal(level2.startScore,step.state.session.run.score);
 });

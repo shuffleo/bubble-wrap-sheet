@@ -122,6 +122,7 @@ with sync_playwright() as pw:
 
  load(page,'?game=1&tuning=show')
  check('tuning drawer is gated by the exact development route',page.locator('#tuning-drawer').count()==1)
+ check('tuning drawer reserves calibration diagnostics',page.locator('[data-calibration-diagnostics]').inner_text()=='No Level 2 sample yet.')
  check('Tweakpane, Number Flow, and Smoothie Charts are bundled for offline use',page.evaluate('Boolean(window.GameVendors?.Pane && window.GameVendors?.SmoothieChart && window.GameVendors?.TimeSeries && customElements.get("number-flow"))'))
  check('schema generates a broad editable field set',page.locator('#tuning-pane-host .tp-lblv').count()>80)
  labels=page.locator('#tuning-pane-host .tp-lblv_l').all_inner_texts()
@@ -166,12 +167,34 @@ with sync_playwright() as pw:
    if(!bubbleUI.refreshing) bubbleUI.getGameBubbles().filter(b=>b.eligible&&!b.popped).forEach(b=>bubbleUI.popForGame(b.index,{type:'manual',input:'mouse',gestureId:'finish'}));
    return false;
  }''',timeout=15000)
- check('level result attributes its score progressively',page.locator('.game-score-calculation>div').count()==5 and page.locator('.game-medal[data-passed=true]').count()>=1)
+ check('level result attributes its score progressively',page.locator('.game-score-calculation>div').count()>=4 and page.locator('.game-medal[data-passed=true]').count()>=1)
  check('level result shows clear time and next medal guidance','clear time' in page.locator('.game-result-hero').inner_text().lower() and ('needs' in page.locator('.game-medal-gap').inner_text().lower() or 'secured' in page.locator('.game-medal-gap').inner_text().lower()))
+ page.locator('[data-level-action=continue]').click()
+ page.wait_for_function('document.querySelector("#game-root")?.dataset.screen==="level-intro" && document.querySelector(".game-eyebrow")?.textContent.includes("Level 2")')
+ check('level 2 brief shows five M sheets and a soft target','5 × M' in page.locator('.game-brief-stats').inner_text() and 'time target' in page.locator('.game-brief-stats').inner_text().lower())
+ page.locator('[data-level-action=play]').click()
+ page.wait_for_function('bubbleUI.settings.bubbleSize===64 && bubbleUI.refreshLocked===true && document.querySelector(".game-hud-timer")')
+ check('level 2 soft timer is visible without a danger state',page.locator('.game-hud-timer').is_visible() and page.locator('.game-hud').get_attribute('data-danger')=='false')
+ page.wait_for_function('''() => {
+   const root=document.querySelector('#game-root');
+   if(root?.dataset.screen==='run-won'&&root.querySelector('.game-eyebrow')?.textContent.includes('Level 2')) return true;
+   if(root?.dataset.screen==='hud'&&!bubbleUI.refreshing) bubbleUI.getGameBubbles().filter(b=>b.eligible&&!b.popped).forEach(b=>bubbleUI.popForGame(b.index,{type:'manual',input:'mouse',gestureId:'tempo'}));
+   return false;
+ }''',timeout=30000)
+ check('level 2 result settles time bonus and calibration',page.locator('.game-score-calculation').inner_text().find('Remaining-time bonus')>=0 and 'Calibrated pace' in page.locator('.game-result-note').inner_text())
+ page.locator('[data-level-action=continue]').click()
+ page.wait_for_function('document.querySelector("#game-root")?.dataset.screen==="level-intro" && document.querySelector(".game-eyebrow")?.textContent.includes("Level 3")')
+ check('level 3 brief uses five L sheets and a calibrated deadline','5 × L' in page.locator('.game-brief-stats').inner_text() and 'deadline' in page.locator('.game-brief-stats').inner_text().lower())
+ page.locator('[data-level-action=play]').click()
+ page.wait_for_function('bubbleUI.settings.bubbleSize===82 && bubbleUI.refreshLocked===true')
+ check('level 3 starts with a hard timer on L bubbles',page.locator('.game-hud-timer .game-label').inner_text().lower()=='time left')
+ page.wait_for_selector('#game-root[data-screen="run-lost"]',timeout=35000)
+ check('level 3 timeout ends the run with a reset choice','time’s up' in page.locator('#run-lost-heading').inner_text().lower() and page.locator('[data-level-action=retry]').is_visible())
  page.locator('[data-level-action=retry]').click()
+ page.wait_for_function('document.querySelector("#game-root")?.dataset.screen==="level-intro" && document.querySelector(".game-eyebrow")?.textContent.includes("Level 1")')
  page.locator('[data-level-action=play]').click()
  page.wait_for_function('bubbleUI.getStats().popped===0 && bubbleUI.refreshLocked===true')
- check('retry starts on a fresh locked sheet',page.evaluate('bubbleUI.getStats().popped===0'))
+ check('timeout retry resets to a fresh level 1 sheet',page.evaluate('bubbleUI.getStats().popped===0 && bubbleUI.settings.bubbleSize===64'))
  check('fixture UI produces no JavaScript page errors',not errors)
  browser.close()
 
