@@ -16,11 +16,13 @@ test('clean sweep starts at the configured gesture crossing',()=>{
  assert.equal(gap.skill,'none');
 });
 
-test('hot key scores only after a highlighted keyboard success and then rotates',()=>{
+test('keyboard pops score base value with no highlighted-key bonus',()=>{
  const miss=scoreManualPop({now:0,input:'keyboard',gestureOrdinal:1,adjacent:true,hotKey:false,combo:EMPTY_COMBO});
- const hit=scoreManualPop({now:0,input:'keyboard',gestureOrdinal:4,adjacent:true,hotKey:true,combo:EMPTY_COMBO});
+ const marked=scoreManualPop({now:0,input:'keyboard',gestureOrdinal:4,adjacent:true,hotKey:true,combo:EMPTY_COMBO});
  assert.equal(miss.skill,'none');
- assert.equal(hit.skill,'hot-key');
+ assert.equal(marked.skill,'none');
+ assert.equal(miss.points,GAME_CONFIG.scoring.normalBase);
+ assert.equal(marked.points,GAME_CONFIG.scoring.normalBase);
  const first=chooseHotKeys(['KeyQ','KeyW','KeyE','KeyR'],GAME_CONFIG.scoring.hotKeyTargetCount,createGameRng(4));
  const second=chooseHotKeys(['KeyQ','KeyW','KeyE','KeyR'],GAME_CONFIG.scoring.hotKeyTargetCount,first.state,first.codes);
  assert.notDeepEqual([...first.codes].sort(),[...second.codes].sort());
@@ -58,10 +60,10 @@ test('manual score applies Sure Hands before velocity and deadline multipliers',
  const now=1500;
  const result=scoreManualPop({
   now,
-  input:'keyboard',
-  gestureOrdinal:1,
-  adjacent:false,
-  hotKey:true,
+  input:'touch',
+  gestureOrdinal:3,
+  adjacent:true,
+  hotKey:false,
   combo:{count:4,expiresAt:now},
   owned:['sureHands','velocityBuff','deadlineFighter'],
   manualPopTimes:[0,250,500,750,1000,1250],

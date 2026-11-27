@@ -733,6 +733,17 @@ Exit:
   hold feel and jitter, Drunken Bob clarity, conveyor motion comfort, haptics,
   and final balance in both score categories.
 
+### Playtest follow-up: labels, patterns, and the result trace
+
+Implemented:
+
+- Survival Run suspends saved key labels. Keyboard pops score base value and do not receive a highlighted-key bonus.
+- Cluster Bomb arms one random remaining key group at each 25% of a static sheet, up to three times, and that key pops the group.
+- Keyboard Cover shows every key label and removes a label when its bubble pops. With Cluster Bomb, the armed group is the bright set.
+- A manual zigzag or swirl/concentric path on a static sheet adds half of that sheet's manual score again. The two patterns do not stack.
+- The level-end dossier draws the level's manual velocity samples as a non-interactive decoration.
+- These two upgrades are in `level-design.json` and the live shop. The pool is fourteen upgrades.
+
 ## Implementation risks
 
 ### Engine coupling

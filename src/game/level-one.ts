@@ -26,7 +26,7 @@ export interface LevelPlayState {
  currentVelocityMultiplier:number;
  currentDeadlineMultiplier:number;
  scoredBubbleKeys:Set<string>;
- breakdown:{base:number;cleanSweep:number;hotKey:number;sureHands:number;velocityBoost:number;deadlineBoost:number;assisted:number;assistedByUpgrade:Partial<Record<UpgradeId,number>>;remainingTime:number;penalty:number};
+ breakdown:{base:number;cleanSweep:number;hotKey:number;sureHands:number;velocityBoost:number;deadlineBoost:number;assisted:number;assistedByUpgrade:Partial<Record<UpgradeId,number>>;remainingTime:number;penalty:number;pattern:number};
 }
 export type LevelOneState=LevelPlayState;
 
@@ -78,7 +78,7 @@ export function createLevelState(source:GameSessionState,levelId:LevelId):LevelP
   currentVelocityMultiplier:1,
   currentDeadlineMultiplier:1,
   scoredBubbleKeys:new Set(),
-  breakdown:{base:0,cleanSweep:0,hotKey:0,sureHands:0,velocityBoost:0,deadlineBoost:0,assisted:0,assistedByUpgrade:{},remainingTime:0,penalty:0}
+  breakdown:{base:0,cleanSweep:0,hotKey:0,sureHands:0,velocityBoost:0,deadlineBoost:0,assisted:0,assistedByUpgrade:{},remainingTime:0,penalty:0,pattern:0}
  };
 }
 
@@ -115,7 +115,7 @@ export function applyManualPop(state:LevelPlayState,input:{
   input:input.input,
   gestureOrdinal:gesture?.ordinal??1,
   adjacent:gesture?gesture.adjacent:false,
-  hotKey:keyboard&&!!input.keyCode&&state.hotKeys.includes(input.keyCode),
+   hotKey:false,
   combo:state.combo,
   owned:state.session.run.upgrades as UpgradeId[],
   manualPopTimes:state.manualPopTimes,

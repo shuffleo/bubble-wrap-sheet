@@ -43,11 +43,9 @@ export function scoreManualPop(input:{
  const scoring=GAME_CONFIG.scoring;
  const owned=input.owned??[];
  const keyboard=input.input==='keyboard';
- const skill:ScoreSkill=input.skillEligible===false
+ const skill:ScoreSkill=input.skillEligible===false||keyboard
   ?'none'
-  :keyboard
-   ?input.hotKey?'hot-key':'none'
-   :input.gestureOrdinal>=scoring.cleanSweepStartsAt&&input.adjacent?'clean-sweep':'none';
+  :input.gestureOrdinal>=scoring.cleanSweepStartsAt&&input.adjacent?'clean-sweep':'none';
  const alive=input.combo.expiresAt!==0&&input.now<=input.combo.expiresAt;
  const combo={count:alive?input.combo.count+1:1,expiresAt:input.now+scoring.comboGraceMs};
  const popTimes=[...(input.manualPopTimes??[]),input.now].filter(time=>time>=input.now-scoring.velocity.windowMs&&time<=input.now);

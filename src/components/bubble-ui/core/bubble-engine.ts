@@ -39,7 +39,7 @@ export class BubbleEngine extends EventTarget {
  private surfaces=new Map<string,Surface>();private pointers=new Map<number,Pointer>();private observer:ResizeObserver;
  private keyboard:KeyboardMapping=buildKeyboardMapping([]);private keyboardHints:HTMLDivElement|null=null;private hintNodes=new Map<number,HTMLElement>();
  private points:BubblePoint[]=[];private physics=new BubblePhysics([],()=>{});private coordMap=new Map<string,number>();
- private pendingPopSources=new Map<number,BubblePopSource>();private refreshLocked=false;private hotCodes:Set<string>|null=null;private labelSnapshot:boolean|null=null;private completionToken:object|null=null;
+ private pendingPopSources=new Map<number,BubblePopSource>();private refreshLocked=false;private hotCodes:Set<string>|null=null;private labelSnapshot:boolean|null=null;private forcedLabels:Set<number>|'all'|null=null;private highlightCode:string|null=null;private suspendSavedLabels=false;private completionToken:object|null=null;
  private lastPopBySurface=new Map<string,number>();
  private exchange:SheetExchange|null=null;private currentAttributes:Float32Array[]=[];private renderInstances=0;
  private sheetRoles=new Float32Array();private conveyorActive=false;private conveyorVisible=new Uint8Array();private conveyorSpawnSerial=new Uint32Array();private conveyorSerial=0;private conveyorSpeed=0;private conveyorBaseTravelMs=1;private conveyorOrigins=new Float32Array();
@@ -260,7 +260,13 @@ export class BubbleEngine extends EventTarget {
    else this.applyHotKeys();
   }
  }
- private applyHotKeys(){for(const node of this.hintNodes.values()){if(!this.hotCodes){delete node.dataset.hot;continue;}node.dataset.hot=String(this.hotCodes.has(node.dataset.keyCode||''));}}
+ /** Survival runs hide the saved label preference unless an upgrade forces labels. */
+ setSavedKeyLabelsSuspended(suspended:boolean){this.suspendSavedLabels=suspended;this.refreshKeyboardHints();}
+ /** Survival-only labels. Null keeps the saved Endless Mode preference. */
+ setForcedKeyLabels(indices:readonly number[]|'all'|null){this.forcedLabels=indices==='all'?'all':indices?new Set(indices):null;this.refreshKeyboardHints();}
+ setHighlightedKey(code:string|null){this.highlightCode=code;this.applyHotKeys();}
+ private labelsVisible(){const saved=this.settings.showKeyLabels&&!this.suspendSavedLabels;return this.settings.keyboardEnabled&&(saved||this.forcedLabels==='all'||this.forcedLabels instanceof Set&&this.forcedLabels.size>0);}
+ private applyHotKeys(){const highlighted=this.highlightCode?new Set([this.highlightCode]):this.hotCodes;for(const node of this.hintNodes.values()){if(!highlighted){delete node.dataset.hot;continue;}node.dataset.hot=String(highlighted.has(node.dataset.keyCode||''));}}
  reset(surface?:string,immediate=false){
   this.completionToken=null;
   if(this.refreshLocked||this.destroyed||this.lost||(!immediate&&this.refreshing))return;
@@ -459,10 +465,12 @@ export class BubbleEngine extends EventTarget {
  }
  getKeyboardMap(){return this.keyboard.groups.map(group=>({...group,indices:[...group.indices],total:group.indices.length,remaining:group.indices.reduce((sum,index)=>sum+(this.physics.isPopped[index]?0:1),0)}));}
  private refreshKeyboardHints(){
-  if(!this.settings.showKeyLabels||!this.settings.keyboardEnabled){this.keyboardHints?.remove();this.keyboardHints=null;this.hintNodes.clear();return;}
+  if(!this.labelsVisible()){this.keyboardHints?.remove();this.keyboardHints=null;this.hintNodes.clear();return;}
   if(!this.keyboardHints){this.keyboardHints=this.canvas.ownerDocument.createElement('div');this.keyboardHints.className='keyboard-hints';this.keyboardHints.setAttribute('aria-hidden','true');this.canvas.ownerDocument.body.append(this.keyboardHints);}
+  this.keyboardHints.dataset.cover=String(this.forcedLabels==='all');
+  this.keyboardHints.dataset.dismiss=this.forcedLabels?'pop':'fade';
   this.keyboardHints.replaceChildren();this.hintNodes.clear();
-  for(const [index,key]of this.keyboard.byPoint){const node=document.createElement('kbd');node.textContent=key.label;node.dataset.keyCode=key.code;node.dataset.pointIndex=String(index);this.hintNodes.set(index,node);this.keyboardHints.append(node);}
+  for(const [index,key]of this.keyboard.byPoint){if(this.forcedLabels instanceof Set&&!this.forcedLabels.has(index))continue;if(this.forcedLabels&&this.physics.isPopped[index])continue;const node=document.createElement('kbd');node.textContent=key.label;node.dataset.keyCode=key.code;node.dataset.pointIndex=String(index);this.hintNodes.set(index,node);this.keyboardHints.append(node);}
   for(const index of this.hintNodes.keys())this.syncLayerHint(index);
   this.applyHotKeys();this.syncKeyboardHints();
  }

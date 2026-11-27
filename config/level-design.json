@@ -30,7 +30,9 @@
         "bubbleInsurance": 500,
         "rateHikeCycle": 950,
         "priorityBanking": 650,
-        "flatRate": 600
+        "flatRate": 600,
+        "clusterBomb": 1400,
+        "keyboardCover": 500
       }
     },
     "keyboardPointer": {
@@ -50,7 +52,9 @@
         "bubbleInsurance": 1250,
         "rateHikeCycle": 2375,
         "priorityBanking": 1625,
-        "flatRate": 1500
+        "flatRate": 1500,
+        "clusterBomb": 3500,
+        "keyboardCover": 1250
       }
     }
   },
@@ -64,6 +68,11 @@
     "cleanSweepStartsAt": 3,
     "hotKeyTargetCount": 3,
     "remainingTimeMaxMultiplier": 1.5,
+    "sheetPattern": {
+      "multiplier": 1.5,
+      "minimumManualPops": 6,
+      "minimumCoverage": 0.6
+    },
     "velocity": {
       "windowMs": 1500,
       "activationPopsPerSecond": 2,
@@ -221,6 +230,13 @@
       "interestCapMultiplier": 2
     },
     "flatRate": {
+      "enabled": true
+    },
+    "clusterBomb": {
+      "sheetFraction": 0.25,
+      "maximumArms": 3
+    },
+    "keyboardCover": {
       "enabled": true
     }
   },

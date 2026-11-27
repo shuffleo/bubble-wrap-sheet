@@ -66,7 +66,8 @@
         "hotKeyTargetCount",
         "remainingTimeMaxMultiplier",
         "velocity",
-        "deadline"
+        "deadline",
+        "sheetPattern"
       ],
       "properties": {
         "normalBase": {"$ref": "#/definitions/nonNegativeInteger"},
@@ -110,6 +111,16 @@
             "dangerZoneMaxSeconds": {"$ref": "#/definitions/positiveNumber"},
             "minimumMultiplier": {"$ref": "#/definitions/multiplier"},
             "maximumMultiplier": {"$ref": "#/definitions/multiplier"}
+          }
+        },
+        "sheetPattern": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["multiplier", "minimumManualPops", "minimumCoverage"],
+          "properties": {
+            "multiplier": {"$ref": "#/definitions/multiplier"},
+            "minimumManualPops": {"$ref": "#/definitions/positiveInteger"},
+            "minimumCoverage": {"$ref": "#/definitions/ratio"}
           }
         }
       }
@@ -263,7 +274,9 @@
         "bubbleInsurance",
         "rateHikeCycle",
         "priorityBanking",
-        "flatRate"
+        "flatRate",
+        "clusterBomb",
+        "keyboardCover"
       ],
       "properties": {
         "fatFinger": {
@@ -333,6 +346,18 @@
           }
         },
         "flatRate": {
+          "$ref": "#/definitions/toggleUpgrade"
+        },
+        "clusterBomb": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sheetFraction", "maximumArms"],
+          "properties": {
+            "sheetFraction": {"$ref": "#/definitions/ratio"},
+            "maximumArms": {"$ref": "#/definitions/positiveInteger"}
+          }
+        },
+        "keyboardCover": {
           "$ref": "#/definitions/toggleUpgrade"
         }
       }
@@ -535,7 +560,9 @@
         "bubbleInsurance",
         "rateHikeCycle",
         "priorityBanking",
-        "flatRate"
+        "flatRate",
+        "clusterBomb",
+        "keyboardCover"
       ],
       "properties": {
         "fatFinger": {"$ref": "#/definitions/nonNegativeInteger"},
@@ -549,7 +576,9 @@
         "bubbleInsurance": {"$ref": "#/definitions/nonNegativeInteger"},
         "rateHikeCycle": {"$ref": "#/definitions/nonNegativeInteger"},
         "priorityBanking": {"$ref": "#/definitions/nonNegativeInteger"},
-        "flatRate": {"$ref": "#/definitions/nonNegativeInteger"}
+        "flatRate": {"$ref": "#/definitions/nonNegativeInteger"},
+        "clusterBomb": {"$ref": "#/definitions/nonNegativeInteger"},
+        "keyboardCover": {"$ref": "#/definitions/nonNegativeInteger"}
       }
     },
     "inputCategory": {

@@ -15,7 +15,9 @@ export const LIVE_SHOP_UPGRADES:readonly UpgradeId[]=[
  'bubbleInsurance',
  'rateHikeCycle',
  'priorityBanking',
- 'flatRate'
+ 'flatRate',
+ 'clusterBomb',
+ 'keyboardCover'
 ];
 
 export interface LiveShopState {

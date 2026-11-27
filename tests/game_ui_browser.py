@@ -170,6 +170,7 @@ with sync_playwright() as pw:
  page.locator('[data-level-action=play]').click()
  page.wait_for_function('bubbleUI.settings.bubbleSize===64 && bubbleUI.refreshLocked===true')
  check('level 1 plays on M sheets without a timer',page.locator('.game-hud-timer').count()==0 and page.locator('.game-onboarding').is_visible())
+ check('survival hides key labels',page.locator('.keyboard-hints kbd').count()==0)
  check('live survival HUD restores the overflow menu',page.locator('.game-overflow summary').is_visible())
  page.locator('.game-overflow summary').click()
  menu_labels=' '.join(page.locator('.game-overflow-menu button').all_inner_texts())
@@ -214,7 +215,8 @@ with sync_playwright() as pw:
    if(!bubbleUI.refreshing) bubbleUI.getGameBubbles().filter(b=>b.eligible&&!b.popped).forEach(b=>bubbleUI.popForGame(b.index,{type:'manual',input:'mouse',gestureId:'finish'}));
    return false;
  }''',timeout=15000)
- check('level result attributes its score progressively',page.locator('.game-score-calculation>div').count()>=4 and page.locator('.game-medal[data-passed=true]').count()>=1)
+ check('level result attributes its score progressively',page.locator('.game-score-calculation>div').count()>=3 and page.locator('.game-medal[data-passed=true]').count()>=1)
+ check('level result keeps the velocity trace as decoration',page.locator('.game-result-velocity canvas').count()==1)
  check('level result shows clear time and next medal guidance','clear time' in page.locator('.game-result-hero').inner_text().lower() and ('needs' in page.locator('.game-medal-gap').inner_text().lower() or 'secured' in page.locator('.game-medal-gap').inner_text().lower()))
  page.locator('[data-level-action=continue]').click()
  page.wait_for_function('document.querySelector("#game-root")?.dataset.screen==="level-intro" && document.querySelector(".game-eyebrow")?.textContent.includes("Level 2")')
