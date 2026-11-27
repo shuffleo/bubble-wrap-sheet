@@ -16,7 +16,7 @@ layout(location=9) in vec3 aNeighbor3;
 layout(location=10) in vec3 aNeighbor4;
 layout(location=11) in vec3 aNeighbor5;
 layout(location=12) in vec4 aEdges;
-layout(location=13) in float aReminderExposure;
+layout(location=13) in float aReminderBounce;
 layout(location=14) in vec4 aHazard;
 layout(location=15) in float aSheetRole;
 uniform vec4 uSlide;
@@ -36,14 +36,14 @@ flat out vec4 vStyle;
 flat out vec4 vEdges;
 flat out float vSquish;
 flat out float vBounce;
-flat out float vReminderExposure;
+flat out float vReminderBounce;
 flat out vec4 vHazard;
 flat out vec3 vNeighbors[6];
 void main(){
  vec2 screen=aBubble.xy+aVertex*aBubble.w;
  vLocal=aVertex*aBubble.w/aBubble.z;vScreen=screen;
  vNeighbors[0]=aNeighbor0;vNeighbors[1]=aNeighbor1;vNeighbors[2]=aNeighbor2;vNeighbors[3]=aNeighbor3;vNeighbors[4]=aNeighbor4;vNeighbors[5]=aNeighbor5;
- vEdges=aEdges;vBubble=aBubble;vClip=aClip;vStyle=aStyle;vSquish=aSquish;vBounce=aBounce;vReminderExposure=aReminderExposure;vHazard=aHazard;
+ vEdges=aEdges;vBubble=aBubble;vClip=aClip;vStyle=aStyle;vSquish=aSquish;vBounce=aBounce;vReminderBounce=aReminderBounce;vHazard=aHazard;
  vec3 d=vec3(0.);
  if(aEdges.x>=0.&&uMotionEnabled>.5){
   vec2 uv=clamp((screen-aClip.xy)/(aClip.zw-aClip.xy),0.,1.);
@@ -51,7 +51,9 @@ void main(){
   for(int i=0;i<8;i++){float age=uTime-uRipples[i].z;if(age<0.||age>1.65)continue;float q=(distance(screen,uRipples[i].xy)-age*uMotion.z)/uMotion.w;d.z+=exp(-q*q*1.5)*sin(q*2.2)*exp(-age*3.8)*uMotion.y*uRipples[i].w;}
  }
  float interior=1.-smoothstep(.55,1.05,length(vLocal));
- d.z+=aBounce*8.*interior;
+ // Reminder motion reuses the re-tap dome. Edge height stays zero so the hex join holds.
+ float reminded=aBounce+aReminderBounce;
+ d.z+=reminded*8.*interior;
  float slideX=0.;
  if(aSheetRole>.5&&uSlide.w>.5){
   float phase=uSlide.x,uvx=clamp((screen.x-aClip.x)/(aClip.z-aClip.x),0.,1.);
@@ -77,7 +79,7 @@ flat in vec4 vStyle;
 flat in vec4 vEdges;
 flat in float vSquish;
 flat in float vBounce;
-flat in float vReminderExposure;
+flat in float vReminderBounce;
 flat in vec4 vHazard;
 flat in vec3 vNeighbors[6];
 uniform sampler2D uNoise;
@@ -149,7 +151,8 @@ void main(){
  if(sd>.6)discard;
  float coverage=1.-smoothstep(-.45,.6,sd);
  float r=length(vLocal),inner=1.-smoothstep(.72,1.04,r);
- vec2 p=vLocal*(1.-vBounce*.025*inner);
+ float reminded=vBounce+vReminderBounce;
+ vec2 p=vLocal*(1.-reminded*.025*inner);
  float weight=kernel(r),value=photograph(vec3(vStyle.z,vStyle.w,vSquish),p)*weight;
  float pitch=vBubble.w/vBubble.z;
  vec2 offsets[6]=vec2[6](vec2(-1.,0.),vec2(1.,0.),vec2(-.5,-.866025404),vec2(.5,-.866025404),vec2(-.5,.866025404),vec2(.5,.866025404));
@@ -166,7 +169,7 @@ void main(){
  // replace baked lighting. Lower amplitude prevents metallic false highlights.
  vec3 N=normalize(vec3(-dFdx(vHeight)*uDpr,-dFdy(vHeight)*uDpr,1.));
  float relief=dot(N,normalize(vec3(-.35,-.55,1.)))-.8377;
- value+=relief*.21+vBounce*.030*inner;
+ value+=relief*.21+reminded*.030*inner;
  // Double membranes carry a broad rim; the cracked layer keeps a diagonal
  // fracture mark. Memory Foam warnings pulse the collapsed bubble locally.
  float doubleRim=(1.-smoothstep(.055,.14,abs(r-.82)))*step(1.5,vHazard.x);
@@ -177,7 +180,7 @@ void main(){
  value+=doubleRim*.22-crack*.18+vHazard.y*.32*inner+hardenedRim*.10+holdArc*.38;
  value=mix(film,value,uAtlasReady);
  value=clamp((value-uTone.z)/max(.03,uTone.w-uTone.z),0.,1.);
- value*=exp2(uTone.x+vReminderExposure);value=(value-.5)*uTone.y+.5;
+ value*=exp2(uTone.x);value=(value-.5)*uTone.y+.5;
  value=pow(clamp(value,0.,1.),1./uGrade.x);
  value+=smoothstep(.5,1.,value)*(uGrade.y-1.)*.38;
  value+=(noise(vScreen*2.3)-.5)*uGrade.z;

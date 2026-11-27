@@ -43,7 +43,7 @@ export class BubbleEngine extends EventTarget {
  private lastPopBySurface=new Map<string,number>();
  private exchange:SheetExchange|null=null;private currentAttributes:Float32Array[]=[];private renderInstances=0;
  private sheetRoles=new Float32Array();private conveyorActive=false;private conveyorVisible=new Uint8Array();private conveyorSpawnSerial=new Uint32Array();private conveyorSerial=0;private conveyorSpeed=0;private conveyorBaseTravelMs=1;private conveyorOrigins=new Float32Array();
- private reminderIndex=-1;private reminderStartedAt=0;private reminderExposure=new Float32Array();
+ private reminderIndex=-1;private reminderStartedAt=0;private reminderBounce=new Float32Array();
  private gameLayers=new Uint8Array();private doubleLayerMask=new Uint8Array();private hardenedMask=new Uint8Array();private holdProgressMs=new Float32Array();private holdRequiredMs=0;private holdDecayMs=0;private activeHolds=new Map<number,ManualPopSource>();private manualTargetResolver:((sourceIndex:number,source:ManualPopSource,bubbles:readonly GameBubbleSnapshot[])=>number)|null=null;
  private hazardWarningIndex=-1;private hazardWarningStartedAt=0;private hazardVisual=new Float32Array();
  private crackedGestureByIndex=new Map<number,string>();
@@ -130,8 +130,8 @@ export class BubbleEngine extends EventTarget {
   this.points.forEach((p,i)=>{const s=this.surfaces.get(p.surface)!;edges.set([s.config.layout==='single'?-1:(s.config.edgeRoughness??0),s.config.edgeScale??24,s.config.edgeSeed??17,s.config.cornerVariation??0],i*4);const pitch=p.radius*2+Math.max(0,s.config.gap??4);a.set([p.x,p.y,p.radius,pitch],i*4);clip.set([s.rect.left,s.rect.top,s.rect.left+s.rect.width,s.rect.top+s.rect.height],i*4);style.set([hash(p.row*1023+p.col*17),s.config.cornerRadius??5,materialVariant(p.row+Math.floor(this.settings.variantSeed),p.col),materialVariant(p.row+Math.floor(this.settings.variantSeed),p.col,true)],i*4);});
   this.neighborData=Array.from({length:6},()=>new Float32Array(n*3));
   this.points.forEach((p,i)=>{const odd=p.row&1,offsets=[[0,-1],[0,1],[-1,odd-1],[-1,odd],[1,odd-1],[1,odd]];for(let k=0;k<6;k++){const j=this.physics.neighbors[i*6+k],np=j>=0?this.points[j]:null,row=np?.row??p.row+offsets[k][0],col=np?.col??p.col+offsets[k][1];this.neighborData[k].set([materialVariant(row+Math.floor(this.settings.variantSeed),col),materialVariant(row+Math.floor(this.settings.variantSeed),col,true),j>=0?this.physics.squish[j]:1],i*3);}});
-  this.reminderExposure=new Float32Array(n);this.hazardVisual=new Float32Array(n*4);this.syncHazardVisual();
-  this.currentAttributes=[a,clip,style,this.physics.squish,this.physics.bounce,...this.neighborData,edges,this.reminderExposure,this.hazardVisual];
+  this.reminderBounce=new Float32Array(n);this.hazardVisual=new Float32Array(n*4);this.syncHazardVisual();
+  this.currentAttributes=[a,clip,style,this.physics.squish,this.physics.bounce,...this.neighborData,edges,this.reminderBounce,this.hazardVisual];
   const previous=this.exchange?.slide?this.exchange:null,oldCount=previous?.oldCount??0;
   this.renderInstances=n+oldCount;
   const roles=new Float32Array(this.renderInstances);if(this.conveyorActive)this.points.forEach((p,i)=>{if(p.mode==='poppable')roles[i]=this.conveyorVisible[i]?0:-1;});if(previous){this.points.forEach((p,i)=>{if(p.mode==='poppable')roles[i]=2;});roles.fill(1,n);}this.sheetRoles=roles;
@@ -215,9 +215,9 @@ export class BubbleEngine extends EventTarget {
    if(!Number.isInteger(next)||!point||point.mode!=='poppable'||point.eligible===false||point.cut||this.physics.isPopped[next])return false;
   }
   if(next===this.reminderIndex)return true;
-  this.reminderExposure.fill(0);this.reminderIndex=next;this.reminderStartedAt=performance.now();this.dirty=true;this.wake();this.notify();return true;
+  this.reminderBounce.fill(0);this.reminderIndex=next;this.reminderStartedAt=performance.now();this.dirty=true;this.wake();this.notify();return true;
  }
- inspectBubbleReminder(){return {index:this.reminderIndex,active:this.reminderIndex>=0,exposure:this.reminderIndex>=0?this.reminderExposure[this.reminderIndex]??0:0};}
+ inspectBubbleReminder(){const bounce=this.reminderIndex>=0?this.reminderBounce[this.reminderIndex]??0:0;return {index:this.reminderIndex,active:this.reminderIndex>=0,bounce,exposure:0};}
  setHazardWarning(index:number|null){
   const next=index===null?-1:index;
   if(next>=0){
@@ -296,12 +296,12 @@ export class BubbleEngine extends EventTarget {
  private updateBubbleReminder(time:number):boolean {
   const index=this.reminderIndex,point=this.points[index];
   if(index<0||!point||this.physics.isPopped[index]){if(index>=0)this.setBubbleReminder(null);return false;}
-  this.reminderExposure.fill(0);
-  if(this.reduced){this.reminderExposure[index]=.65;return false;}
+  this.reminderBounce.fill(0);
+  if(this.reduced){this.reminderBounce[index]=.28;return false;}
   const phase=((time-this.reminderStartedAt)%1800)/1800;
   const progress=phase<.5?phase*2:(1-phase)*2;
   const bounce=(value:number)=>value<1/2.75?7.5625*value*value:value<2/2.75?7.5625*(value-=1.5/2.75)*value+.75:value<2.5/2.75?7.5625*(value-=2.25/2.75)*value+.9375:7.5625*(value-=2.625/2.75)*value+.984375;
-  this.reminderExposure[index]=bounce(progress)*.9;
+  this.reminderBounce[index]=bounce(progress)*.8;
   this.dirty=true;
   return true;
  }
@@ -366,7 +366,7 @@ export class BubbleEngine extends EventTarget {
   if(this.exchange){const duration=this.exchange.timeline.duration,elapsed=this.exchange.timeline.elapsed();this.exchange.progress=Number.isFinite(elapsed)&&duration>0?Math.max(0,Math.min(1,elapsed/duration)):1;if(this.exchange.progress>=1)this.finishRefresh();}
   if(this.dirty||active||flex||this.exchange){const g=this.gl;g.useProgram(this.program);g.bindVertexArray(this.vao);g.activeTexture(g.TEXTURE0);g.bindTexture(g.TEXTURE_2D,this.texture);g.activeTexture(g.TEXTURE1);g.bindTexture(g.TEXTURE_2D,this.atlas);g.activeTexture(g.TEXTURE2);g.bindTexture(g.TEXTURE_2D,this.collapsedAtlas);g.uniform1f(this.uniforms.uAtlasReady,this.atlasReady);g.bindBuffer(g.ARRAY_BUFFER,this.buffers[4]);g.bufferSubData(g.ARRAY_BUFFER,0,this.physics.squish);g.uniform2f(this.uniforms.uResolution,innerWidth,innerHeight);g.uniform1f(this.uniforms.uDpr,this.dpr);
    if(this.conveyorActive){g.bindBuffer(g.ARRAY_BUFFER,this.buffers[1]);g.bufferSubData(g.ARRAY_BUFFER,0,this.currentAttributes[0]);g.bindBuffer(g.ARRAY_BUFFER,this.buffers[15]);g.bufferSubData(g.ARRAY_BUFFER,0,this.sheetRoles);}
-   g.bindBuffer(g.ARRAY_BUFFER,this.buffers[5]);g.bufferSubData(g.ARRAY_BUFFER,0,this.physics.bounce);g.bindBuffer(g.ARRAY_BUFFER,this.buffers[13]);g.bufferSubData(g.ARRAY_BUFFER,0,this.reminderExposure);g.bindBuffer(g.ARRAY_BUFFER,this.buffers[14]);g.bufferSubData(g.ARRAY_BUFFER,0,this.hazardVisual);
+   g.bindBuffer(g.ARRAY_BUFFER,this.buffers[5]);g.bufferSubData(g.ARRAY_BUFFER,0,this.physics.bounce);g.bindBuffer(g.ARRAY_BUFFER,this.buffers[13]);g.bufferSubData(g.ARRAY_BUFFER,0,this.reminderBounce);g.bindBuffer(g.ARRAY_BUFFER,this.buffers[14]);g.bufferSubData(g.ARRAY_BUFFER,0,this.hazardVisual);
    for(let k=0;k<6;k++){const data=this.neighborData[k];for(let i=0;i<this.points.length;i++){const j=this.physics.neighbors[i*6+k];data[i*3+2]=j>=0?this.physics.squish[j]:1;}g.bindBuffer(g.ARRAY_BUFFER,this.buffers[6+k]);g.bufferSubData(g.ARRAY_BUFFER,0,data);}
    const s=this.settings,e=this.exchange;g.uniform4f(this.uniforms.uSlide,e?sheetEase(e.progress):0,e?.distance??0,s.slideFlex,e?.slide?1:0);g.uniform3fv(this.uniforms.uCorners,this.motion.corners);g.uniform4fv(this.uniforms.uRipples,this.motion.ripples);
    g.uniform4f(this.uniforms.uMotion,s.cornerInfluence,s.rippleStrength,s.rippleSpeed,s.rippleWidth);g.uniform1f(this.uniforms.uPerspective,s.perspective);g.uniform1f(this.uniforms.uTime,this.motion.time);g.uniform1f(this.uniforms.uMotionEnabled,s.motion?1:0);

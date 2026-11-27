@@ -581,7 +581,7 @@ The sheet remains the visual focus. During Survival Run, remove the page title a
 - Deadline Fighter does not occupy a permanent top-row chip; its active value appears on its upgrade icon.
 - Combo, hazard, and onboarding feedback appear contextually rather than competing with the primary KPI.
 - Key labels stay off unless Cluster Bomb or Keyboard Cover is owned.
-- If one to three eligible bubbles remain without a pop for three active seconds, one remaining bubble receives a rhythmic, bounce-eased exposure glow. Any pop, transition, visibility loss, or new sheet clears and restarts that reminder delay.
+- If one to three eligible bubbles remain without a pop for three active seconds, one remaining bubble plays the re-tap dome on the same ease-out bounce curve. The motion falls off before the cell edge, and exposure stays unchanged, so the hexagonal film join stays continuous. Any pop, transition, visibility loss, or new sheet clears and restarts that reminder delay.
 - Game type uses a tighter line height than body copy so the HUD stays compact on a phone.
 - One Material Symbols overflow button at the bottom right contains Refresh sheet, Mute, Shop preview, Modes, Run won preview, and Tuning panel. Refresh and mute are not separate corner buttons during Survival Run.
 

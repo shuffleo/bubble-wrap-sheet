@@ -199,8 +199,8 @@ with sync_playwright() as pw:
    left.slice(0,-3).forEach(b=>bubbleUI.popForGame(b.index,{type:'manual',input:'mouse',gestureId:'stragglers'}));
  }''')
  page.wait_for_function('bubbleUI.inspectBubbleReminder().active',timeout=5000)
- page.wait_for_function('bubbleUI.inspectBubbleReminder().exposure>0.1',timeout=2000)
- check('one of the final three idle bubbles receives a rhythmic exposure reminder',page.evaluate('bubbleUI.inspectBubbleReminder().active && bubbleUI.inspectBubbleReminder().exposure>0.1'))
+ page.wait_for_function('bubbleUI.inspectBubbleReminder().bounce>0.1',timeout=2000)
+ check('one of the final three idle bubbles bounces without an exposure grade',page.evaluate('bubbleUI.inspectBubbleReminder().active && bubbleUI.inspectBubbleReminder().bounce>0.1 && bubbleUI.inspectBubbleReminder().exposure===0'))
  page.evaluate('''() => {
    const left=bubbleUI.getGameBubbles().filter(b=>b.eligible&&!b.popped);
    left.slice(0,-1).forEach(b=>bubbleUI.popForGame(b.index,{type:'manual',input:'mouse',gestureId:'bulk'}));

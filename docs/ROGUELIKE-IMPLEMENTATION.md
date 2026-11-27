@@ -743,6 +743,7 @@ Implemented:
 - A manual zigzag or swirl/concentric path on a static sheet adds half of that sheet's manual score again. The two patterns do not stack.
 - The level-end dossier draws the level's manual velocity samples as a non-interactive decoration.
 - These two upgrades are in `level-design.json` and the live shop. The pool is fourteen upgrades.
+- The last-bubbles reminder drives the existing dome bounce with the ease-out bounce curve. It no longer multiplies exposure, which was revealing the hexagonal tiles.
 
 ## Implementation risks
 
