@@ -508,7 +508,14 @@ export class BubbleEngine extends EventTarget {
  /** Updates shader uniforms and imperative solvers without React renders. */
  setSettings(patch:Partial<Settings>){
   const next=sanitizeSettings(patch,this.settings);const geometry=['bubbleSize','gap','cornerRadius','cornerVariation','edgeRoughness','edgeScale','edgeSeed'] as const;
-  const relayout=geometry.some(k=>next[k]!==this.settings[k]);const reshuffle=next.variantSeed!==this.settings.variantSeed;const hintsChanged=next.showKeyLabels!==this.settings.showKeyLabels||next.keyboardEnabled!==this.settings.keyboardEnabled;
+  const relayout=geometry.some(k=>next[k]!==this.settings[k]);const reshuffle=next.variantSeed!==this.settings.variantSeed;
+  // Endless Mode ignores a stored label preference. Turning the material control
+  // itself on or off is a one-field change and still reveals or hides the keys.
+  let suspendChanged=false;
+  if('showKeyLabels' in patch&&(patch.showKeyLabels===false||Object.keys(patch).length===1)){
+   const suspended=!next.showKeyLabels;suspendChanged=suspended!==this.suspendSavedLabels;this.suspendSavedLabels=suspended;
+  }
+  const hintsChanged=suspendChanged||next.showKeyLabels!==this.settings.showKeyLabels||next.keyboardEnabled!==this.settings.keyboardEnabled;
   this.settings=next;this.physics.settings=next;this.motion.settings=next;this.audio.volume=next.volume;this.audio.pitchVariation=next.pitchVariation;this.audio.sampleGainVariation=next.sampleGainVariation;this.audio.sampleToneVariation=next.sampleToneVariation;this.audio.adaptiveRefill=next.adaptiveRefill;this.audio.refillMinimum=next.refillMinimum;this.audio.haptics=next.haptics;this.audio.setMuted(this.audio.muted);
   if(!next.motion)this.motion.clear();
   if(relayout){for(const surface of this.surfaces.values())if(surface.config.layout!=='single'){for(const key of geometry)(surface.config as unknown as Record<string,unknown>)[key]=next[key];}this.layout();}

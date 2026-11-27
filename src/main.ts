@@ -14,7 +14,7 @@ function start(){
  let engine:BubbleEngine;
  try{engine=new BubbleEngine(canvas);}catch(e){document.getElementById('error')!.hidden=false;document.getElementById('error-detail')!.textContent=String(e);return;}
  bindSheetFocus(sheet);
- const saved=readSavedSettings();engine.setSettings(saved);
+ const saved=readSavedSettings();engine.setSettings(saved);engine.setSettings({showKeyLabels:false});engine.setSavedKeyLabelsSuspended(true);
  engine.register(document.getElementById('fidget')!,{layout:'single',bubbleSize:32,gap:6,cornerRadius:30,mode:'spring-return'});
  const handle=engine.register(sheet,{...saved,mode:'poppable'});
  for(const node of Array.from(document.querySelectorAll<HTMLElement>('[data-corner]')))engine.bindCorner(node,Number(node.dataset.corner));

@@ -92,12 +92,12 @@ Every successful normal manual pop has a base value of 10, independent of input.
 
 ### Keyboard
 
-- Key labels are hidden during Survival Run.
+- Key labels are hidden in Endless Mode and during Survival Run.
 - A keyboard pop scores base value. There is no default highlighted-key bonus.
 - One physical press still pops one unpopped bubble in that key's group.
 - Held-key repeat remains disabled.
 - Keyboard Cover and Cluster Bomb are the only ways a run reveals key labels.
-- Endless Mode still defaults labels off, and its own label setting does not leak into a run.
+- A stored Endless Mode label preference stays off. The material control can turn labels on for that sheet; it does not leak into a Survival Run.
 
 ### Manual combo
 

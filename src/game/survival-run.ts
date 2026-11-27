@@ -215,7 +215,7 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   engine.setHotKeys(null);
   engine.setForcedKeyLabels(null);
   engine.setHighlightedKey(null);
-  engine.setSavedKeyLabelsSuspended(false);
+  engine.setSavedKeyLabelsSuspended(!engine.settings.showKeyLabels);
   if(engine.settings.bubbleSize!==previousSize)engine.setSettings({bubbleSize:previousSize});
   sheet.update({onAllPopped:()=>{}});
   root?.remove();root=null;state=null;

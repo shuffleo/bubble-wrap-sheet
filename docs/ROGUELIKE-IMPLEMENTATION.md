@@ -738,7 +738,7 @@ Exit:
 
 Implemented:
 
-- Survival Run suspends saved key labels. Keyboard pops score base value and do not receive a highlighted-key bonus.
+- Survival Run and Endless Mode both keep key labels hidden. A stored Endless preference does not show them. Keyboard pops score base value and do not receive a highlighted-key bonus.
 - Cluster Bomb arms one random remaining key group at each 25% of a static sheet, up to three times, and that key pops the group.
 - Keyboard Cover shows every key label and removes a label when its bubble pops. With Cluster Bomb, the armed group is the bright set.
 - A manual zigzag or swirl/concentric path on a static sheet adds half of that sheet's manual score again. The two patterns do not stack.
