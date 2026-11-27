@@ -536,7 +536,7 @@ The conveyor is a distinct encounter layout, not repeated sheet refreshes.
 - The belt is one hexagonal sheet, not scattered bubbles. Every row across the sheet height is populated.
 - The sheet moves continuously in world coordinates. Popped bubbles stay in place on the sheet and travel with it.
 - A bubble becomes missed when its complete hit area exits the right boundary.
-- While columns are still entering, the clip's left edge stays offscreen, so the ragged left border is hidden. After feeding stops, that border moves in from the left with the last column.
+- While columns are still entering, the clip's left edge stays offscreen, so the ragged left border is hidden. After feeding stops, a spare column of film sits past the last live column and the same rounded, noisy cut used on the other three sides moves in from the left. The end is not the hexagonal outline of the last column.
 - Pointer hit testing follows moving bubble positions.
 - Keyboard groups map to current screen-space bands and update as bubbles move.
 - Fat Finger resolves against current conveyor neighbours.

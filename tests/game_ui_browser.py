@@ -63,6 +63,12 @@ with sync_playwright() as pw:
   const visible=bubbleUI.inspect().filter(p=>p.conveyorVisible&&p.mode==="poppable");
   return sample.count>20 && sample.rows>=4 && sample.columns>=4 && visible.some(p=>p.x>sample.x+0.2) && bubbleUI.getStats().drawCalls===1;
  }''',conveyor_sample))
+ check('conveyor ending uses a cut film column instead of the last hex outline',page.evaluate('''() => {
+  bubbleUI.setGameConveyorFeeding(false);
+  const visible=bubbleUI.inspect().filter(p=>p.conveyorVisible&&p.mode==="poppable");
+  const cut=visible.filter(p=>p.cut),live=visible.filter(p=>!p.cut&&p.eligible);
+  return cut.length>=4 && live.length>20 && Math.min(...cut.map(p=>p.x))<Math.min(...live.map(p=>p.x));
+ }'''))
  page.evaluate('bubbleUI.endGameConveyor(false)')
  page.locator('#game-open').click()
  page.wait_for_selector('#game-root[data-screen="mode-select"]')
