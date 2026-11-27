@@ -1,6 +1,6 @@
 # Bubble Wrap: Survival Run
 
-Status: Draft v0.4
+Status: Implemented MVP v0.5
 Scope: Five-level MVP  
 Branch: `cursor/roguelike-2ece`
 
@@ -182,7 +182,8 @@ The multiplier ranges from 1× to 1.5×. A soft timer at or below zero gives 1×
 - Calibration bounds and challenge factors.
 - Shop offers, rerolls, prices, and upgrade strengths.
 - Hazard frequencies, durations, ratios, and pity limits.
-- Conveyor duration, speed stages, penalties, and clearance target.
+- Conveyor duration, spawn interval, travel time, speed stages, cleanup window,
+  penalties, and clearance target.
 - UI transition and feedback timings.
 
 The prose in this GDD defines intent and behavior. If a numeric value differs, the JSON configuration controls the build.
@@ -454,9 +455,9 @@ To avoid recursion and ambiguous scoring:
 
 The MVP selects at most one hazard for a level. Each sheet already has a plan with a hazard id list, and Level 4 repeats its one selected hazard across all three sheets. A later variant can put a different set on each new sheet of the same level by changing the planner only. The level loop, scoring, and sheet transition stay the same.
 
-During the first Level 4 checkpoint, only Double Layer and Memory Foam enter the
-live seeded pool. Hardened Bubbles and Drunken Bob join it when their input
-mechanics ship; the completed four-hazard pool then uses the equal 25% weights.
+Double Layer, Memory Foam, Hardened Bubbles, and Drunken Bob all participate in
+the live seeded pool. The configured equal weights give each a 25% selection
+chance, and one selected hazard repeats across all three Level 4 sheets.
 
 ### Double Layer
 

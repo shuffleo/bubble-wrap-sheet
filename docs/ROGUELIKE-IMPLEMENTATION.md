@@ -624,6 +624,22 @@ Require a real-phone test before continuing. Confirm 1.5 seconds, finger jitter,
 
 Ask whether Drunken Bob is confusing in the intended way rather than merely frustrating. Tune pity, deadline allowance, feedback, or selection weight in JSON.
 
+### Stage F completion status
+
+Implemented through F5:
+
+- Hardened Bubbles assigns the configured responsive ratio, accumulates
+  touch/pointer or keyboard pressure for 1.5 seconds, decays released pressure
+  over 0.4 seconds, and pauses a live combo while a valid hold continues.
+- Hardened progress is exposed through the instanced shader ring, keyboard
+  accessibility text, and the bounded game adapter. A completed hold scores the
+  configured 30-point base without Clean Sweep or Hot Key.
+- Drunken Bob rolls over every eligible position with run-seeded randomness,
+  visibly lurches the selected target, reports no-progress rolls, and guarantees
+  an unpopped target after three consecutive failures.
+- Drunken Bob disables both manual skill bonuses. All four Level 4 hazards now
+  participate in the weighted live pool.
+
 ## Stage G: conveyor, visuals before rules
 
 ### Slice G1: non-interactive conveyor prototype
@@ -654,6 +670,27 @@ Ask the user to review direction, density, speed stages, cleanup window, phone p
 
 Ask for complete no-upgrade and upgraded runs in both categories. Tune spawn density, speed, threshold, penalties, insurance, and prices before polish.
 
+### Stage G implementation status
+
+Implemented through G3:
+
+- Level 5 is a 45-second moving M-bubble belt rendered in the existing single
+  instanced draw. Slots are pooled, move continuously, retain moving pointer hit
+  tests, and rebuild screen-space keyboard groups as the active pool changes.
+- The belt spawns from seeded lane values, increases speed at 15 and 30 seconds,
+  stops spawning for the final cleanup window, and preserves active bubbles
+  across responsive relayout.
+- Escapes deduct the configured score penalty. Bubble Insurance still applies
+  the penalty but credits its first three misses toward clearance.
+- Fat Finger uses current moving neighbours, Rough Table selects the oldest
+  bubble nearest the exit, and Static Discharge uses current world positions.
+- At 45 seconds, remaining belt bubbles settle as misses. At least 90% clearance
+  wins and records the category high score; lower clearance ends the run without
+  writing a high score.
+- The final dossier reports clearance, medal, final score, build, best-scoring
+  level, total/manual/assisted pops, highest combo, rerolls, misses, insurance,
+  and attributable conveyor score rows.
+
 ## Stage H: release polish
 
 Build:
@@ -681,6 +718,20 @@ Exit:
 - Every GDD balance gate passes.
 - Endless Mode has no regression.
 - No timer, audio, animation, or input lock survives background/foreground.
+
+### Stage H automated status
+
+- The complete four-hazard pool, twelve-upgrade shop, and conveyor finale share
+  the final onboarding, HUD, result dossier, local category high-score, audio,
+  haptic, reduced-motion, and hidden-tab lifecycle paths.
+- Hardened state, Double Layer state, and moving keyboard groups retain
+  accessible labels; all changing hazard and conveyor outcomes use status text
+  in addition to visual treatment.
+- Automated validation covers 264 unit/config tests, 78 complete Survival Run
+  browser assertions, and 68 Endless Mode/release/deployment assertions.
+- The remaining release gate is the documented human phone/desktop playtest:
+  hold feel and jitter, Drunken Bob clarity, conveyor motion comfort, haptics,
+  and final balance in both score categories.
 
 ## Implementation risks
 

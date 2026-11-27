@@ -1,8 +1,9 @@
 # Verification evidence
 
 Files beginning `release-` belong to v8.0.0. `release-browser-results.json` lists
-64 current browser/deployment assertions; `release-unit-log.txt` records 158
-passing unit tests. `release-react-log.txt` is syntax-only adapter verification.
+68 current browser/deployment assertions. The current Survival Run validation
+adds 264 unit/config tests and 78 complete five-level browser assertions;
+`release-react-log.txt` remains the syntax-only adapter verification.
 Screenshots are actual Chromium WebGL frames, not generated concept images.
 The slide-mid frame freezes the common timeline at 50% for reproducibility.
 
