@@ -19,7 +19,8 @@ export type AutomatedPopSource=
  |{type:'system';reason:string};
 export type BubblePopSource=ManualPopSource|AutomatedPopSource;
 export interface BubblePopDetail {index:number;key:string;surface:string;source:BubblePopSource;}
-export interface GameBubbleSnapshot {index:number;surface:string;eligible:boolean;popped:boolean;x:number;y:number;}
+export interface BubbleHitDetail extends BubblePopDetail {remainingLayers:number;}
+export interface GameBubbleSnapshot {index:number;surface:string;eligible:boolean;popped:boolean;x:number;y:number;layers:number;}
 interface SheetExchange {old:Float32Array[];oldCount:number;timeline:RefillTimeline;progress:number;distance:number;slide:boolean;}
 interface Surface {completed:boolean;id:string;node:HTMLElement;config:SurfaceConfig;rect:Rect;off:()=>void;}
 interface Pointer {id:number;surface:string;x:number;y:number;startX:number;startY:number;index:number;visited:Set<number>;gentle:boolean;input:ManualPopInput;gestureId:string;}
@@ -41,6 +42,8 @@ export class BubbleEngine extends EventTarget {
  private lastPopBySurface=new Map<string,number>();
  private exchange:SheetExchange|null=null;private currentAttributes:Float32Array[]=[];private renderInstances=0;
  private reminderIndex=-1;private reminderStartedAt=0;private reminderExposure=new Float32Array();
+ private gameLayers=new Uint8Array();private doubleLayerMask=new Uint8Array();private hazardWarningIndex=-1;private hazardWarningStartedAt=0;private hazardVisual=new Float32Array();
+ private crackedGestureByIndex=new Map<number,string>();
  get refreshing(){return this.exchange!==null;}
  private frame=0;private last=0;private destroyed=false;private dirty=true;private dpr=1;private frames=0;private lost=false;private queued=false;
  private reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -64,7 +67,7 @@ export class BubbleEngine extends EventTarget {
   const vertices:number[]=[];const hex=[[-.5,-.288675135],[0,-.57735027],[.5,-.288675135],[.5,.288675135],[0,.57735027],[-.5,.288675135]];
   const triangle=(a:number[],b:number[],c:number[],level:number)=>{if(level===0){vertices.push(...a,...b,...c);return;}const ab=[(a[0]+b[0])/2,(a[1]+b[1])/2],bc=[(b[0]+c[0])/2,(b[1]+c[1])/2],ca=[(c[0]+a[0])/2,(c[1]+a[1])/2];triangle(a,ab,ca,level-1);triangle(ab,b,bc,level-1);triangle(ca,bc,c,level-1);triangle(ab,bc,ca,level-1);};
   for(let i=0;i<6;i++)triangle([0,0],hex[i],hex[(i+1)%6],2);this.vertexCount=vertices.length/2;
-  for(let location=0;location<15;location++){const b=g.createBuffer()!;this.buffers.push(b);g.bindBuffer(g.ARRAY_BUFFER,b);g.enableVertexAttribArray(location);const size=location===0?2:location===12?4:location>=6&&location<=11?3:location>=4?1:4;g.vertexAttribPointer(location,size,g.FLOAT,false,0,0);if(location)g.vertexAttribDivisor(location,1);else g.bufferData(g.ARRAY_BUFFER,new Float32Array(vertices),g.STATIC_DRAW);}
+  for(let location=0;location<16;location++){const b=g.createBuffer()!;this.buffers.push(b);g.bindBuffer(g.ARRAY_BUFFER,b);g.enableVertexAttribArray(location);const size=location===0?2:location===12?4:location===14?2:location>=6&&location<=11?3:location>=4?1:4;g.vertexAttribPointer(location,size,g.FLOAT,false,0,0);if(location)g.vertexAttribDivisor(location,1);else g.bufferData(g.ARRAY_BUFFER,new Float32Array(vertices),g.STATIC_DRAW);}
   // Seeded noise texture: repeatable reference-free optical microstructure.
   const data=new Uint8Array(256*256*4);let seed=0x20ab34cd;const rnd=()=>{seed^=seed<<13;seed^=seed>>>17;seed^=seed<<5;return(seed>>>0)/4294967296;};for(let i=0;i<data.length;i+=4){data[i]=rnd()*255;data[i+1]=rnd()*255;data[i+2]=rnd()*255;data[i+3]=255;}
   this.texture=g.createTexture()!;g.activeTexture(g.TEXTURE0);g.bindTexture(g.TEXTURE_2D,this.texture);g.texImage2D(g.TEXTURE_2D,0,g.RGBA,256,256,0,g.RGBA,g.UNSIGNED_BYTE,data);g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MIN_FILTER,g.LINEAR);g.texParameteri(g.TEXTURE_2D,g.TEXTURE_MAG_FILTER,g.LINEAR);g.texParameteri(g.TEXTURE_2D,g.TEXTURE_WRAP_S,g.REPEAT);g.texParameteri(g.TEXTURE_2D,g.TEXTURE_WRAP_T,g.REPEAT);
@@ -91,7 +94,7 @@ export class BubbleEngine extends EventTarget {
   if(config.layout==='single')config={...config,edgeRoughness:0,cornerVariation:0};
   const id=`surface-${++engineId}`;const rect=node.getBoundingClientRect();const surface:Surface={completed:false,id,node,config:{...config},rect,off:()=>{}};this.surfaces.set(id,surface);
   const down=(e:PointerEvent)=>this.pointerDown(e,id),move=(e:PointerEvent)=>this.pointerMove(e,id),up=(e:PointerEvent)=>this.pointerUp(e,false),cancel=(e:PointerEvent)=>this.pointerUp(e,true);
-  const key=(e:KeyboardEvent)=>{if(e.target!==node||e.repeat||(this.refreshing&&surface.config.layout!=='single'))return;if(e.key==='Enter'||(e.key===' '&&surface.config.mode==='spring-return')){if(node.tagName!=='BUTTON')e.preventDefault();this.audio.unlock();const index=this.points.findIndex((p,i)=>p.surface===id&&p.eligible&&!this.physics.isPopped[i]);if(index>=0){if(surface.config.mode==='spring-return')this.physics.press(index);else this.popWithSource(index,{type:'manual',input:'keyboard',gestureId:`key:${e.code||e.key}`});this.wake();}}};
+  const key=(e:KeyboardEvent)=>{if(e.target!==node||e.repeat||(this.refreshing&&surface.config.layout!=='single'))return;if(e.key==='Enter'||(e.key===' '&&surface.config.mode==='spring-return')){if(node.tagName!=='BUTTON')e.preventDefault();this.audio.unlock();const index=this.points.findIndex((p,i)=>p.surface===id&&p.eligible&&!this.physics.isPopped[i]);if(index>=0){if(surface.config.mode==='spring-return')this.physics.press(index);else{const gestureId=`key:${e.code||e.key}`;this.beginManualGesture(gestureId);this.popWithSource(index,{type:'manual',input:'keyboard',gestureId});}this.wake();}}};
   const keyup=(e:KeyboardEvent)=>{if((e.key===' '||e.key==='Enter')&&surface.config.mode==='spring-return'){this.points.forEach((p,i)=>{if(p.surface===id)this.physics.release(i);});this.wake();}};
   node.addEventListener('pointerdown',down);node.addEventListener('pointermove',move);node.addEventListener('pointerup',up);node.addEventListener('pointercancel',cancel);node.addEventListener('lostpointercapture',cancel);node.addEventListener('keydown',key);node.addEventListener('keyup',keyup);
   const detachHaptics=this.audio.feedback.attach(node);
@@ -100,23 +103,23 @@ export class BubbleEngine extends EventTarget {
  }
  private fit(){this.dpr=Math.min(window.devicePixelRatio||1,this.settings.dpr);const w=Math.round(innerWidth*this.dpr),h=Math.round(innerHeight*this.dpr);if(this.canvas.width!==w||this.canvas.height!==h){this.canvas.width=w;this.canvas.height=h;}this.gl.viewport(0,0,w,h);}
  private layout(){
-  if(this.destroyed||this.lost)return;this.finishRefresh(true,false);this.fit();const old=new Map(this.points.map((p,i)=>[p.key,{x:this.physics.squish[i],v:this.physics.velocity[i],p:this.physics.isPopped[i],t:this.physics.targetSquish[i],cut:!!p.cut,radius:p.radius}]));this.cancelPointers();this.points=[];
+  if(this.destroyed||this.lost)return;this.finishRefresh(true,false);this.fit();const old=new Map(this.points.map((p,i)=>[p.key,{x:this.physics.squish[i],v:this.physics.velocity[i],p:this.physics.isPopped[i],t:this.physics.targetSquish[i],cut:!!p.cut,radius:p.radius,layers:this.gameLayers[i]??1,doubleLayer:!!this.doubleLayerMask[i]}]));this.cancelPointers();this.points=[];
   for(const s of this.surfaces.values()){s.rect=s.node.getBoundingClientRect();if(s.rect.width>0&&s.rect.height>0)this.points.push(...makeGrid(s.rect,s.id,s.config));}
-  this.coordMap=new Map(this.points.map((p,i)=>[p.key,i]));this.physics=new BubblePhysics(this.points,i=>this.didPop(i));this.physics.settings=this.settings;
-  this.points.forEach((p,i)=>{const a=old.get(p.key);if(a&&!p.cut&&!a.cut&&a.radius===p.radius){this.physics.squish[i]=a.x;this.physics.velocity[i]=a.v;this.physics.isPopped[i]=a.p;this.physics.targetSquish[i]=a.p?1:0;}});for(const s of this.surfaces.values()){if(this.points.some((p,i)=>p.surface===s.id&&p.eligible&&!this.physics.isPopped[i]))s.completed=false;}this.keyboard=buildKeyboardMapping(this.points);this.refreshKeyboardHints();this.upload();this.notify();this.dispatchEvent(new Event('layoutchange'));this.wake();
+  this.coordMap=new Map(this.points.map((p,i)=>[p.key,i]));this.gameLayers=new Uint8Array(this.points.length).fill(1);this.doubleLayerMask=new Uint8Array(this.points.length);this.physics=new BubblePhysics(this.points,i=>this.didPop(i),i=>this.beforePop(i));this.physics.settings=this.settings;
+  this.points.forEach((p,i)=>{const a=old.get(p.key);if(a&&!p.cut&&!a.cut&&a.radius===p.radius){this.physics.squish[i]=a.x;this.physics.velocity[i]=a.v;this.physics.isPopped[i]=a.p;this.physics.targetSquish[i]=a.p?1:0;this.gameLayers[i]=a.layers;this.doubleLayerMask[i]=a.doubleLayer?1:0;}});for(const s of this.surfaces.values()){if(this.points.some((p,i)=>p.surface===s.id&&p.eligible&&!this.physics.isPopped[i]))s.completed=false;}this.keyboard=buildKeyboardMapping(this.points);this.refreshKeyboardHints();this.upload();this.notify();this.dispatchEvent(new Event('layoutchange'));this.wake();
  }
  private upload(){
   const n=this.points.length,a=new Float32Array(n*4),clip=new Float32Array(n*4),style=new Float32Array(n*4),edges=new Float32Array(n*4);
   this.points.forEach((p,i)=>{const s=this.surfaces.get(p.surface)!;edges.set([s.config.layout==='single'?-1:(s.config.edgeRoughness??0),s.config.edgeScale??24,s.config.edgeSeed??17,s.config.cornerVariation??0],i*4);const pitch=p.radius*2+Math.max(0,s.config.gap??4);a.set([p.x,p.y,p.radius,pitch],i*4);clip.set([s.rect.left,s.rect.top,s.rect.left+s.rect.width,s.rect.top+s.rect.height],i*4);style.set([hash(p.row*1023+p.col*17),s.config.cornerRadius??5,materialVariant(p.row+Math.floor(this.settings.variantSeed),p.col),materialVariant(p.row+Math.floor(this.settings.variantSeed),p.col,true)],i*4);});
   this.neighborData=Array.from({length:6},()=>new Float32Array(n*3));
   this.points.forEach((p,i)=>{const odd=p.row&1,offsets=[[0,-1],[0,1],[-1,odd-1],[-1,odd],[1,odd-1],[1,odd]];for(let k=0;k<6;k++){const j=this.physics.neighbors[i*6+k],np=j>=0?this.points[j]:null,row=np?.row??p.row+offsets[k][0],col=np?.col??p.col+offsets[k][1];this.neighborData[k].set([materialVariant(row+Math.floor(this.settings.variantSeed),col),materialVariant(row+Math.floor(this.settings.variantSeed),col,true),j>=0?this.physics.squish[j]:1],i*3);}});
-  this.reminderExposure=new Float32Array(n);
-  this.currentAttributes=[a,clip,style,this.physics.squish,this.physics.bounce,...this.neighborData,edges,this.reminderExposure];
+  this.reminderExposure=new Float32Array(n);this.hazardVisual=new Float32Array(n*2);this.syncHazardVisual();
+  this.currentAttributes=[a,clip,style,this.physics.squish,this.physics.bounce,...this.neighborData,edges,this.reminderExposure,this.hazardVisual];
   const previous=this.exchange?.slide?this.exchange:null,oldCount=previous?.oldCount??0;
   this.renderInstances=n+oldCount;
   const roles=new Float32Array(this.renderInstances);if(previous){this.points.forEach((p,i)=>{if(p.mode==='poppable')roles[i]=2;});roles.fill(1,n);}
   const g=this.gl;g.bindVertexArray(this.vao);
-  [...this.currentAttributes,roles].forEach((data,j)=>{let payload=data;if(previous&&j<13){payload=new Float32Array(data.length+previous.old[j].length);payload.set(data);payload.set(previous.old[j],data.length);}
+  [...this.currentAttributes,roles].forEach((data,j)=>{let payload=data;if(previous&&j<14){payload=new Float32Array(data.length+previous.old[j].length);payload.set(data);payload.set(previous.old[j],data.length);}
    g.bindBuffer(g.ARRAY_BUFFER,this.buffers[j+1]);g.bufferData(g.ARRAY_BUFFER,payload,j>=3?g.DYNAMIC_DRAW:g.STATIC_DRAW);});
  }
  private inside(s:Surface,x:number,y:number){return boundaryDistance(s.rect,x,y,s.config.cornerRadius??5,s.config.edgeRoughness??0,s.config.edgeScale??24,s.config.edgeSeed??17,s.config.cornerVariation??0)<=0;}
@@ -129,9 +132,21 @@ export class BubbleEngine extends EventTarget {
   }return -1;
  }
  private retap(i:number){if(this.points[i]?.cut)return;this.physics.jiggle(i);const p=this.points[i];this.motion.impulse(p.x,p.y,1);this.audio.crinkle();this.audio.feedback.pulse(7);}
- private popWithSource(index:number,source:BubblePopSource):boolean {this.pendingPopSources.set(index,source);const popped=this.physics.pop(index);if(!popped)this.pendingPopSources.delete(index);return popped;}
+ private beforePop(index:number):boolean {
+  if((this.gameLayers[index]??1)<=1)return true;
+  const point=this.points[index],source=this.pendingPopSources.get(index)??{type:'system' as const,reason:'physics'};
+  if(source.type==='manual')this.crackedGestureByIndex.set(index,source.gestureId);
+  this.gameLayers[index]--;this.pendingPopSources.delete(index);this.physics.jiggle(index);this.audio.crinkle();this.audio.feedback.pulse(7);this.motion.impulse(point.x,point.y,.4);
+  this.syncHazardVisual();this.syncLayerHint(index);this.dispatchEvent(new CustomEvent<BubbleHitDetail>('bubblehit',{detail:{index,key:point.key,surface:point.surface,source,remainingLayers:this.gameLayers[index]}}));this.dirty=true;this.wake();this.notify();
+  return false;
+ }
+ private beginManualGesture(gestureId:string){for(const [index,gesture] of this.crackedGestureByIndex)if(gesture===gestureId)this.crackedGestureByIndex.delete(index);}
+ private popWithSource(index:number,source:BubblePopSource):boolean {
+  if(source.type==='manual'&&this.crackedGestureByIndex.get(index)===source.gestureId)return false;
+  this.pendingPopSources.set(index,source);const layered=(this.gameLayers[index]??1)>1,popped=this.physics.pop(index);if(!popped)this.pendingPopSources.delete(index);return popped||layered;
+ }
  private stagePopSource(index:number,source:BubblePopSource):void {if(index>=0&&!this.physics.isPopped[index])this.pendingPopSources.set(index,source);}
- private pointerDown(e:PointerEvent,surface:string){if(this.refreshing&&this.surfaces.get(surface)?.config.layout!=='single')return;if(e.button!==0&&e.pointerType!=='touch')return;this.audio.unlock();const s=this.surfaces.get(surface)!;const haptic=e.target instanceof HTMLElement&&e.target.hasAttribute('data-bubble-haptic-tap');if(!haptic){try{s.node.setPointerCapture(e.pointerId);}catch{}}const i=this.hitTest(e.clientX,e.clientY,surface),input:ManualPopInput=e.pointerType==='touch'?'touch':e.pointerType==='pen'?'pen':'mouse',gestureId=`pointer:${e.pointerId}`;const p:Pointer={id:e.pointerId,surface,x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,index:i,visited:new Set(),gentle:e.pointerType==='pen'&&e.pressure<.65,input,gestureId};if(i>=0){p.visited.add(i);if(this.physics.isPopped[i])this.retap(i);else{this.stagePopSource(i,{type:'manual',input,gestureId});this.physics.press(i,p.gentle?e.pressure:1);}}this.pointers.set(e.pointerId,p);this.wake();}
+ private pointerDown(e:PointerEvent,surface:string){if(this.refreshing&&this.surfaces.get(surface)?.config.layout!=='single')return;if(e.button!==0&&e.pointerType!=='touch')return;this.audio.unlock();const s=this.surfaces.get(surface)!;const haptic=e.target instanceof HTMLElement&&e.target.hasAttribute('data-bubble-haptic-tap');if(!haptic){try{s.node.setPointerCapture(e.pointerId);}catch{}}const i=this.hitTest(e.clientX,e.clientY,surface),input:ManualPopInput=e.pointerType==='touch'?'touch':e.pointerType==='pen'?'pen':'mouse',gestureId=`pointer:${e.pointerId}`;this.beginManualGesture(gestureId);const p:Pointer={id:e.pointerId,surface,x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,index:i,visited:new Set(),gentle:e.pointerType==='pen'&&e.pressure<.65,input,gestureId};if(i>=0){p.visited.add(i);if(this.physics.isPopped[i])this.retap(i);else{this.stagePopSource(i,{type:'manual',input,gestureId});this.physics.press(i,p.gentle?e.pressure:1);}}this.pointers.set(e.pointerId,p);this.wake();}
  private pointerMove(e:PointerEvent,surface:string){
   const p=this.pointers.get(e.pointerId);if(!p)return;
   if(p){if(!(e.target instanceof HTMLElement&&e.target.hasAttribute('data-bubble-haptic-tap')))e.preventDefault();const length=Math.hypot(e.clientX-p.x,e.clientY-p.y);if(length>1){const steps=Math.min(200,Math.max(1,Math.ceil(length/10)));for(let t=0;t<=steps;t++){const x=p.x+(e.clientX-p.x)*t/steps,y=p.y+(e.clientY-p.y)*t/steps;const i=this.hitTest(x,y,surface);if(i>=0&&!p.visited.has(i)){p.visited.add(i);if(this.physics.isPopped[i])this.retap(i);else if(!p.gentle)this.popWithSource(i,{type:'manual',input:p.input,gestureId:p.gestureId});else{this.stagePopSource(i,{type:'manual',input:p.input,gestureId:p.gestureId});this.physics.press(i,e.pressure);}}}}p.x=e.clientX;p.y=e.clientY;p.index=this.hitTest(p.x,p.y,surface);}
@@ -168,11 +183,21 @@ export class BubbleEngine extends EventTarget {
   this.reminderExposure.fill(0);this.reminderIndex=next;this.reminderStartedAt=performance.now();this.dirty=true;this.wake();this.notify();return true;
  }
  inspectBubbleReminder(){return {index:this.reminderIndex,active:this.reminderIndex>=0,exposure:this.reminderIndex>=0?this.reminderExposure[this.reminderIndex]??0:0};}
+ setHazardWarning(index:number|null){
+  const next=index===null?-1:index;
+  if(next>=0){
+   const point=this.points[next];
+   if(!Number.isInteger(next)||!point||point.mode!=='poppable'||point.eligible===false||point.cut||!this.physics.isPopped[next])return false;
+  }
+  if(next===this.hazardWarningIndex)return true;
+  this.hazardWarningIndex=next;this.hazardWarningStartedAt=performance.now();this.syncHazardVisual();this.dirty=true;this.wake();this.notify();return true;
+ }
+ inspectHazardState(){return {warningIndex:this.hazardWarningIndex,layers:Array.from(this.gameLayers)};}
  /** Snapshot the old sheet's material and popped state once, not every frame.
   * New + old instances share the same context, program, atlases and draw call. */
  private snapshotSheet(surface?:string):{old:Float32Array[];oldCount:number}{
   const indices=this.points.flatMap((p,i)=>p.mode==='poppable'&&(!surface||p.surface===surface)?[i]:[]);
-  const widths=[4,4,4,1,1,3,3,3,3,3,3,4,1];
+  const widths=[4,4,4,1,1,3,3,3,3,3,3,4,1,2];
   return {oldCount:indices.length,old:this.currentAttributes.map((data,j)=>{const width=widths[j],out=new Float32Array(indices.length*width);indices.forEach((i,k)=>out.set(data.subarray(i*width,(i+1)*width),k*width));return out;})};
  }
  private finishRefresh(cancelSound=false,upload=true){
@@ -204,7 +229,7 @@ export class BubbleEngine extends EventTarget {
  reset(surface?:string,immediate=false){
   this.completionToken=null;
   if(this.refreshLocked||this.destroyed||this.lost||(!immediate&&this.refreshing))return;
-  this.setBubbleReminder(null);
+  this.setBubbleReminder(null);this.setHazardWarning(null);this.crackedGestureByIndex.clear();
   if(immediate)this.finishRefresh(true,false);
   let popped=0,total=0;this.points.forEach((p,i)=>{if((!surface||p.surface===surface)&&p.mode==='poppable'&&p.eligible){total++;popped+=this.physics.isPopped[i];}});
   const slide=this.settings.refreshMode===1&&!immediate&&!this.reduced;
@@ -217,6 +242,7 @@ export class BubbleEngine extends EventTarget {
   for(const item of this.surfaces.values())if(!surface||item.id===surface){item.completed=false;this.lastPopBySurface.delete(item.id);}
   if(slide)this.motion.clear();
   this.physics.reset(surface,immediate||slide||this.reduced,timeline??undefined);
+  this.points.forEach((point,index)=>{if(!surface||point.surface===surface){this.gameLayers[index]=1;this.doubleLayerMask[index]=0;}});
   if(slide){this.physics.bounce.fill(0);this.physics.bounceVelocity.fill(0);}
   if(timeline&&timeline.duration>0){this.exchange={...snapshot,timeline,progress:0,distance:innerWidth+24,slide};for(const item of this.surfaces.values())if(item.config.layout!=='single')item.node.setAttribute('aria-busy','true');}
   this.upload();this.notify();this.wake();
@@ -237,12 +263,24 @@ export class BubbleEngine extends EventTarget {
   this.dirty=true;
   return true;
  }
+ private syncHazardVisual(warningExposure=0){
+  if(this.hazardVisual.length!==this.points.length*2)this.hazardVisual=new Float32Array(this.points.length*2);
+  for(let index=0;index<this.points.length;index++){this.hazardVisual[index*2]=this.doubleLayerMask[index]?(this.gameLayers[index]??1):0;this.hazardVisual[index*2+1]=index===this.hazardWarningIndex?warningExposure:0;}
+ }
+ private updateHazardWarning(time:number):boolean {
+  const index=this.hazardWarningIndex;
+  if(index<0)return false;
+  if(!this.points[index]||!this.physics.isPopped[index]){this.setHazardWarning(null);return false;}
+  const exposure=this.reduced?.75:.25+.75*(.5+.5*Math.sin((time-this.hazardWarningStartedAt)/110));
+  this.syncHazardVisual(exposure);this.dirty=true;return !this.reduced;
+ }
  private tick=(time:number)=>{
   this.frame=0;if(this.destroyed||this.lost)return;const dt=Math.min(.05,(time-this.last)/1000);this.last=time;const active=this.physics.step(dt),flex=this.motion.step(dt);
   const reminder=this.updateBubbleReminder(time);
+  const hazardWarning=this.updateHazardWarning(time);
   if(this.exchange){const duration=this.exchange.timeline.duration,elapsed=this.exchange.timeline.elapsed();this.exchange.progress=Number.isFinite(elapsed)&&duration>0?Math.max(0,Math.min(1,elapsed/duration)):1;if(this.exchange.progress>=1)this.finishRefresh();}
   if(this.dirty||active||flex||this.exchange){const g=this.gl;g.useProgram(this.program);g.bindVertexArray(this.vao);g.activeTexture(g.TEXTURE0);g.bindTexture(g.TEXTURE_2D,this.texture);g.activeTexture(g.TEXTURE1);g.bindTexture(g.TEXTURE_2D,this.atlas);g.activeTexture(g.TEXTURE2);g.bindTexture(g.TEXTURE_2D,this.collapsedAtlas);g.uniform1f(this.uniforms.uAtlasReady,this.atlasReady);g.bindBuffer(g.ARRAY_BUFFER,this.buffers[4]);g.bufferSubData(g.ARRAY_BUFFER,0,this.physics.squish);g.uniform2f(this.uniforms.uResolution,innerWidth,innerHeight);g.uniform1f(this.uniforms.uDpr,this.dpr);
-   g.bindBuffer(g.ARRAY_BUFFER,this.buffers[5]);g.bufferSubData(g.ARRAY_BUFFER,0,this.physics.bounce);g.bindBuffer(g.ARRAY_BUFFER,this.buffers[13]);g.bufferSubData(g.ARRAY_BUFFER,0,this.reminderExposure);
+   g.bindBuffer(g.ARRAY_BUFFER,this.buffers[5]);g.bufferSubData(g.ARRAY_BUFFER,0,this.physics.bounce);g.bindBuffer(g.ARRAY_BUFFER,this.buffers[13]);g.bufferSubData(g.ARRAY_BUFFER,0,this.reminderExposure);g.bindBuffer(g.ARRAY_BUFFER,this.buffers[14]);g.bufferSubData(g.ARRAY_BUFFER,0,this.hazardVisual);
    for(let k=0;k<6;k++){const data=this.neighborData[k];for(let i=0;i<this.points.length;i++){const j=this.physics.neighbors[i*6+k];data[i*3+2]=j>=0?this.physics.squish[j]:1;}g.bindBuffer(g.ARRAY_BUFFER,this.buffers[6+k]);g.bufferSubData(g.ARRAY_BUFFER,0,data);}
    const s=this.settings,e=this.exchange;g.uniform4f(this.uniforms.uSlide,e?sheetEase(e.progress):0,e?.distance??0,s.slideFlex,e?.slide?1:0);g.uniform3fv(this.uniforms.uCorners,this.motion.corners);g.uniform4fv(this.uniforms.uRipples,this.motion.ripples);
    g.uniform4f(this.uniforms.uMotion,s.cornerInfluence,s.rippleStrength,s.rippleSpeed,s.rippleWidth);g.uniform1f(this.uniforms.uPerspective,s.perspective);g.uniform1f(this.uniforms.uTime,this.motion.time);g.uniform1f(this.uniforms.uMotionEnabled,s.motion?1:0);
@@ -250,7 +288,7 @@ export class BubbleEngine extends EventTarget {
    g.uniform4f(this.uniforms.uReveal,s.revealStart,s.revealEnd,s.revealCurve,s.linearReveal?1:0);g.uniform2f(this.uniforms.uPressure,s.pressureBulge,s.pressureWrinkle);
    g.uniform4f(this.uniforms.uTone,s.exposure,s.contrast,s.blackPoint,s.whitePoint);g.uniform4f(this.uniforms.uGrade,s.gamma,s.highlights,s.grain,s.sharpness);g.uniform4f(this.uniforms.uLayer,s.blendMode,s.layerOpacity,s.backingLevel,0);g.uniform1f(this.uniforms.uGuides,s.showContours?1:0);
    this.syncHandles();this.syncKeyboardHints();g.clear(g.COLOR_BUFFER_BIT);g.drawArraysInstanced(g.TRIANGLES,0,this.vertexCount,this.renderInstances);this.frames++;this.dirty=false;}
-  if(active||flex||reminder||this.pointers.size||this.exchange)this.frame=requestAnimationFrame(this.tick);
+  if(active||flex||reminder||hazardWarning||this.pointers.size||this.exchange)this.frame=requestAnimationFrame(this.tick);
  };
  /** Updates shader uniforms and imperative solvers without React renders. */
  setSettings(patch:Partial<Settings>){
@@ -284,26 +322,39 @@ export class BubbleEngine extends EventTarget {
   if(this.destroyed||this.lost||this.refreshing||!this.settings.keyboardEnabled)return -1;
   const group=this.keyboard.byCode.get(code);if(!group)return -1;
   const index=pickUnpopped(group.indices,this.physics.isPopped);if(index<0)return -1;
-  this.audio.unlock();if(!this.popWithSource(index,{type:'manual',input:'keyboard',gestureId:`key:${code}`}))return -1;this.wake();
+  const gestureId=`key:${code}`;this.beginManualGesture(gestureId);this.audio.unlock();if(!this.popWithSource(index,{type:'manual',input:'keyboard',gestureId}))return -1;this.wake();
   this.dispatchEvent(new CustomEvent('keypop',{detail:{code,label:group.label,index}}));return index;
  }
- getGameBubbles():GameBubbleSnapshot[]{return this.points.flatMap((point,index)=>point.mode==='poppable'?[{index,surface:point.surface,eligible:point.eligible!==false&&!point.cut,popped:!!this.physics.isPopped[index],x:point.x,y:point.y}]:[]);}
+ getGameBubbles():GameBubbleSnapshot[]{return this.points.flatMap((point,index)=>point.mode==='poppable'?[{index,surface:point.surface,eligible:point.eligible!==false&&!point.cut,popped:!!this.physics.isPopped[index],x:point.x,y:point.y,layers:this.gameLayers[index]??1}]:[]);}
  getGameNeighbours(index:number):number[]{if(!Number.isInteger(index)||index<0||index>=this.points.length)return[];const neighbours:number[]=[];for(let offset=0;offset<6;offset++){const candidate=this.physics.neighbors[index*6+offset];if(candidate>=0&&this.points[candidate]?.mode==='poppable'&&this.points[candidate].eligible!==false&&!this.points[candidate].cut)neighbours.push(candidate);}return neighbours;}
  popForGame(index:number,source:AutomatedPopSource):boolean {if(this.destroyed||this.lost||this.refreshing||!Number.isInteger(index))return false;const point=this.points[index];if(!point||point.mode!=='poppable'||point.eligible===false||point.cut)return false;const popped=this.popWithSource(index,source);if(popped)this.wake();return popped;}
+ setGameBubbleLayers(indices:readonly number[],layers:number):number {
+  const value=Math.max(1,Math.floor(layers));let changed=0;
+  for(const index of new Set(indices)){const point=this.points[index];if(!Number.isInteger(index)||!point||point.mode!=='poppable'||point.eligible===false||point.cut||this.physics.isPopped[index])continue;this.gameLayers[index]=value;this.doubleLayerMask[index]=value>1?1:0;this.syncLayerHint(index);changed++;}
+  if(changed){this.syncHazardVisual();this.dirty=true;this.wake();this.notify();}return changed;
+ }
+ reinflateForGame(index:number):boolean {
+  if(this.destroyed||this.lost||this.refreshing||!Number.isInteger(index))return false;
+  const point=this.points[index],surface=point?this.surfaces.get(point.surface):null;
+  if(!point||point.mode!=='poppable'||point.eligible===false||point.cut||!this.physics.reinflate(index))return false;
+  this.completionToken=null;if(surface)surface.completed=false;this.gameLayers[index]=1;this.doubleLayerMask[index]=0;this.hintNodes.get(index)?.setAttribute('data-popped','false');this.setHazardWarning(null);this.syncHazardVisual();this.dirty=true;this.wake();this.notify();return true;
+ }
  getKeyboardMap(){return this.keyboard.groups.map(group=>({...group,indices:[...group.indices],total:group.indices.length,remaining:group.indices.reduce((sum,index)=>sum+(this.physics.isPopped[index]?0:1),0)}));}
  private refreshKeyboardHints(){
   if(!this.settings.showKeyLabels||!this.settings.keyboardEnabled){this.keyboardHints?.remove();this.keyboardHints=null;this.hintNodes.clear();return;}
   if(!this.keyboardHints){this.keyboardHints=this.canvas.ownerDocument.createElement('div');this.keyboardHints.className='keyboard-hints';this.keyboardHints.setAttribute('aria-hidden','true');this.canvas.ownerDocument.body.append(this.keyboardHints);}
   this.keyboardHints.replaceChildren();this.hintNodes.clear();
   for(const [index,key]of this.keyboard.byPoint){const node=document.createElement('kbd');node.textContent=key.label;node.dataset.keyCode=key.code;node.dataset.pointIndex=String(index);this.hintNodes.set(index,node);this.keyboardHints.append(node);}
+  for(const index of this.hintNodes.keys())this.syncLayerHint(index);
   this.applyHotKeys();this.syncKeyboardHints();
  }
+ private syncLayerHint(index:number){const node=this.hintNodes.get(index);if(!node)return;const layers=this.gameLayers[index]??1;node.dataset.layers=String(layers);node.setAttribute('aria-label',layers>1?`${node.textContent}, double layer, ${layers} hits remaining`:`${node.textContent}, ${layers} hit remaining`);}
  private syncKeyboardHints(){
   if(!this.keyboardHints)return;this.keyboardHints.hidden=this.refreshing;
   for(const [index,node]of this.hintNodes){const point=this.points[index],surface=this.surfaces.get(point.surface);if(!surface)continue;
    const p=this.motion.deform(surface.rect,point.x,point.y);node.style.transform=`translate3d(${p.x}px,${p.y}px,0) translate(-50%,-50%)`;node.dataset.popped=String(!!this.physics.isPopped[index]);}
  }
  /** Read-only diagnostic data for interaction tests. */
- inspect(){return this.points.map((p,i)=>({...p,index:i,keyboardCode:this.keyboard.byPoint.get(i)?.code??null,keyboardLabel:this.keyboard.byPoint.get(i)?.label??null,popped:!!this.physics.isPopped[i],squish:this.physics.squish[i],bounce:this.physics.bounce[i],taps:this.physics.tapCount[i],inflatedVariant:materialVariant(p.row+Math.floor(this.settings.variantSeed),p.col),collapsedVariant:materialVariant(p.row+Math.floor(this.settings.variantSeed),p.col,true)}));}
+ inspect(){return this.points.map((p,i)=>({...p,index:i,keyboardCode:this.keyboard.byPoint.get(i)?.code??null,keyboardLabel:this.keyboard.byPoint.get(i)?.label??null,popped:!!this.physics.isPopped[i],layers:this.gameLayers[i]??1,doubleLayer:!!this.doubleLayerMask[i],hazardWarning:i===this.hazardWarningIndex,squish:this.physics.squish[i],bounce:this.physics.bounce[i],taps:this.physics.tapCount[i],inflatedVariant:materialVariant(p.row+Math.floor(this.settings.variantSeed),p.col),collapsedVariant:materialVariant(p.row+Math.floor(this.settings.variantSeed),p.col,true)}));}
  destroy(){if(this.destroyed)return;this.destroyed=true;this.exchange=null;cancelAnimationFrame(this.frame);this.observer.disconnect();for(const binding of this.cornerBindings)binding.off();this.cornerBindings=[];for(const s of this.surfaces.values())s.off();this.surfaces.clear();this.cancelPointers();window.removeEventListener('pointerdown',this.onOutsideDown);window.removeEventListener('resize',this.onWindowChange);window.removeEventListener('scroll',this.onWindowChange,true);window.removeEventListener('blur',this.onBlur);document.removeEventListener('visibilitychange',this.onVisibility);this.canvas.removeEventListener('webglcontextlost',this.onLost);this.canvas.removeEventListener('webglcontextrestored',this.onRestore);this.audio.destroy();this.keyboardHints?.remove();this.keyboardHints=null;this.hintNodes.clear();const g=this.gl;for(const b of this.buffers)g.deleteBuffer(b);g.deleteTexture(this.texture);g.deleteTexture(this.atlas);g.deleteTexture(this.collapsedAtlas);g.deleteVertexArray(this.vao);g.deleteProgram(this.program);g.clear(g.COLOR_BUFFER_BIT);activeCanvas.delete(this.canvas);activeDocument.delete(this.canvas.ownerDocument);}
 }

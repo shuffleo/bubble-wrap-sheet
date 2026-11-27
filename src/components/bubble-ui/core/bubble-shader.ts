@@ -17,7 +17,8 @@ layout(location=10) in vec3 aNeighbor4;
 layout(location=11) in vec3 aNeighbor5;
 layout(location=12) in vec4 aEdges;
 layout(location=13) in float aReminderExposure;
-layout(location=14) in float aSheetRole;
+layout(location=14) in vec2 aHazard;
+layout(location=15) in float aSheetRole;
 uniform vec4 uSlide;
 uniform vec2 uResolution;
 uniform vec3 uCorners[4];
@@ -36,12 +37,13 @@ flat out vec4 vEdges;
 flat out float vSquish;
 flat out float vBounce;
 flat out float vReminderExposure;
+flat out vec2 vHazard;
 flat out vec3 vNeighbors[6];
 void main(){
  vec2 screen=aBubble.xy+aVertex*aBubble.w;
  vLocal=aVertex*aBubble.w/aBubble.z;vScreen=screen;
  vNeighbors[0]=aNeighbor0;vNeighbors[1]=aNeighbor1;vNeighbors[2]=aNeighbor2;vNeighbors[3]=aNeighbor3;vNeighbors[4]=aNeighbor4;vNeighbors[5]=aNeighbor5;
- vEdges=aEdges;vBubble=aBubble;vClip=aClip;vStyle=aStyle;vSquish=aSquish;vBounce=aBounce;vReminderExposure=aReminderExposure;
+ vEdges=aEdges;vBubble=aBubble;vClip=aClip;vStyle=aStyle;vSquish=aSquish;vBounce=aBounce;vReminderExposure=aReminderExposure;vHazard=aHazard;
  vec3 d=vec3(0.);
  if(aEdges.x>=0.&&uMotionEnabled>.5){
   vec2 uv=clamp((screen-aClip.xy)/(aClip.zw-aClip.xy),0.,1.);
@@ -75,6 +77,7 @@ flat in vec4 vEdges;
 flat in float vSquish;
 flat in float vBounce;
 flat in float vReminderExposure;
+flat in vec2 vHazard;
 flat in vec3 vNeighbors[6];
 uniform sampler2D uNoise;
 uniform sampler2D uAtlas;
@@ -163,6 +166,11 @@ void main(){
  vec3 N=normalize(vec3(-dFdx(vHeight)*uDpr,-dFdy(vHeight)*uDpr,1.));
  float relief=dot(N,normalize(vec3(-.35,-.55,1.)))-.8377;
  value+=relief*.21+vBounce*.030*inner;
+ // Double membranes carry a broad rim; the cracked layer keeps a diagonal
+ // fracture mark. Memory Foam warnings pulse the collapsed bubble locally.
+ float doubleRim=(1.-smoothstep(.055,.14,abs(r-.82)))*step(1.5,vHazard.x);
+ float crack=(1.-smoothstep(.018,.055,abs(vLocal.y-vLocal.x*.58)))*step(.5,vHazard.x)*step(vHazard.x,1.5)*inner;
+ value+=doubleRim*.22-crack*.18+vHazard.y*.32*inner;
  value=mix(film,value,uAtlasReady);
  value=clamp((value-uTone.z)/max(.03,uTone.w-uTone.z),0.,1.);
  value*=exp2(uTone.x+vReminderExposure);value=(value-.5)*uTone.y+.5;

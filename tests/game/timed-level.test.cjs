@@ -35,6 +35,13 @@ test('calibrated hard deadlines stay inside configured bounds',()=>{
  assert.equal(maximum,GAME_CONFIG.calibration.hardDeadlineMaxSeconds*1000);
 });
 
+test('hazard allowance multiplies active workload before deadline clamping',()=>{
+ const calibration={popsPerSecond:8,sampledWindowMs:3000};
+ const base=calibratedDeadlineMs(120,3,calibration);
+ const adjusted=calibratedDeadlineMs(120,3,calibration,GAME_CONFIG.hazards.doubleLayer.deadlineWorkloadMultiplier);
+ assert.ok(adjusted>=base);
+});
+
 test('remaining-time settlement rewards time but never punishes soft expiry',()=>{
  const early=remainingTimeSettlement(100,10000,5000);
  const expired=remainingTimeSettlement(100,10000,12000);

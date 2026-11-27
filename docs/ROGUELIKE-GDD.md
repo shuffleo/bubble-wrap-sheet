@@ -1,6 +1,6 @@
 # Bubble Wrap: Survival Run
 
-Status: Draft v0.2
+Status: Draft v0.4
 Scope: Five-level MVP  
 Branch: `cursor/roguelike-2ece`
 
@@ -31,7 +31,7 @@ The primary question is whether the player reaches the end. Score measures execu
 
 ### Short, divergent runs
 
-Three shops, nine unique upgrades, and one of four hazards create meaningful variation inside a compact five-level run.
+Three shops, twelve unique upgrades, and one of four hazards create meaningful variation inside a compact five-level run.
 
 ### Legible unfairness
 
@@ -135,6 +135,8 @@ Integer score is rounded after resolving the complete pop.
 - At activation, multiplier starts at 2×.
 - It approaches 5× with diminishing returns.
 - Losing the manual combo returns it to 1×.
+- Reinflated Memory Foam bubbles still advance the manual chain and upgrade
+  counters, but their repeat pop contributes no base, skill, or boost score.
 
 Provisional curve:
 
@@ -383,6 +385,8 @@ Once per run, a hard timer reaching zero automatically adds five seconds.
 - Consumed only when it prevents failure.
 - Does not replenish.
 - The danger zone recalculates against the extended timer.
+- If more than five seconds have already elapsed beyond the deadline, it is not
+  consumed because the extension cannot prevent failure.
 
 ### Bubble Insurance
 
@@ -448,7 +452,11 @@ To avoid recursion and ambiguous scoring:
 
 ## 13. Hazards
 
-The MVP selects at most one hazard for a level. Each sheet already has a plan with a hazard id list, and that list is empty. A later variant can put a different set on each new sheet of the same level by changing the planner only. The level loop, scoring, and sheet transition stay the same.
+The MVP selects at most one hazard for a level. Each sheet already has a plan with a hazard id list, and Level 4 repeats its one selected hazard across all three sheets. A later variant can put a different set on each new sheet of the same level by changing the planner only. The level loop, scoring, and sheet transition stay the same.
+
+During the first Level 4 checkpoint, only Double Layer and Memory Foam enter the
+live seeded pool. Hardened Bubbles and Drunken Bob join it when their input
+mechanics ship; the completed four-hazard pool then uses the equal 25% weights.
 
 ### Double Layer
 

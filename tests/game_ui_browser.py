@@ -34,6 +34,8 @@ with sync_playwright() as pw:
  page.mouse.click(point['x'],point['y'])
  check('Free Pop interaction remains active',page.evaluate('bubbleUI.getStats().popped===1'))
  check('engine emits a typed manual pointer source',page.evaluate("gamePopEvents[0]?.source.type==='manual'&&gamePopEvents[0]?.source.input==='mouse'"))
+ page.evaluate('(index)=>bubbleUI.setHazardWarning(index)',point['index'])
+ check('Memory Foam warning and reinflation restore a popped bubble',page.evaluate('(index)=>bubbleUI.inspectHazardState().warningIndex===index&&bubbleUI.reinflateForGame(index)&&!bubbleUI.getGameBubbles().find(b=>b.index===index).popped',point['index']))
  page.locator('#game-open').click()
  page.wait_for_selector('#game-root[data-screen="mode-select"]')
  check('entry button opens both mode choices',page.locator('[data-game-action=free],[data-game-action=survival]').count()==2)
@@ -163,7 +165,7 @@ with sync_playwright() as pw:
    left.slice(0,-3).forEach(b=>bubbleUI.popForGame(b.index,{type:'manual',input:'mouse',gestureId:'stragglers'}));
  }''')
  page.wait_for_function('bubbleUI.inspectBubbleReminder().active',timeout=5000)
- page.wait_for_timeout(250)
+ page.wait_for_function('bubbleUI.inspectBubbleReminder().exposure>0.1',timeout=2000)
  check('one of the final three idle bubbles receives a rhythmic exposure reminder',page.evaluate('bubbleUI.inspectBubbleReminder().active && bubbleUI.inspectBubbleReminder().exposure>0.1'))
  page.evaluate('''() => {
    const left=bubbleUI.getGameBubbles().filter(b=>b.eligible&&!b.popped);
@@ -196,28 +198,57 @@ with sync_playwright() as pw:
  check('level 2 result settles time bonus and calibration',page.locator('.game-score-calculation').inner_text().find('Remaining-time bonus')>=0 and 'Calibrated pace' in page.locator('.game-result-note').inner_text())
  page.locator('[data-level-action=shop]').click()
  check('level 2 opens a live two-offer shop',page.locator('#game-root[data-screen="shop"] .game-offer').count()==2)
- if page.locator('[data-shop-buy="fatFinger"]').count()==0:
-  page.locator('[data-shop-action=reroll]').click()
- check('seeded reroll can surface Fat Finger',page.locator('[data-shop-buy="fatFinger"]').count()==1)
- page.locator('[data-shop-buy="fatFinger"]').click()
+ buy_button=page.locator('[data-shop-buy]:not([disabled])').first
+ bought_upgrade=buy_button.get_attribute('data-shop-buy')
+ buy_button.click()
  page.wait_for_function('document.querySelector("#game-root")?.dataset.screen==="level-intro" && document.querySelector(".game-eyebrow")?.textContent.includes("Level 3")')
  check('level 3 brief uses five L sheets and a calibrated deadline','5 × L' in page.locator('.game-brief-stats').inner_text() and 'deadline' in page.locator('.game-brief-stats').inner_text().lower())
  page.locator('[data-level-action=play]').click()
  page.wait_for_function('bubbleUI.settings.bubbleSize===82 && bubbleUI.refreshLocked===true')
  check('level 3 starts with a hard timer on L bubbles before its final-10-second danger state',page.locator('.game-hud-timer .game-label').inner_text().lower()=='time left' and page.locator('.game-hud').get_attribute('data-danger')=='false')
- check('purchased Fat Finger appears in the live build HUD',page.locator('.game-upgrade[data-upgrade="fatFinger"]').count()==1)
+ check('the purchased upgrade appears in the live build HUD',page.locator(f'.game-upgrade[data-upgrade="{bought_upgrade}"]').count()==1)
  page.evaluate('''() => {
-   window.beforeFatFingerPopped=bubbleUI.getStats().popped;
-   const available=bubbleUI.getGameBubbles().filter(b=>b.eligible&&!b.popped);
-   const selected=available.find(b=>bubbleUI.getGameNeighbours(b.index).some(index=>available.some(candidate=>candidate.index===index)));
-   bubbleUI.popForGame(selected.index,{type:'manual',input:'mouse',gestureId:'fat-finger'});
+   const selected=bubbleUI.getGameBubbles().find(b=>b.eligible&&!b.popped);
+   bubbleUI.popForGame(selected.index,{type:'manual',input:'mouse',gestureId:'upgrade-smoke'});
  }''')
- page.wait_for_function('bubbleUI.getStats().popped>=window.beforeFatFingerPopped+2')
- check('Fat Finger resolves one non-recursive assisted neighbour',page.evaluate('bubbleUI.getStats().popped===window.beforeFatFingerPopped+2'))
- page.wait_for_function('document.querySelector(".game-hud")?.dataset.danger==="true"',timeout=25000)
- check('live hard deadline enters the neon danger treatment for its final 10 seconds',page.locator('.game-hud').get_attribute('data-danger')=='true')
+ page.wait_for_function('bubbleUI.getStats().popped>=1')
+ check('the expanded upgrade pool keeps manual play responsive',page.evaluate('bubbleUI.getStats().popped>=1'))
+ page.wait_for_function('''() => {
+   const root=document.querySelector('#game-root');
+   if(root?.dataset.screen==='run-won'&&root.querySelector('.game-eyebrow')?.textContent.includes('Level 3')) return true;
+   if(root?.dataset.screen==='hud'&&!bubbleUI.refreshing) bubbleUI.getGameBubbles().filter(b=>b.eligible&&!b.popped).forEach(b=>bubbleUI.popForGame(b.index,{type:'manual',input:'mouse',gestureId:'pressure'}));
+   return false;
+ }''',timeout=30000)
+ page.locator('[data-level-action=shop]').click()
+ check('level 3 completion opens the second live shop',page.locator('#game-root[data-screen="shop"] .game-offer').count()==2)
+ page.locator('[data-shop-action=skip]').click()
+ page.wait_for_function('document.querySelector("#game-root")?.dataset.screen==="level-intro" && document.querySelector(".game-eyebrow")?.textContent.includes("Level 4")')
+ hazard_text=page.locator('.game-lede').inner_text()
+ check('level 4 announces one implemented seeded hazard',('Double Layer' in hazard_text or 'Memory Foam' in hazard_text) and 'adjusted deadline' in hazard_text)
+ page.locator('[data-level-action=play]').click()
+ page.wait_for_function('bubbleUI.settings.bubbleSize===64 && document.querySelector(".game-hud-hazard")')
+ check('level 4 uses three M sheets with a hazard-adjusted hard deadline',page.locator('.game-hud-goal strong number-flow').evaluate_all('nodes=>nodes.map(node=>node.getAttribute("aria-label"))')==['1','3'] and page.locator('.game-hud-timer').is_visible())
+ if 'Double Layer' in hazard_text:
+  layered=page.evaluate('bubbleUI.getGameBubbles().find(b=>b.eligible&&!b.popped&&b.layers===2)')
+  before=page.locator('[data-live=score]').get_attribute('aria-label')
+  page.evaluate('(index)=>bubbleUI.popForGame(index,{type:"manual",input:"mouse",gestureId:"layer-one"})',layered['index'])
+  check('Double Layer first hit cracks without popping or scoring',page.evaluate('(index)=>{const b=bubbleUI.getGameBubbles().find(item=>item.index===index);return b.layers===1&&!b.popped}',layered['index']) and page.locator('[data-live=score]').get_attribute('aria-label')==before)
+  page.evaluate('(index)=>bubbleUI.popForGame(index,{type:"manual",input:"mouse",gestureId:"layer-two"})',layered['index'])
+  page.wait_for_function('(index)=>bubbleUI.getGameBubbles().find(item=>item.index===index)?.popped',arg=layered['index'])
+  check('Double Layer second hit pops normally',page.locator('[data-live=score]').get_attribute('aria-label')!=before)
+ else:
+  target=page.evaluate('bubbleUI.getGameBubbles().find(b=>b.eligible&&!b.popped)')
+  page.evaluate('(index)=>bubbleUI.popForGame(index,{type:"manual",input:"mouse",gestureId:"foam-first"})',target['index'])
+  popped_indices=page.evaluate('bubbleUI.getGameBubbles().filter(b=>b.popped).map(b=>b.index)')
+  page.wait_for_function('(indices)=>indices.some(index=>!bubbleUI.getGameBubbles().find(b=>b.index===index)?.popped)',arg=popped_indices,timeout=6000)
+  reinflated=page.evaluate('(indices)=>indices.find(index=>!bubbleUI.getGameBubbles().find(b=>b.index===index)?.popped)',popped_indices)
+  before_value=float(page.locator('[data-live=score]').get_attribute('aria-label').replace('$','').replace(',',''))
+  page.evaluate('(index)=>bubbleUI.popForGame(index,{type:"manual",input:"mouse",gestureId:"foam-repeat"})',reinflated)
+  page.wait_for_timeout(100)
+  after_value=float(page.locator('[data-live=score]').get_attribute('aria-label').replace('$','').replace(',',''))
+  check('Memory Foam warns, reinflates, and blocks repeat base score',after_value-before_value<=2)
  page.wait_for_selector('#game-root[data-screen="run-lost"]',timeout=35000)
- check('level 3 timeout ends the run with a reset choice','time’s up' in page.locator('#run-lost-heading').inner_text().lower() and page.locator('[data-level-action=retry]').is_visible())
+ check('level 4 timeout ends the run with a reset choice','time’s up' in page.locator('#run-lost-heading').inner_text().lower() and page.locator('[data-level-action=retry]').is_visible())
  page.locator('[data-level-action=retry]').click()
  page.wait_for_function('document.querySelector("#game-root")?.dataset.screen==="level-intro" && document.querySelector(".game-eyebrow")?.textContent.includes("Level 1")')
  page.locator('[data-level-action=play]').click()

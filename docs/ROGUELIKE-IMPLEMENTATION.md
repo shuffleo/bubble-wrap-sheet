@@ -508,7 +508,24 @@ Build:
 - The Level 2 result now opens a live seeded shop with two unowned offers, score-paid rerolls, immediate purchase dismissal, and capped skip interest.
 - The active offer pool contains Fat Finger plus the three economy upgrades; effects scheduled for later Stage E slices remain unavailable until implemented.
 - Fat Finger resolves through the manual-only deterministic proc queue, attributes its fixed assisted score separately, and appears in the live build HUD.
-- Buying or skipping advances through the reducer's existing shop phase into Level 3; no Stage F hazard behavior is enabled yet.
+- At this first checkpoint, buying or skipping advanced through the reducer's
+  existing shop phase into Level 3; Stage F had not yet been enabled.
+
+### Stage E upgrade-batch status
+
+Implemented through Second Wind:
+
+- Rough Table advances on active encounter time only and pauses during sheet
+  exchange, menus, and hidden-tab time.
+- Knuckle Crack uses the live combo count; Static Discharge uses an
+  encounter-scoped manual-pop count and actual bubble positions.
+- Velocity Buff, Deadline Fighter, and Sure Hands now resolve in the documented
+  score order and add separate attributable result rows.
+- Second Wind persists its one use across levels, extends only a hard deadline
+  it can actually save, and recalculates the danger multiplier from the extended
+  total.
+- All seven effects are in the seeded live shop pool with their config prices.
+  Assisted effects share a deterministic, non-recursive queue.
 
 ### User checkpoint 4: economy and first upgrade
 
@@ -558,6 +575,27 @@ Stop after the first four upgrades, and again after all twelve. Ask the user to 
 ### Slice F3: Memory Foam
 
 - Warning, reinflation, completion cancellation, and anti-farming.
+
+### Stage F first-pair status
+
+Implemented through F3:
+
+- Level 3 now opens shop 2 and advances into a three-sheet Level 4 encounter.
+- Level 4 chooses one seeded hazard for the whole level, repeats it in each
+  sheet plan, announces it before play, and applies its workload allowance to
+  the calibrated deadline.
+- The live checkpoint pool contains Double Layer and Memory Foam only.
+- Double Layer assigns the configured responsive ratio, exposes its layer state,
+  cracks without scoring on the first hit, and lets manual or assisted hits
+  remove exactly one membrane.
+- Memory Foam uses active encounter time, warns for the configured interval,
+  cancels at sheet completion, reinflates through the engine adapter, and
+  prevents repeat-score farming.
+- The renderer has bounded layer, warning, and reinflation APIs; hazard state
+  remains outside persisted run data.
+- Shop 3 settles normally, then this checkpoint stops on an explicit Level 5
+  handoff screen. It does not enter the static-sheet controller with the
+  conveyor's zero-sheet configuration.
 
 ### User checkpoint 6: first hazard pair
 

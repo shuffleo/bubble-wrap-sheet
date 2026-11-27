@@ -6,11 +6,14 @@ class FakeEngine extends EventTarget {
  constructor(){
   super();
   this.items=[
-   {index:0,surface:'sheet',eligible:true,popped:false,x:0,y:0},
-   {index:1,surface:'sheet',eligible:true,popped:false,x:10,y:0},
-   {index:2,surface:'sheet',eligible:false,popped:false,x:20,y:0}
+   {index:0,surface:'sheet',eligible:true,popped:false,x:0,y:0,layers:1},
+   {index:1,surface:'sheet',eligible:true,popped:false,x:10,y:0,layers:1},
+   {index:2,surface:'sheet',eligible:false,popped:false,x:20,y:0,layers:1}
   ];
  }
+ setGameBubbleLayers(indices,layers){for(const index of indices)if(this.items[index]?.eligible&&!this.items[index].popped)this.items[index].layers=layers;return indices.filter(index=>this.items[index]?.eligible&&!this.items[index].popped).length;}
+ reinflateForGame(index){const item=this.items[index];if(!item?.popped)return false;item.popped=false;return true;}
+ setHazardWarning(index){this.warning=index;return true;}
  getGameBubbles(){return this.items.map(item=>({...item}));}
  getGameNeighbours(index){return index===0?[1]:index===1?[0]:[];}
  popForGame(index,source){
@@ -54,6 +57,11 @@ test('bounded methods return copies and reject unavailable bubbles',()=>{
  assert.deepEqual(adapter.neighbours(0),[1]);
  assert.equal(adapter.pop(2,{type:'hazard',hazard:'memoryFoam'}),false);
  assert.equal(adapter.pop(99,{type:'system',reason:'test'}),false);
+ assert.equal(adapter.setLayers([0,1,2],2),2);
+ assert.equal(adapter.bubbles()[0].layers,2);
+ engine.items[0].popped=true;
+ assert.equal(adapter.reinflate(0),true);
+ assert.equal(adapter.warn(0),true);
  adapter.dispose();
 });
 

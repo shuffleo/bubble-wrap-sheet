@@ -79,8 +79,8 @@ export function softParMs(category:RunCategory,totalBubbles:number,sheetCount:nu
  return Math.ceil(popMs+transitionAllowanceMs(sheetCount));
 }
 
-export function calibratedDeadlineMs(totalBubbles:number,sheetCount:number,calibration:CalibrationResult):number {
- const activeMs=Math.max(0,totalBubbles)/Math.max(Number.EPSILON,calibration.popsPerSecond)*1000*GAME_CONFIG.calibration.hardDeadlineChallengeFactor;
+export function calibratedDeadlineMs(totalBubbles:number,sheetCount:number,calibration:CalibrationResult,workloadMultiplier=1):number {
+ const activeMs=Math.max(0,totalBubbles)/Math.max(Number.EPSILON,calibration.popsPerSecond)*1000*GAME_CONFIG.calibration.hardDeadlineChallengeFactor*Math.max(1,workloadMultiplier);
  const proposed=activeMs+transitionAllowanceMs(sheetCount);
  const minimum=GAME_CONFIG.calibration.hardDeadlineMinSeconds*1000;
  const maximum=GAME_CONFIG.calibration.hardDeadlineMaxSeconds*1000;

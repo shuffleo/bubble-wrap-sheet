@@ -1,10 +1,10 @@
-import {GAME_CONFIG,levelDefinition} from './game-config';
+import {GAME_CONFIG,levelDefinition,type HazardId,type UpgradeId} from './game-config';
 import {planLevelSheets,type SheetPlan} from './sheet-plan';
 import {initialSession,reduceSession} from './game-reducer';
 import {EMPTY_COMBO,categoryForManualInput,chooseHotKeys,scoreAssistedPop,scoreManualPop,type ComboState,type ScoreInputKind,type ScoreSkill} from './scoring';
-import type {UpgradeId} from './game-config';
 import type {GameRngState} from './game-rng';
 import type {GameSessionState,LevelId,RunCategory} from './game-types';
+import {selectLevelFourHazard} from './hazards';
 
 export interface LevelPlayState {
  session:GameSessionState;
@@ -25,6 +25,7 @@ export interface LevelPlayState {
  manualPopTimes:number[];
  currentVelocityMultiplier:number;
  currentDeadlineMultiplier:number;
+ scoredBubbleKeys:Set<string>;
  breakdown:{base:number;cleanSweep:number;hotKey:number;sureHands:number;velocityBoost:number;deadlineBoost:number;assisted:number;assistedByUpgrade:Partial<Record<UpgradeId,number>>;remainingTime:number};
 }
 export type LevelOneState=LevelPlayState;
@@ -46,9 +47,17 @@ export function createLevelOne(seed:number):LevelOneState {
 
 export function createLevelState(source:GameSessionState,levelId:LevelId):LevelPlayState {
  const level=levelDefinition(levelId);
- const plans=planLevelSheets(levelId);
- const encounter=source.run.encounter;
- const session=encounter?{...source,run:{...source.run,encounter:{...encounter,sheetHazardIds:plans[0]?.hazardIds??[]}}}:source;
+ let session=source;
+ let encounter=source.run.encounter;
+ let hazardId=encounter?.hazardId as HazardId|null|undefined;
+ if(levelId===4&&!hazardId){
+  const selected=selectLevelFourHazard(source.rng);
+  hazardId=selected.hazardId;
+  encounter=encounter?{...encounter,hazardId}:encounter;
+  session={...source,rng:selected.rng,run:{...source.run,encounter}};
+ }
+ const plans=planLevelSheets(levelId,hazardId??null);
+ if(encounter)session={...session,run:{...session.run,encounter:{...encounter,sheetHazardIds:plans[0]?.hazardIds??[]}}};
  return {
   session,
   levelId,
@@ -68,6 +77,7 @@ export function createLevelState(source:GameSessionState,levelId:LevelId):LevelP
   manualPopTimes:[],
   currentVelocityMultiplier:1,
   currentDeadlineMultiplier:1,
+  scoredBubbleKeys:new Set(),
   breakdown:{base:0,cleanSweep:0,hotKey:0,sureHands:0,velocityBoost:0,deadlineBoost:0,assisted:0,assistedByUpgrade:{},remainingTime:0}
  };
 }
@@ -92,6 +102,7 @@ export function applyManualPop(state:LevelPlayState,input:{
  keyCode:string|null;
  availableKeyCodes:readonly string[];
  hardDeadline?:{totalMs:number;elapsedMs:number}|null;
+ firstScoredPop?:boolean;
 }):{state:LevelPlayState;notice:ManualPopNotice} {
  if(state.cleared||state.session.run.phase!=='playing')return {state,notice:noticeOf(state,0,'none')};
  const category=state.category??categoryForManualInput(input.input);
@@ -106,7 +117,8 @@ export function applyManualPop(state:LevelPlayState,input:{
   combo:state.combo,
   owned:state.session.run.upgrades as UpgradeId[],
   manualPopTimes:state.manualPopTimes,
-  hardDeadline:input.hardDeadline
+  hardDeadline:input.hardDeadline,
+  scoreEligible:input.firstScoredPop!==false
  });
  let hotKeys=state.hotKeys;
  let rng=state.rng;
@@ -119,9 +131,9 @@ export function applyManualPop(state:LevelPlayState,input:{
  const session={...state.session,run:{...run,category,score:run.score+scored.points,stats:{...run.stats,manualPops:run.stats.manualPops+1,scoreEvents:run.stats.scoreEvents+1}}};
  const breakdown={
   ...state.breakdown,
-  base:state.breakdown.base+GAME_CONFIG.scoring.normalBase,
-  cleanSweep:state.breakdown.cleanSweep+(scored.skill==='clean-sweep'?GAME_CONFIG.scoring.skillBonus:0),
-  hotKey:state.breakdown.hotKey+(scored.skill==='hot-key'?GAME_CONFIG.scoring.skillBonus:0),
+  base:state.breakdown.base+(input.firstScoredPop===false?0:GAME_CONFIG.scoring.normalBase),
+  cleanSweep:state.breakdown.cleanSweep+(input.firstScoredPop!==false&&scored.skill==='clean-sweep'?GAME_CONFIG.scoring.skillBonus:0),
+  hotKey:state.breakdown.hotKey+(input.firstScoredPop!==false&&scored.skill==='hot-key'?GAME_CONFIG.scoring.skillBonus:0),
   sureHands:state.breakdown.sureHands+scored.sureHandsBonus,
   velocityBoost:state.breakdown.velocityBoost+scored.velocityBoost,
   deadlineBoost:state.breakdown.deadlineBoost+scored.deadlineBoost
@@ -131,8 +143,8 @@ export function applyManualPop(state:LevelPlayState,input:{
  return {state:nextState,notice:noticeOf(nextState,scored.points,scored.skill)};
 }
 
-export function applyAssistedPop(state:LevelPlayState,upgrade?:UpgradeId):{state:LevelPlayState;points:number} {
- const points=scoreAssistedPop();
+export function applyAssistedPop(state:LevelPlayState,upgrade?:UpgradeId,firstScoredPop=true):{state:LevelPlayState;points:number} {
+ const points=firstScoredPop?scoreAssistedPop():0;
  const run=state.session.run;
  const assistedByUpgrade=upgrade
   ?{...state.breakdown.assistedByUpgrade,[upgrade]:(state.breakdown.assistedByUpgrade[upgrade]??0)+points}

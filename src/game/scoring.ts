@@ -36,6 +36,7 @@ export function scoreManualPop(input:{
  owned?:readonly UpgradeId[];
  manualPopTimes?:readonly number[];
  hardDeadline?:{totalMs:number;elapsedMs:number}|null;
+ scoreEligible?:boolean;
 }):ManualScore {
  const scoring=GAME_CONFIG.scoring;
  const owned=input.owned??[];
@@ -53,13 +54,14 @@ export function scoreManualPop(input:{
   input.hardDeadline?Math.max(0,input.hardDeadline.totalMs-input.hardDeadline.elapsedMs):0,
   owned.includes('deadlineFighter')&&alive&&!!input.hardDeadline
  );
- const skillBonus=skill==='none'?0:scoring.skillBonus;
- const sureHandsBonus=skill!=='none'&&owned.includes('sureHands')?GAME_CONFIG.upgrades.sureHands.additionalSkillBonus:0;
- const subtotal=scoring.normalBase+skillBonus+sureHandsBonus;
+ const scoreEligible=input.scoreEligible!==false;
+ const skillBonus=scoreEligible&&skill!=='none'?scoring.skillBonus:0;
+ const sureHandsBonus=scoreEligible&&skill!=='none'&&owned.includes('sureHands')?GAME_CONFIG.upgrades.sureHands.additionalSkillBonus:0;
+ const subtotal=scoreEligible?scoring.normalBase+skillBonus+sureHandsBonus:0;
  const afterVelocity=subtotal*velocity;
  const points=roundGameValue(afterVelocity*deadline);
- const velocityBoost=roundGameValue(afterVelocity)-subtotal;
- const deadlineBoost=points-subtotal-velocityBoost;
+ const velocityBoost=Math.max(0,roundGameValue(afterVelocity)-subtotal);
+ const deadlineBoost=Math.max(0,points-subtotal-velocityBoost);
  return {points,skill,combo,rate,velocityMultiplier:velocity,deadlineMultiplier:deadline,sureHandsBonus,velocityBoost,deadlineBoost};
 }
 

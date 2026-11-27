@@ -76,6 +76,24 @@ test('manual score applies Sure Hands before velocity and deadline multipliers',
  );
 });
 
+test('a reinflated bubble advances manual play without awarding repeat score',()=>{
+ const result=scoreManualPop({
+  now:500,
+  input:'touch',
+  gestureOrdinal:3,
+  adjacent:true,
+  hotKey:false,
+  combo:{count:2,expiresAt:500},
+  owned:['sureHands','velocityBuff'],
+  manualPopTimes:[0,250],
+  scoreEligible:false
+ });
+ assert.equal(result.points,0);
+ assert.equal(result.sureHandsBonus,0);
+ assert.equal(result.velocityBoost,0);
+ assert.equal(result.combo.count,3);
+});
+
 test('level 1 scores two manual sheets and keeps the first category',()=>{
  let level=beginLevelOne(createLevelOne(9),['KeyA','KeyS','KeyD','KeyF']);
  assert.equal(level.sheets,GAME_CONFIG.run.levels[0].sheetCount);
