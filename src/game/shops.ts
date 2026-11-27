@@ -5,6 +5,9 @@ import type {RunCategory} from './game-types';
 
 export const LIVE_SHOP_UPGRADES:readonly UpgradeId[]=[
  'fatFinger',
+ 'roughTable',
+ 'knuckleCrack',
+ 'staticDischarge',
  'rateHikeCycle',
  'priorityBanking',
  'flatRate'

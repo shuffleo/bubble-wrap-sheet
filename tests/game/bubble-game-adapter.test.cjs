@@ -6,9 +6,9 @@ class FakeEngine extends EventTarget {
  constructor(){
   super();
   this.items=[
-   {index:0,surface:'sheet',eligible:true,popped:false},
-   {index:1,surface:'sheet',eligible:true,popped:false},
-   {index:2,surface:'sheet',eligible:false,popped:false}
+   {index:0,surface:'sheet',eligible:true,popped:false,x:0,y:0},
+   {index:1,surface:'sheet',eligible:true,popped:false,x:10,y:0},
+   {index:2,surface:'sheet',eligible:false,popped:false,x:20,y:0}
   ];
  }
  getGameBubbles(){return this.items.map(item=>({...item}));}

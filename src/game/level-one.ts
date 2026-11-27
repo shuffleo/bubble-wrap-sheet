@@ -2,6 +2,7 @@ import {GAME_CONFIG,levelDefinition} from './game-config';
 import {planLevelSheets,type SheetPlan} from './sheet-plan';
 import {initialSession,reduceSession} from './game-reducer';
 import {EMPTY_COMBO,categoryForManualInput,chooseHotKeys,scoreAssistedPop,scoreManualPop,type ComboState,type ScoreInputKind,type ScoreSkill} from './scoring';
+import type {UpgradeId} from './game-config';
 import type {GameRngState} from './game-rng';
 import type {GameSessionState,LevelId,RunCategory} from './game-types';
 
@@ -20,7 +21,8 @@ export interface LevelPlayState {
  cleared:boolean;
  prompt:boolean;
  rng:GameRngState;
- breakdown:{base:number;cleanSweep:number;hotKey:number;assisted:number;remainingTime:number};
+ encounterManualPops:number;
+ breakdown:{base:number;cleanSweep:number;hotKey:number;assisted:number;assistedByUpgrade:Partial<Record<UpgradeId,number>>;remainingTime:number};
 }
 export type LevelOneState=LevelPlayState;
 
@@ -59,7 +61,8 @@ export function createLevelState(source:GameSessionState,levelId:LevelId):LevelP
   cleared:false,
   prompt:true,
   rng:session.rng,
-  breakdown:{base:0,cleanSweep:0,hotKey:0,assisted:0,remainingTime:0}
+  encounterManualPops:0,
+  breakdown:{base:0,cleanSweep:0,hotKey:0,assisted:0,assistedByUpgrade:{},remainingTime:0}
  };
 }
 
@@ -110,16 +113,19 @@ export function applyManualPop(state:LevelPlayState,input:{
   cleanSweep:state.breakdown.cleanSweep+(scored.skill==='clean-sweep'?GAME_CONFIG.scoring.skillBonus:0),
   hotKey:state.breakdown.hotKey+(scored.skill==='hot-key'?GAME_CONFIG.scoring.skillBonus:0)
  };
- const nextState={...state,session,combo:scored.combo,category,gesture:keyboard?state.gesture:gesture,hotKeys,rng,prompt:false,breakdown};
+ const nextState={...state,session,combo:scored.combo,category,gesture:keyboard?state.gesture:gesture,hotKeys,rng,prompt:false,encounterManualPops:state.encounterManualPops+1,breakdown};
  return {state:nextState,notice:noticeOf(nextState,scored.points,scored.skill)};
 }
 
-export function applyAssistedPop(state:LevelPlayState):{state:LevelPlayState;points:number} {
+export function applyAssistedPop(state:LevelPlayState,upgrade?:UpgradeId):{state:LevelPlayState;points:number} {
  const points=scoreAssistedPop();
  const run=state.session.run;
+ const assistedByUpgrade=upgrade
+  ?{...state.breakdown.assistedByUpgrade,[upgrade]:(state.breakdown.assistedByUpgrade[upgrade]??0)+points}
+  :state.breakdown.assistedByUpgrade;
  return {
   points,
-  state:{...state,session:{...state.session,run:{...run,score:run.score+points,stats:{...run.stats,assistedPops:run.stats.assistedPops+1,scoreEvents:run.stats.scoreEvents+1}}},combo:state.combo,breakdown:{...state.breakdown,assisted:state.breakdown.assisted+points}}
+  state:{...state,session:{...state.session,run:{...run,score:run.score+points,stats:{...run.stats,assistedPops:run.stats.assistedPops+1,scoreEvents:run.stats.scoreEvents+1}}},combo:state.combo,breakdown:{...state.breakdown,assisted:state.breakdown.assisted+points,assistedByUpgrade}}
  };
 }
 

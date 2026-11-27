@@ -19,7 +19,7 @@ export type AutomatedPopSource=
  |{type:'system';reason:string};
 export type BubblePopSource=ManualPopSource|AutomatedPopSource;
 export interface BubblePopDetail {index:number;key:string;surface:string;source:BubblePopSource;}
-export interface GameBubbleSnapshot {index:number;surface:string;eligible:boolean;popped:boolean;}
+export interface GameBubbleSnapshot {index:number;surface:string;eligible:boolean;popped:boolean;x:number;y:number;}
 interface SheetExchange {old:Float32Array[];oldCount:number;timeline:RefillTimeline;progress:number;distance:number;slide:boolean;}
 interface Surface {completed:boolean;id:string;node:HTMLElement;config:SurfaceConfig;rect:Rect;off:()=>void;}
 interface Pointer {id:number;surface:string;x:number;y:number;startX:number;startY:number;index:number;visited:Set<number>;gentle:boolean;input:ManualPopInput;gestureId:string;}
@@ -287,7 +287,7 @@ export class BubbleEngine extends EventTarget {
   this.audio.unlock();if(!this.popWithSource(index,{type:'manual',input:'keyboard',gestureId:`key:${code}`}))return -1;this.wake();
   this.dispatchEvent(new CustomEvent('keypop',{detail:{code,label:group.label,index}}));return index;
  }
- getGameBubbles():GameBubbleSnapshot[]{return this.points.flatMap((point,index)=>point.mode==='poppable'?[{index,surface:point.surface,eligible:point.eligible!==false&&!point.cut,popped:!!this.physics.isPopped[index]}]:[]);}
+ getGameBubbles():GameBubbleSnapshot[]{return this.points.flatMap((point,index)=>point.mode==='poppable'?[{index,surface:point.surface,eligible:point.eligible!==false&&!point.cut,popped:!!this.physics.isPopped[index],x:point.x,y:point.y}]:[]);}
  getGameNeighbours(index:number):number[]{if(!Number.isInteger(index)||index<0||index>=this.points.length)return[];const neighbours:number[]=[];for(let offset=0;offset<6;offset++){const candidate=this.physics.neighbors[index*6+offset];if(candidate>=0&&this.points[candidate]?.mode==='poppable'&&this.points[candidate].eligible!==false&&!this.points[candidate].cut)neighbours.push(candidate);}return neighbours;}
  popForGame(index:number,source:AutomatedPopSource):boolean {if(this.destroyed||this.lost||this.refreshing||!Number.isInteger(index))return false;const point=this.points[index];if(!point||point.mode!=='poppable'||point.eligible===false||point.cut)return false;const popped=this.popWithSource(index,source);if(popped)this.wake();return popped;}
  getKeyboardMap(){return this.keyboard.groups.map(group=>({...group,indices:[...group.indices],total:group.indices.length,remaining:group.indices.reduce((sum,index)=>sum+(this.physics.isPopped[index]?0:1),0)}));}
