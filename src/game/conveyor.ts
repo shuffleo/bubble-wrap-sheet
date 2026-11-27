@@ -1,5 +1,5 @@
 import {GAME_CONFIG,type UpgradeId} from './game-config';
-import {nextInt,type GameRngState} from './game-rng';
+import type {GameRngState} from './game-rng';
 
 export interface ConveyorState {
  elapsedMs:number;
@@ -31,8 +31,8 @@ export function conveyorSpeedMultiplier(elapsedMs:number):number {
  return multiplier;
 }
 
-/** Advances spawn scheduling from active game time. Lane values are seeded,
- * normalized coordinates; rendering and moving hit tests stay in the engine. */
+/** Advances the conveyor clock. The engine owns the continuous sheet, so this
+ * no longer chooses random lanes. */
 export function advanceConveyor(input:{
  state:ConveyorState;
  activeDeltaMs:number;
@@ -46,24 +46,16 @@ export function advanceConveyor(input:{
  };
  const elapsedMs=Math.min(GAME_CONFIG.conveyor.durationMs,input.state.elapsedMs+Math.max(0,input.activeDeltaMs));
  const spawnCutoff=GAME_CONFIG.conveyor.durationMs-GAME_CONFIG.conveyor.cleanupWindowMs;
- let nextSpawnAtMs=input.state.nextSpawnAtMs,state=input.rng;
- const spawnLanes:number[]=[];
- while(nextSpawnAtMs<=elapsedMs&&nextSpawnAtMs<spawnCutoff){
-  const lane=nextInt(state,0,9999);
-  state=lane.state;
-  spawnLanes.push(lane.value/9999);
-  nextSpawnAtMs+=GAME_CONFIG.conveyor.spawnIntervalMs;
- }
+ const nextSpawnAtMs=elapsedMs<spawnCutoff?elapsedMs:Math.max(input.state.nextSpawnAtMs,spawnCutoff);
  return {
   state:{
    ...input.state,
    elapsedMs,
    nextSpawnAtMs,
-   totalSpawned:input.state.totalSpawned+spawnLanes.length,
    finished:elapsedMs>=GAME_CONFIG.conveyor.durationMs
   },
-  rng:state,
-  spawnLanes,
+  rng:input.rng,
+  spawnLanes:[],
   speedMultiplier:conveyorSpeedMultiplier(elapsedMs)
  };
 }

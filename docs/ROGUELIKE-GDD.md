@@ -316,9 +316,10 @@ Purchased upgrades do not make the deadline stricter.
 
 - Duration: 45 seconds.
 - Bubble size: M.
-- Direction: bubbles enter from the left and move to the right.
+- Direction: one continuous sheet, filled from top to bottom, slides from left to right.
+- The sheet's left edge stays offscreen while more columns are still entering. It slides into view only after the roll stops feeding, during the cleanup window.
 - Speed increases at 15 and 30 seconds.
-- Spawning stops before the final seconds to leave a fair cleanup window.
+- New columns stop before the final seconds to leave a fair cleanup window.
 - Escaping bubbles deduct 10 score.
 - Win: at least 90% clearance.
 - Failure: below 90% ends the run.
@@ -532,9 +533,10 @@ chance, and one selected hazard repeats across all three Level 4 sheets.
 
 The conveyor is a distinct encounter layout, not repeated sheet refreshes.
 
-- Bubbles move continuously in world coordinates.
+- The belt is one hexagonal sheet, not scattered bubbles. Every row across the sheet height is populated.
+- The sheet moves continuously in world coordinates. Popped bubbles stay in place on the sheet and travel with it.
 - A bubble becomes missed when its complete hit area exits the right boundary.
-- New spawns remain reachable for a minimum guaranteed interaction window.
+- While columns are still entering, the clip's left edge stays offscreen, so the ragged left border is hidden. After feeding stops, that border moves in from the left with the last column.
 - Pointer hit testing follows moving bubble positions.
 - Keyboard groups map to current screen-space bands and update as bubbles move.
 - Fat Finger resolves against current conveyor neighbours.
@@ -583,7 +585,7 @@ The sheet remains the visual focus. During Survival Run, remove the page title a
 - Key labels stay off unless Cluster Bomb or Keyboard Cover is owned.
 - If one to three eligible bubbles remain without a pop for three active seconds, one remaining bubble plays the re-tap dome on the same ease-out bounce curve. The motion falls off before the cell edge, and exposure stays unchanged, so the hexagonal film join stays continuous. Any pop, transition, visibility loss, or new sheet clears and restarts that reminder delay.
 - Game type uses a tighter line height than body copy so the HUD stays compact on a phone.
-- One Material Symbols overflow button at the bottom right contains Refresh sheet, Mute, Shop preview, Modes, Run won preview, and Tuning panel. Refresh and mute are not separate corner buttons during Survival Run.
+- One Material Symbols overflow button at the bottom right. During a live level it contains Refresh sheet, Mute, and Tuning panel, plus the playtest actions Retry level and Mark level won. The development fixture menu also previews Shop, Modes, and Run won. Refresh and mute are not separate corner buttons during Survival Run.
 
 ### Shop
 

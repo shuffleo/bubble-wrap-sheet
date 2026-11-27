@@ -24,6 +24,7 @@ import {nextClusterArm,type ClusterArm} from './cluster-bomb';
 import {classifySheetPattern} from './sheet-pattern';
 import {advanceMemoryFoam,assignDoubleLayers,assignHardenedBubbles,createDrunkenBobState,createMemoryFoamState,hazardDeadlineMultiplier,resolveDrunkenBobInput,type DrunkenBobState,type MemoryFoamState} from './hazards';
 import {advanceConveyor,conveyorClearance,createConveyorState,recordConveyorMiss,recordConveyorPop,type ConveyorState} from './conveyor';
+import {createTuningDrawer} from './tuning/tuning-drawer';
 
 export interface SurvivalRun {
  start():void;
@@ -112,7 +113,7 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
    if(firstScoredPop)state.scoredBubbleKeys.add(scoreKey);
    refreshScore();
    refreshUpgradeValues();
-   if(state.levelId===5){conveyorState=recordConveyorPop(conveyorState);refreshConveyorGoal();}
+   if(state.levelId===5)noteConveyorPop();
    else latchSheetCompletion();
    if(!clusterBurst)syncClusterBomb();
    return;
@@ -155,7 +156,7 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   state={...state,rng:resolvedProcs.rng};
   refreshUpgradeValues();
   if(resolvedProcs.procs.length&&adapter)for(const proc of resolvedProcs.procs)adapter.pop(proc.index,{type:'assisted',upgrade:proc.upgrade});
-  if(state.levelId===5){conveyorState=recordConveyorPop(conveyorState);refreshConveyorGoal();}
+  if(state.levelId===5)noteConveyorPop();
   else latchSheetCompletion();
   if(!clusterBurst)syncClusterBomb();
  };
@@ -238,7 +239,7 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
     :state.levelId===4&&hazardId
      ?`${HAZARD_COPY[hazardId].name}: ${HAZARD_COPY[hazardId].description} Clear all three sheets before the adjusted deadline.`
      :state.levelId===5
-      ?`Bubbles travel left to right and accelerate twice. Pop at least ${formatGameNumber(GAME_CONFIG.conveyor.clearanceTarget*100)}%; each escape costs ${formatGameCurrency(GAME_CONFIG.conveyor.missScorePenalty)}.`
+      ?`One full sheet slides left to right and speeds up twice. Its left edge stays hidden until the roll ends. Pop at least ${formatGameNumber(GAME_CONFIG.conveyor.clearanceTarget*100)}%; each escape costs ${formatGameCurrency(GAME_CONFIG.conveyor.missScorePenalty)}.`
      :'Clear every sheet before your calibrated hard deadline. Timing out ends this run.';
   const encounterStat=state.levelId===5?`<div><span>Encounter</span><strong>Moving ${state.size} belt</strong></div>`:`<div><span>Sheets</span><strong>${state.sheets} × ${state.size}</strong></div>`;
   root!.innerHTML=`<div class="game-scrim"></div><section class="game-card game-intro-card game-dossier" aria-labelledby="level-heading"><p class="game-eyebrow">Level ${level.id} of ${GAME_CONFIG.run.levelCount}</p><h2 id="level-heading">${level.name}</h2><div class="game-brief-stats"><div><span>Best time</span><strong>${best===null||best===undefined?'—':formatDuration(best)}</strong></div>${encounterStat}<div><span>Bubbles</span><strong>${bubbleWorkload}</strong></div>${timerStat}</div><p class="game-lede">${lede}</p><h3 class="game-section-title">Medal targets · ${medalCaption(state.levelId)}</h3>${medalStripMarkup(state.levelId)}<div class="game-inline-actions game-dossier-actions"><button class="game-button game-button-secondary" type="button" data-level-action="exit">Endless Mode</button><button class="game-button game-button-secondary" type="button" data-level-action="preview">Next levels</button><button class="game-button" type="button" data-level-action="play">Start</button></div></section>`;
@@ -294,11 +295,12 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   adapter.addEventListener('gamehit',onHit);
   adapter.addEventListener('conveyormiss',onConveyorMiss);
   adapter.startConveyor(GAME_CONFIG.conveyor.baseTravelMs);
+  conveyorState={...conveyorState,totalSpawned:adapter.conveyorIntroduced()};
   applyKeyLabels();
   showHud();startLevelTimer();
  }
  function hudOverflowMarkup(){
-  return `<details class="game-overflow"><summary class="game-icon-button" aria-label="More game options"><span class="material-symbols-rounded" aria-hidden="true">more_horiz</span></summary><div class="game-overflow-menu"><button type="button" data-game-action="refresh"><span class="material-symbols-rounded" aria-hidden="true">refresh</span>Refresh sheet</button><button type="button" data-game-action="mute" aria-pressed="true"><span class="material-symbols-rounded" aria-hidden="true">volume_up</span><span data-mute-label>Mute</span></button><button type="button" class="game-overflow-playtest" data-game-action="retry-level"><span class="material-symbols-rounded" aria-hidden="true">replay</span>Retry level</button><button type="button" class="game-overflow-playtest" data-game-action="win"><span class="material-symbols-rounded" aria-hidden="true">emoji_events</span>Mark level won</button></div></details>`;
+  return `<details class="game-overflow"><summary class="game-icon-button" aria-label="More game options"><span class="material-symbols-rounded" aria-hidden="true">more_horiz</span></summary><div class="game-overflow-menu"><button type="button" data-game-action="refresh"><span class="material-symbols-rounded" aria-hidden="true">refresh</span>Refresh sheet</button><button type="button" data-game-action="mute" aria-pressed="true"><span class="material-symbols-rounded" aria-hidden="true">volume_up</span><span data-mute-label>Mute</span></button><button type="button" data-game-action="tuning"><span class="material-symbols-rounded" aria-hidden="true">tune</span>Tuning panel</button><button type="button" class="game-overflow-playtest" data-game-action="retry-level"><span class="material-symbols-rounded" aria-hidden="true">replay</span>Retry level</button><button type="button" class="game-overflow-playtest" data-game-action="win"><span class="material-symbols-rounded" aria-hidden="true">emoji_events</span>Mark level won</button></div></details>`;
  }
  function bindHudMenu(){
   if(!root)return;
@@ -321,6 +323,7 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   sync();
   root.querySelector<HTMLButtonElement>('[data-game-action=refresh]')?.addEventListener('click',()=>{refreshCurrentSheet();if(menu)menu.open=false;});
   root.querySelector<HTMLButtonElement>('[data-game-action=mute]')?.addEventListener('click',()=>{document.getElementById('sound')?.click();sync();if(menu)menu.open=false;});
+  root.querySelector<HTMLButtonElement>('[data-game-action=tuning]')?.addEventListener('click',()=>{if(menu)menu.open=false;if(!document.getElementById('tuning-drawer'))createTuningDrawer();});
   root.querySelector<HTMLButtonElement>('[data-game-action=retry-level]')?.addEventListener('click',retryCurrentLevel);
   root.querySelector<HTMLButtonElement>('[data-game-action=win]')?.addEventListener('click',markLevelWon);
  }
@@ -496,7 +499,11 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   if(state.levelId===5){
    timerKind='conveyor';
    timerTotalMs=GAME_CONFIG.conveyor.durationMs;
-   bubbleWorkload=Math.ceil((GAME_CONFIG.conveyor.durationMs-GAME_CONFIG.conveyor.cleanupWindowMs)/GAME_CONFIG.conveyor.spawnIntervalMs);
+   const pitch=GAME_CONFIG.sizes.M+6,feedMs=GAME_CONFIG.conveyor.durationMs-GAME_CONFIG.conveyor.cleanupWindowMs;
+   const averageSpeed=GAME_CONFIG.conveyor.speedStages.reduce((sum,stage)=>sum+stage.multiplier,0)/GAME_CONFIG.conveyor.speedStages.length;
+   const columnsOnScreen=Math.max(1,Math.ceil(innerWidth/pitch));
+   const rows=Math.max(1,Math.round(engine.getStats().total/columnsOnScreen));
+   bubbleWorkload=rows*(columnsOnScreen+Math.ceil((innerWidth+GAME_CONFIG.sizes.M)/GAME_CONFIG.conveyor.baseTravelMs*averageSpeed*feedMs/pitch));
    conveyorState=createConveyorState();
    return;
   }
@@ -537,15 +544,22 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   refreshTimer();
   refreshBubbleReminder();
  }
+ function noteConveyorPop(){
+  if(!adapter)return;
+  conveyorState={...conveyorState,totalSpawned:Math.max(conveyorState.totalSpawned,adapter.conveyorIntroduced())};
+  conveyorState=recordConveyorPop(conveyorState);
+  refreshConveyorGoal();
+ }
  function tickConveyor(){
   if(!state||!adapter)return;
   const delta=Math.max(0,levelElapsedMs-conveyorLastTickMs);conveyorLastTickMs=levelElapsedMs;
   const advanced=advanceConveyor({state:conveyorState,activeDeltaMs:delta,rng:state.rng});
-  conveyorState=advanced.state;state={...state,rng:advanced.rng};adapter.setConveyorSpeed(advanced.speedMultiplier);
-  for(const lane of advanced.spawnLanes)if(adapter.spawnConveyor(lane)<0)conveyorState={...conveyorState,totalSpawned:Math.max(0,conveyorState.totalSpawned-1)};
+  conveyorState={...advanced.state,totalSpawned:adapter.conveyorIntroduced()};state={...state,rng:advanced.rng};
+  adapter.setConveyorSpeed(advanced.speedMultiplier);
+  adapter.setConveyorFeeding(levelElapsedMs<GAME_CONFIG.conveyor.durationMs-GAME_CONFIG.conveyor.cleanupWindowMs);
   const status=root?.querySelector<HTMLElement>('.game-hud-hazard');
   const stage=GAME_CONFIG.conveyor.speedStages.reduce((current,item,index)=>levelElapsedMs>=item.atMs?index+1:current,1);
-  if(status&&advanced.spawnLanes.length)status.innerHTML=`<span class="game-label">Conveyor</span>Speed stage ${stage} · ${conveyorState.missed} missed`;
+  if(status)status.innerHTML=`<span class="game-label">Conveyor</span>Speed stage ${stage} · ${conveyorState.missed} missed`;
   refreshConveyorGoal();
   if(conveyorState.finished)finishConveyor();
  }

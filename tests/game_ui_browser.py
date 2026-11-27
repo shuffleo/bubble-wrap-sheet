@@ -51,10 +51,18 @@ with sync_playwright() as pw:
   return {source:source.index,target:target.index};
  }''')
  check('Drunken Bob resolver redirects input globally and lurches the target',page.evaluate('(pair)=>!bubbleUI.getGameBubbles().find(b=>b.index===pair.source).popped&&bubbleUI.getGameBubbles().find(b=>b.index===pair.target).popped',redirected))
- page.evaluate('bubbleUI.startGameConveyor(1000);bubbleUI.spawnGameConveyor(.5);bubbleUI.setGameConveyorSpeed(1)')
- conveyor_x=page.evaluate('bubbleUI.inspect().find(p=>p.conveyorVisible).x')
+ page.evaluate('bubbleUI.startGameConveyor(1000);bubbleUI.setGameConveyorSpeed(1)')
+ conveyor_sample=page.evaluate('''() => {
+  const visible=bubbleUI.inspect().filter(p=>p.conveyorVisible&&p.mode==="poppable");
+  const rows=new Set(visible.map(p=>Math.round(p.y))).size;
+  const columns=new Set(visible.map(p=>Math.round(p.x/8))).size;
+  return {x:visible[0].x,rows,columns,count:visible.length};
+ }''')
  page.wait_for_timeout(120)
- check('conveyor bubbles move through the shared instanced renderer',page.evaluate('(x)=>{const point=bubbleUI.inspect().find(p=>p.conveyorVisible);return point&&point.x>x&&bubbleUI.getStats().drawCalls===1}',conveyor_x))
+ check('conveyor sheet moves as one full-height lattice',page.evaluate('''(sample)=>{
+  const visible=bubbleUI.inspect().filter(p=>p.conveyorVisible&&p.mode==="poppable");
+  return sample.count>20 && sample.rows>=4 && sample.columns>=4 && visible.some(p=>p.x>sample.x+0.2) && bubbleUI.getStats().drawCalls===1;
+ }''',conveyor_sample))
  page.evaluate('bubbleUI.endGameConveyor(false)')
  page.locator('#game-open').click()
  page.wait_for_selector('#game-root[data-screen="mode-select"]')
@@ -174,7 +182,11 @@ with sync_playwright() as pw:
  check('live survival HUD restores the overflow menu',page.locator('.game-overflow summary').is_visible())
  page.locator('.game-overflow summary').click()
  menu_labels=' '.join(page.locator('.game-overflow-menu button').all_inner_texts())
- check('live overflow restores refresh and mute and keeps playtest controls inside it','Refresh sheet' in menu_labels and 'Mute' in menu_labels and 'Retry level' in menu_labels and 'Mark level won' in menu_labels)
+ check('live overflow restores refresh and mute and keeps playtest controls inside it','Refresh sheet' in menu_labels and 'Mute' in menu_labels and 'Tuning panel' in menu_labels and 'Retry level' in menu_labels and 'Mark level won' in menu_labels)
+ page.locator('[data-game-action=tuning]').click()
+ check('live overflow opens the tuning sidebar',page.locator('#tuning-drawer').count()==1)
+ page.locator('[data-tuning-action=close]').click()
+ page.locator('.game-overflow summary').click()
  page.locator('[data-game-action=mute]').click()
  check('live overflow mute toggles the hidden sound control',page.evaluate('document.getElementById("sound").dataset.muted==="true"'))
  page.locator('.game-overflow summary').click()
@@ -317,7 +329,7 @@ with sync_playwright() as pw:
   if(root?.dataset.screen==='run-won') return true;
   for(const bubble of bubbleUI.getGameBubbles().filter(b=>b.eligible&&!b.popped))bubbleUI.popForGame(bubble.index,{type:'manual',input:'mouse',gestureId:`conveyor-${performance.now()}-${bubble.index}`});
   return false;
- }''',timeout=55000)
+ }''',timeout=75000)
  check('level 5 conveyor reaches a completed run at or above target','Survival Run complete' in page.locator('#conveyor-result-heading').inner_text() and float(page.locator('.game-result-hero strong').first.inner_text().replace('%',''))>=90)
  check('completed conveyor reports spawned, popped, missed, insurance, and score rows',page.locator('.game-score-calculation>div').count()>=7)
  page.locator('[data-level-action=retry]').click()

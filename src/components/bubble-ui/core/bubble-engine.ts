@@ -43,6 +43,8 @@ export class BubbleEngine extends EventTarget {
  private lastPopBySurface=new Map<string,number>();
  private exchange:SheetExchange|null=null;private currentAttributes:Float32Array[]=[];private renderInstances=0;
  private sheetRoles=new Float32Array();private conveyorActive=false;private conveyorVisible=new Uint8Array();private conveyorSpawnSerial=new Uint32Array();private conveyorSerial=0;private conveyorSpeed=0;private conveyorBaseTravelMs=1;private conveyorOrigins=new Float32Array();
+ private conveyorSheet=false;private conveyorPitch=1;private conveyorFeeding=true;private conveyorIntroduced=0;private conveyorKeyboardScroll=0;
+ private conveyorColumns:{col:number;anchorX:number;indices:number[]}[]=[];private conveyorFree:number[]=[];
  private reminderIndex=-1;private reminderStartedAt=0;private reminderBounce=new Float32Array();
  private gameLayers=new Uint8Array();private doubleLayerMask=new Uint8Array();private hardenedMask=new Uint8Array();private holdProgressMs=new Float32Array();private holdRequiredMs=0;private holdDecayMs=0;private activeHolds=new Map<number,ManualPopSource>();private manualTargetResolver:((sourceIndex:number,source:ManualPopSource,bubbles:readonly GameBubbleSnapshot[])=>number)|null=null;
  private hazardWarningIndex=-1;private hazardWarningStartedAt=0;private hazardVisual=new Float32Array();
@@ -107,7 +109,8 @@ export class BubbleEngine extends EventTarget {
  private fit(){this.dpr=Math.min(window.devicePixelRatio||1,this.settings.dpr);const w=Math.round(innerWidth*this.dpr),h=Math.round(innerHeight*this.dpr);if(this.canvas.width!==w||this.canvas.height!==h){this.canvas.width=w;this.canvas.height=h;}this.gl.viewport(0,0,w,h);}
  private layout(){
   if(this.destroyed||this.lost)return;this.finishRefresh(true,false);this.fit();
-  const conveyor=this.conveyorActive?this.points.flatMap((point,index)=>{
+  const savedSheet=this.conveyorSheet?this.conveyorColumns.map(column=>({col:column.col,anchorX:column.anchorX,cells:column.indices.map(index=>({row:this.points[index].row,popped:!!this.physics.isPopped[index],squish:this.physics.squish[index],velocity:this.physics.velocity[index]}))})):null;
+  const conveyor=!savedSheet&&this.conveyorActive?this.points.flatMap((point,index)=>{
    if(!this.conveyorVisible[index])return [];
    const surface=this.surfaces.get(point.surface);if(!surface)return [];
    return [{surface:point.surface,x:(point.x-(surface.rect.left-point.radius))/Math.max(1,surface.rect.width+point.radius*2),y:(point.y-(surface.rect.top+point.radius))/Math.max(1,surface.rect.height-point.radius*2),popped:!!this.physics.isPopped[index],squish:this.physics.squish[index],velocity:this.physics.velocity[index],serial:this.conveyorSpawnSerial[index]}];
@@ -122,8 +125,9 @@ export class BubbleEngine extends EventTarget {
    this.points.forEach((point,index)=>{this.conveyorOrigins.set([point.x,point.y],index*2);if(point.mode==='poppable'){point.visible=false;this.physics.isPopped[index]=1;this.physics.squish[index]=1;this.physics.targetSquish[index]=1;}});
    const pool=this.points.flatMap((point,index)=>point.mode==='poppable'&&point.eligible!==false&&!point.cut?[index]:[]);
    for(const item of conveyor){const index=pool.shift();if(index===undefined)break;const point=this.points[index],surface=this.surfaces.get(point.surface);if(!surface)continue;point.x=surface.rect.left-point.radius+item.x*(surface.rect.width+point.radius*2);point.y=surface.rect.top+point.radius+item.y*Math.max(0,surface.rect.height-point.radius*2);point.visible=true;this.conveyorVisible[index]=1;this.conveyorSpawnSerial[index]=item.serial;this.physics.isPopped[index]=item.popped?1:0;this.physics.squish[index]=item.squish;this.physics.velocity[index]=item.velocity;this.physics.targetSquish[index]=item.popped?1:0;}
+   if(savedSheet)this.restoreConveyorSheet(savedSheet);
   }
-  for(const s of this.surfaces.values()){if(this.points.some((p,i)=>p.surface===s.id&&p.eligible&&!this.physics.isPopped[i]))s.completed=false;}this.keyboard=buildKeyboardMapping(this.points);this.refreshKeyboardHints();this.upload();this.notify();this.dispatchEvent(new Event('layoutchange'));this.wake();
+  for(const s of this.surfaces.values()){if(this.points.some((p,i)=>p.surface===s.id&&p.eligible&&!this.physics.isPopped[i]))s.completed=false;}this.keyboard=buildKeyboardMapping(this.points);this.refreshKeyboardHints();this.upload();if(this.conveyorSheet)this.syncConveyorClip();this.notify();this.dispatchEvent(new Event('layoutchange'));this.wake();
  }
  private upload(){
   const n=this.points.length,a=new Float32Array(n*4),clip=new Float32Array(n*4),style=new Float32Array(n*4),edges=new Float32Array(n*4);
@@ -335,8 +339,79 @@ export class BubbleEngine extends EventTarget {
   const exposure=this.reduced?.75:.25+.75*(.5+.5*Math.sin((time-this.hazardWarningStartedAt)/110));
   this.syncHazardVisual(exposure);this.dirty=true;return !this.reduced;
  }
+ private packConveyorSerial(col:number,row:number){return (col+4000)*10000+(row+4000);}
+ private unpackConveyorSerial(serial:number){return {col:Math.floor(serial/10000)-4000,row:serial%10000-4000};}
+ private paintConveyorCell(index:number){
+  const point=this.points[index],style=this.currentAttributes[2];if(!point||!style)return;
+  const seed=Math.floor(this.settings.variantSeed);
+  style[index*4+2]=materialVariant(point.row+seed,point.col);style[index*4+3]=materialVariant(point.row+seed,point.col,true);
+  const odd=point.row&1,offsets=[[0,-1],[0,1],[-1,odd-1],[-1,odd],[1,odd-1],[1,odd]];
+  for(let k=0;k<6;k++){const row=point.row+offsets[k][0],col=point.col+offsets[k][1];this.neighborData[k][index*3]=materialVariant(row+seed,col);this.neighborData[k][index*3+1]=materialVariant(row+seed,col,true);}
+ }
+ private syncConveyorClip(){
+  const surface=this.sheetSurface(),clip=this.currentAttributes[1];if(!surface||!clip||!this.conveyorColumns.length)return;
+  const rect=surface.rect,leftmost=this.conveyorColumns.reduce((best,column)=>column.anchorX<best.anchorX?column:best);
+  const clipLeft=this.conveyorFeeding?rect.left-rect.width:leftmost.anchorX-this.conveyorPitch*.5;
+  const clipRight=rect.left+rect.width*2;
+  for(const column of this.conveyorColumns)for(const index of column.indices){clip[index*4]=clipLeft;clip[index*4+1]=rect.top;clip[index*4+2]=clipRight;clip[index*4+3]=rect.top+rect.height;}
+ }
+ private placeConveyorColumn(col:number,anchorX:number,indices:number[],fresh:boolean){
+  for(const index of indices){
+   const point=this.points[index];
+   point.x=anchorX+((point.row&1)?this.conveyorPitch*.5:0);point.col=col;point.cut=false;point.eligible=true;point.visible=true;
+   this.conveyorVisible[index]=1;this.conveyorSpawnSerial[index]=this.packConveyorSerial(col,point.row);this.sheetRoles[index]=0;
+   if(fresh){this.physics.reinflate(index);this.physics.squish[index]=0;this.physics.velocity[index]=0;this.physics.targetSquish[index]=0;this.conveyorIntroduced++;}
+   const positions=this.currentAttributes[0];if(positions){positions[index*4]=point.x;positions[index*4+1]=point.y;positions[index*4+2]=point.radius;positions[index*4+3]=this.conveyorPitch;}
+   this.paintConveyorCell(index);
+  }
+  this.conveyorColumns.push({col,anchorX,indices});
+ }
+ private buildConveyorSheet(){
+  const surface=this.sheetSurface();if(!surface)return;
+  const rows=new Map<number,number[]>();
+  this.points.forEach((point,index)=>{if(point.mode!=='poppable'||point.surface!==surface.id)return;const list=rows.get(point.row)??[];list.push(index);rows.set(point.row,list);});
+  const rowIds=[...rows.keys()].sort((a,b)=>a-b);if(!rowIds.length)return;
+  for(const row of rowIds)rows.get(row)!.sort((a,b)=>this.conveyorOrigins[a*2]-this.conveyorOrigins[b*2]);
+  const width=Math.min(...rowIds.map(row=>rows.get(row)!.length));
+  const sample=rows.get(rowIds[0])!;
+  const measured=width>1?Math.abs(this.conveyorOrigins[sample[1]*2]-this.conveyorOrigins[sample[0]*2]):0;
+  this.conveyorPitch=measured>1?measured:this.settings.bubbleSize+6;
+  this.conveyorColumns=[];this.conveyorFree=[];
+  const placed=Math.max(1,width-1),anchor0=surface.rect.left+this.conveyorPitch*.5-this.conveyorPitch;
+  for(let column=0;column<width;column++){
+   const indices=rowIds.map(row=>rows.get(row)![column]);
+   if(column>=placed){this.conveyorFree.push(...indices);continue;}
+   for(const index of indices)this.points[index].y=this.conveyorOrigins[index*2+1];
+   this.placeConveyorColumn(column,anchor0+column*this.conveyorPitch,indices,true);
+  }
+  for(const index of this.conveyorFree){this.conveyorVisible[index]=0;this.sheetRoles[index]=-1;this.points[index].visible=false;}
+  this.syncConveyorClip();
+ }
+ private restoreConveyorSheet(saved:{col:number;anchorX:number;cells:{row:number;popped:boolean;squish:number;velocity:number}[]}[]){
+  const surface=this.sheetSurface();if(!surface)return;
+  const rows=new Map<number,number[]>();
+  this.points.forEach((point,index)=>{if(point.mode!=='poppable'||point.surface!==surface.id)return;const list=rows.get(point.row)??[];list.push(index);rows.set(point.row,list);});
+  const rowIds=[...rows.keys()].sort((a,b)=>a-b);
+  for(const row of rowIds)rows.get(row)!.sort((a,b)=>this.conveyorOrigins[a*2]-this.conveyorOrigins[b*2]);
+  const used=new Set<number>();this.conveyorColumns=[];
+  for(const column of saved){
+   const indices:number[]=[];
+   column.cells.forEach((cell,cellIndex)=>{
+    const row=rowIds[Math.min(rowIds.length-1,cellIndex)],pool=rows.get(row)??[];
+    const index=pool.find(candidate=>!used.has(candidate));if(index===undefined)return;
+    used.add(index);indices.push(index);
+    const point=this.points[index];point.row=row;point.y=this.conveyorOrigins[index*2+1];
+    this.physics.isPopped[index]=cell.popped?1:0;this.physics.squish[index]=cell.squish;this.physics.velocity[index]=cell.velocity;this.physics.targetSquish[index]=cell.popped?1:0;
+   });
+   if(indices.length)this.placeConveyorColumn(column.col,column.anchorX,indices,false);
+  }
+  this.conveyorFree=this.points.flatMap((point,index)=>point.mode==='poppable'&&point.surface===surface.id&&!used.has(index)?[index]:[]);
+  for(const index of this.conveyorFree){this.conveyorVisible[index]=0;this.sheetRoles[index]=-1;this.points[index].visible=false;this.physics.isPopped[index]=1;}
+  this.syncConveyorClip();
+ }
  private updateConveyor(dt:number):boolean {
   if(!this.conveyorActive)return false;
+  if(this.conveyorSheet)return this.updateConveyorSheet(dt);
   let moved=false,mappingChanged=false;
   const positions=this.currentAttributes[0];
   for(let index=0;index<this.points.length;index++){
@@ -359,13 +434,44 @@ export class BubbleEngine extends EventTarget {
   if(moved||mappingChanged)this.dirty=true;
   return moved||mappingChanged;
  }
+ private updateConveyorSheet(dt:number):boolean {
+  const surface=this.sheetSurface();if(!surface||!this.conveyorColumns.length)return false;
+  const rect=surface.rect,dx=this.conveyorSpeed*dt,positions=this.currentAttributes[0];
+  let mappingChanged=false;
+  if(dx!==0){
+   for(const column of this.conveyorColumns){column.anchorX+=dx;for(const index of column.indices){const point=this.points[index];point.x+=dx;positions[index*4]=point.x;positions[index*4+1]=point.y;}}
+   this.conveyorKeyboardScroll+=Math.abs(dx);
+  }
+  const exitX=rect.left+rect.width+this.conveyorPitch;
+  for(const column of this.conveyorColumns.filter(item=>item.anchorX>exitX)){
+   for(const index of column.indices){
+    const point=this.points[index];
+    if(!this.physics.isPopped[index]){this.physics.isPopped[index]=1;this.physics.squish[index]=1;this.physics.targetSquish[index]=1;this.audio.crinkle();this.audio.feedback.pulse(7);this.dispatchEvent(new CustomEvent<ConveyorMissDetail>('conveyormiss',{detail:{index,key:`${point.key}:spawn:${this.conveyorSpawnSerial[index]}`,surface:point.surface}}));}
+    this.conveyorVisible[index]=0;point.visible=false;this.sheetRoles[index]=-1;this.conveyorFree.push(index);
+   }
+   this.conveyorColumns=this.conveyorColumns.filter(item=>item!==column);mappingChanged=true;
+  }
+  const rowCount=this.conveyorColumns[0]?.indices.length??0;
+  while(this.conveyorFeeding&&rowCount>0&&this.conveyorFree.length>=rowCount&&this.conveyorColumns.length){
+   const leftmost=this.conveyorColumns.reduce((best,column)=>column.anchorX<best.anchorX?column:best);
+   if(leftmost.anchorX<=rect.left+this.conveyorPitch*.5-this.conveyorPitch+this.conveyorPitch*.2)break;
+   const indices=this.conveyorFree.splice(0,rowCount);
+   leftmost.indices.forEach((source,offset)=>{const index=indices[offset],point=this.points[index];point.row=this.points[source].row;point.y=this.points[source].y;this.conveyorOrigins[index*2+1]=point.y;});
+   this.placeConveyorColumn(leftmost.col-1,leftmost.anchorX-this.conveyorPitch,indices,true);mappingChanged=true;
+  }
+  this.syncConveyorClip();
+  if(this.conveyorKeyboardScroll>this.conveyorPitch*.5){this.conveyorKeyboardScroll=0;mappingChanged=true;}
+  if(mappingChanged){this.keyboard=buildKeyboardMapping(this.points);this.refreshKeyboardHints();}
+  if(dx!==0||mappingChanged)this.dirty=true;
+  return dx!==0||mappingChanged;
+ }
  private tick=(time:number)=>{
   this.frame=0;if(this.destroyed||this.lost)return;const dt=Math.min(.05,(time-this.last)/1000);this.last=time;const holds=this.updateGameHolds(dt),conveyor=this.updateConveyor(dt),active=this.physics.step(dt),flex=this.motion.step(dt);
   const reminder=this.updateBubbleReminder(time);
   const hazardWarning=this.updateHazardWarning(time);
   if(this.exchange){const duration=this.exchange.timeline.duration,elapsed=this.exchange.timeline.elapsed();this.exchange.progress=Number.isFinite(elapsed)&&duration>0?Math.max(0,Math.min(1,elapsed/duration)):1;if(this.exchange.progress>=1)this.finishRefresh();}
   if(this.dirty||active||flex||this.exchange){const g=this.gl;g.useProgram(this.program);g.bindVertexArray(this.vao);g.activeTexture(g.TEXTURE0);g.bindTexture(g.TEXTURE_2D,this.texture);g.activeTexture(g.TEXTURE1);g.bindTexture(g.TEXTURE_2D,this.atlas);g.activeTexture(g.TEXTURE2);g.bindTexture(g.TEXTURE_2D,this.collapsedAtlas);g.uniform1f(this.uniforms.uAtlasReady,this.atlasReady);g.bindBuffer(g.ARRAY_BUFFER,this.buffers[4]);g.bufferSubData(g.ARRAY_BUFFER,0,this.physics.squish);g.uniform2f(this.uniforms.uResolution,innerWidth,innerHeight);g.uniform1f(this.uniforms.uDpr,this.dpr);
-   if(this.conveyorActive){g.bindBuffer(g.ARRAY_BUFFER,this.buffers[1]);g.bufferSubData(g.ARRAY_BUFFER,0,this.currentAttributes[0]);g.bindBuffer(g.ARRAY_BUFFER,this.buffers[15]);g.bufferSubData(g.ARRAY_BUFFER,0,this.sheetRoles);}
+   if(this.conveyorActive){g.bindBuffer(g.ARRAY_BUFFER,this.buffers[1]);g.bufferSubData(g.ARRAY_BUFFER,0,this.currentAttributes[0]);g.bindBuffer(g.ARRAY_BUFFER,this.buffers[2]);g.bufferSubData(g.ARRAY_BUFFER,0,this.currentAttributes[1]);g.bindBuffer(g.ARRAY_BUFFER,this.buffers[3]);g.bufferSubData(g.ARRAY_BUFFER,0,this.currentAttributes[2]);g.bindBuffer(g.ARRAY_BUFFER,this.buffers[15]);g.bufferSubData(g.ARRAY_BUFFER,0,this.sheetRoles);}
    g.bindBuffer(g.ARRAY_BUFFER,this.buffers[5]);g.bufferSubData(g.ARRAY_BUFFER,0,this.physics.bounce);g.bindBuffer(g.ARRAY_BUFFER,this.buffers[13]);g.bufferSubData(g.ARRAY_BUFFER,0,this.reminderBounce);g.bindBuffer(g.ARRAY_BUFFER,this.buffers[14]);g.bufferSubData(g.ARRAY_BUFFER,0,this.hazardVisual);
    for(let k=0;k<6;k++){const data=this.neighborData[k];for(let i=0;i<this.points.length;i++){const j=this.physics.neighbors[i*6+k];data[i*3+2]=j>=0?this.physics.squish[j]:1;}g.bindBuffer(g.ARRAY_BUFFER,this.buffers[6+k]);g.bufferSubData(g.ARRAY_BUFFER,0,data);}
    const s=this.settings,e=this.exchange;g.uniform4f(this.uniforms.uSlide,e?sheetEase(e.progress):0,e?.distance??0,s.slideFlex,e?.slide?1:0);g.uniform3fv(this.uniforms.uCorners,this.motion.corners);g.uniform4fv(this.uniforms.uRipples,this.motion.ripples);
@@ -418,12 +524,16 @@ export class BubbleEngine extends EventTarget {
  popForGame(index:number,source:AutomatedPopSource):boolean {if(this.destroyed||this.lost||this.refreshing||!Number.isInteger(index))return false;const point=this.points[index];if(!point||point.mode!=='poppable'||point.eligible===false||point.cut||(this.conveyorActive&&!this.conveyorVisible[index]))return false;const popped=this.popWithSource(index,source);if(popped)this.wake();return popped;}
  startGameConveyor(baseTravelMs:number):void {
   if(this.conveyorActive)this.endGameConveyor(false);
-  this.finishRefresh(true,false);this.cancelPointers();this.conveyorActive=true;this.conveyorBaseTravelMs=Math.max(1,baseTravelMs);this.conveyorSpeed=0;this.conveyorSerial=0;this.conveyorVisible=new Uint8Array(this.points.length);this.conveyorSpawnSerial=new Uint32Array(this.points.length);this.conveyorOrigins=new Float32Array(this.points.length*2);this.sheetRoles=new Float32Array(this.points.length);
+  this.finishRefresh(true,false);this.cancelPointers();this.conveyorActive=true;this.conveyorSheet=true;this.conveyorFeeding=true;this.conveyorIntroduced=0;this.conveyorKeyboardScroll=0;this.conveyorBaseTravelMs=Math.max(1,baseTravelMs);this.conveyorSpeed=0;this.conveyorSerial=0;this.conveyorVisible=new Uint8Array(this.points.length);this.conveyorSpawnSerial=new Uint32Array(this.points.length);this.conveyorOrigins=new Float32Array(this.points.length*2);this.sheetRoles=new Float32Array(this.points.length);
   this.points.forEach((point,index)=>{this.conveyorOrigins.set([point.x,point.y],index*2);if(point.mode==='poppable'){point.visible=false;this.physics.isPopped[index]=1;this.physics.squish[index]=1;this.physics.targetSquish[index]=1;this.sheetRoles[index]=-1;}});
+  this.buildConveyorSheet();
   this.keyboard=buildKeyboardMapping(this.points);this.refreshKeyboardHints();this.dirty=true;this.wake();this.notify();
  }
+ /** While feeding, new columns enter from the left and the sheet's left edge stays offscreen. */
+ setGameConveyorFeeding(feeding:boolean):void {this.conveyorFeeding=feeding;if(this.conveyorSheet)this.syncConveyorClip();}
+ getGameConveyorIntroduced():number {return this.conveyorIntroduced;}
  spawnGameConveyor(lane:number):number {
-  if(!this.conveyorActive)return -1;
+  if(!this.conveyorActive||this.conveyorSheet)return -1;
   const index=this.points.findIndex((point,candidate)=>point.mode==='poppable'&&point.eligible!==false&&!point.cut&&!this.conveyorVisible[candidate]);
   if(index<0)return -1;
   const point=this.points[index],surface=this.surfaces.get(point.surface);if(!surface)return -1;
@@ -441,7 +551,7 @@ export class BubbleEngine extends EventTarget {
   if(!this.conveyorActive)return 0;
   let misses=0;
   if(countRemaining)for(let index=0;index<this.points.length;index++)if(this.conveyorVisible[index]&&!this.physics.isPopped[index]){const point=this.points[index],key=`${point.key}:spawn:${this.conveyorSpawnSerial[index]}`;misses++;this.dispatchEvent(new CustomEvent<ConveyorMissDetail>('conveyormiss',{detail:{index,key,surface:point.surface}}));}
-  this.conveyorActive=false;this.conveyorVisible=new Uint8Array();this.conveyorSpawnSerial=new Uint32Array();this.conveyorSpeed=0;this.points.forEach((point,index)=>{if(this.conveyorOrigins.length>index*2+1){point.x=this.conveyorOrigins[index*2];point.y=this.conveyorOrigins[index*2+1];}point.visible=undefined;});this.conveyorOrigins=new Float32Array();this.layout();return misses;
+  this.conveyorActive=false;this.conveyorSheet=false;this.conveyorColumns=[];this.conveyorFree=[];this.conveyorVisible=new Uint8Array();this.conveyorSpawnSerial=new Uint32Array();this.conveyorSpeed=0;this.points.forEach((point,index)=>{if(this.conveyorOrigins.length>index*2+1){point.x=this.conveyorOrigins[index*2];point.y=this.conveyorOrigins[index*2+1];}point.visible=undefined;});this.conveyorOrigins=new Float32Array();this.layout();return misses;
  }
  setGameBubbleLayers(indices:readonly number[],layers:number):number {
   const value=Math.max(1,Math.floor(layers));let changed=0;

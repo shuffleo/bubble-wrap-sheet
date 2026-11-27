@@ -16,8 +16,8 @@ test('conveyor spawns deterministically, changes speed, and reserves cleanup tim
  const first=advanceConveyor({state:createConveyorState(),activeDeltaMs:1,rng});
  const repeated=advanceConveyor({state:createConveyorState(),activeDeltaMs:1,rng:createGameRng(44)});
  assert.deepEqual(first,repeated);
- assert.equal(first.spawnLanes.length,1);
- assert.ok(first.spawnLanes[0]>=0&&first.spawnLanes[0]<=1);
+ assert.deepEqual(first.spawnLanes,[]);
+ assert.equal(first.state.totalSpawned,0);
  assert.equal(conveyorSpeedMultiplier(0),GAME_CONFIG.conveyor.speedStages[0].multiplier);
  assert.equal(conveyorSpeedMultiplier(GAME_CONFIG.conveyor.speedStages[1].atMs),GAME_CONFIG.conveyor.speedStages[1].multiplier);
  const complete=advanceConveyor({
@@ -26,8 +26,8 @@ test('conveyor spawns deterministically, changes speed, and reserves cleanup tim
   rng:first.rng
  });
  assert.equal(complete.state.finished,true);
- assert.ok(complete.state.nextSpawnAtMs>=GAME_CONFIG.conveyor.durationMs-GAME_CONFIG.conveyor.cleanupWindowMs);
- assert.ok(complete.state.nextSpawnAtMs<GAME_CONFIG.conveyor.durationMs-GAME_CONFIG.conveyor.cleanupWindowMs+GAME_CONFIG.conveyor.spawnIntervalMs);
+ assert.equal(complete.state.nextSpawnAtMs,GAME_CONFIG.conveyor.durationMs-GAME_CONFIG.conveyor.cleanupWindowMs);
+ assert.deepEqual(complete.spawnLanes,[]);
 });
 
 test('clearance includes only configured insured misses',()=>{

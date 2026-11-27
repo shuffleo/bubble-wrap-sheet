@@ -12,6 +12,8 @@ export interface BubbleGamePort extends EventTarget {
  startGameConveyor(baseTravelMs:number):void;
  spawnGameConveyor(lane:number):number;
  setGameConveyorSpeed(multiplier:number):void;
+ setGameConveyorFeeding(feeding:boolean):void;
+ getGameConveyorIntroduced():number;
  endGameConveyor(countRemaining:boolean):number;
  reinflateForGame(index:number):boolean;
  setHazardWarning(index:number|null):boolean;
@@ -101,6 +103,14 @@ export class BubbleGameAdapter extends EventTarget {
 
  setConveyorSpeed(multiplier:number):void {
   if(!this.disposed)this.engine.setGameConveyorSpeed(multiplier);
+ }
+
+ setConveyorFeeding(feeding:boolean):void {
+  if(!this.disposed)this.engine.setGameConveyorFeeding(feeding);
+ }
+
+ conveyorIntroduced():number {
+  return this.disposed?0:this.engine.getGameConveyorIntroduced();
  }
 
  endConveyor(countRemaining:boolean):number {

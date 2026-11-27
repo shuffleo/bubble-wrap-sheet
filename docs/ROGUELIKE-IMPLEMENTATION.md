@@ -674,12 +674,13 @@ Ask for complete no-upgrade and upgraded runs in both categories. Tune spawn den
 
 Implemented through G3:
 
-- Level 5 is a 45-second moving M-bubble belt rendered in the existing single
-  instanced draw. Slots are pooled, move continuously, retain moving pointer hit
-  tests, and rebuild screen-space keyboard groups as the active pool changes.
-- The belt spawns from seeded lane values, increases speed at 15 and 30 seconds,
-  stops spawning for the final cleanup window, and preserves active bubbles
-  across responsive relayout.
+- Level 5 is a 45-second moving M-bubble sheet rendered in the existing single
+  instanced draw. Columns fill the sheet from top to bottom, scroll right
+  together, retain moving pointer hit tests, and rebuild screen-space keyboard
+  groups as the sheet advances.
+- New columns enter from the left on the same pitch as the lattice. The left
+  sheet edge stays offscreen until feeding stops for the cleanup window. Speed
+  still increases at 15 and 30 seconds, and a resize keeps the active columns.
 - Escapes deduct the configured score penalty. Bubble Insurance still applies
   the penalty but credits its first three misses toward clearance.
 - Fat Finger uses current moving neighbours, Rough Table selects the oldest
@@ -721,7 +722,7 @@ Exit:
 
 ### Stage H automated status
 
-- The complete four-hazard pool, twelve-upgrade shop, and conveyor finale share
+- The complete four-hazard pool, fourteen-upgrade shop, and conveyor finale share
   the final onboarding, HUD, result dossier, local category high-score, audio,
   haptic, reduced-motion, and hidden-tab lifecycle paths.
 - Hardened state, Double Layer state, and moving keyboard groups retain
@@ -744,6 +745,12 @@ Implemented:
 - The level-end dossier draws the level's manual velocity samples as a non-interactive decoration.
 - These two upgrades are in `level-design.json` and the live shop. The pool is fourteen upgrades.
 - The last-bubbles reminder drives the existing dome bounce with the ease-out bounce curve. It no longer multiplies exposure, which was revealing the hexagonal tiles.
+- The conveyor is one full-height sheet. Its left edge stays offscreen until the roll stops feeding.
+- The live overflow menu opens the level-design tuning sidebar again.
+
+### Still design-only
+
+Muscular Finger and Fuzzy Keyboard are specified in the GDD and are not in the config, shop, or runtime. Every other listed upgrade, all four hazards, both shops' economy effects, sheet patterns, Cluster Bomb, and Keyboard Cover are wired. Balance numbers and in-app copy are the remaining human pass.
 
 ## Implementation risks
 
