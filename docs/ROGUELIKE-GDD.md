@@ -583,7 +583,7 @@ The sheet remains the visual focus. During Survival Run, remove the page title a
 - Key labels stay off unless Cluster Bomb or Keyboard Cover is owned.
 - If one to three eligible bubbles remain without a pop for three active seconds, one remaining bubble plays the re-tap dome on the same ease-out bounce curve. The motion falls off before the cell edge, and exposure stays unchanged, so the hexagonal film join stays continuous. Any pop, transition, visibility loss, or new sheet clears and restarts that reminder delay.
 - Game type uses a tighter line height than body copy so the HUD stays compact on a phone.
-- One Material Symbols overflow button at the bottom right contains Refresh sheet, Mute, Shop preview, Modes, Run won preview, and Tuning panel. Refresh and mute are not separate corner buttons during Survival Run.
+- One Material Symbols overflow button at the bottom right contains Refresh sheet, Mute, and Tuning panel during a live Survival Run, plus Retry level and Mark level won for playtest. The fixture HUD at `?game=1` also lists Shop preview, Modes, and Run won preview. Refresh and mute are not separate corner buttons during Survival Run.
 
 ### Shop
 

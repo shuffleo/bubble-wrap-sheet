@@ -24,6 +24,7 @@ import {nextClusterArm,type ClusterArm} from './cluster-bomb';
 import {classifySheetPattern} from './sheet-pattern';
 import {advanceMemoryFoam,assignDoubleLayers,assignHardenedBubbles,createDrunkenBobState,createMemoryFoamState,hazardDeadlineMultiplier,resolveDrunkenBobInput,type DrunkenBobState,type MemoryFoamState} from './hazards';
 import {advanceConveyor,conveyorClearance,createConveyorState,recordConveyorMiss,recordConveyorPop,type ConveyorState} from './conveyor';
+import {createTuningDrawer} from './tuning/tuning-drawer';
 
 export interface SurvivalRun {
  start():void;
@@ -298,7 +299,7 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   showHud();startLevelTimer();
  }
  function hudOverflowMarkup(){
-  return `<details class="game-overflow"><summary class="game-icon-button" aria-label="More game options"><span class="material-symbols-rounded" aria-hidden="true">more_horiz</span></summary><div class="game-overflow-menu"><button type="button" data-game-action="refresh"><span class="material-symbols-rounded" aria-hidden="true">refresh</span>Refresh sheet</button><button type="button" data-game-action="mute" aria-pressed="true"><span class="material-symbols-rounded" aria-hidden="true">volume_up</span><span data-mute-label>Mute</span></button><button type="button" class="game-overflow-playtest" data-game-action="retry-level"><span class="material-symbols-rounded" aria-hidden="true">replay</span>Retry level</button><button type="button" class="game-overflow-playtest" data-game-action="win"><span class="material-symbols-rounded" aria-hidden="true">emoji_events</span>Mark level won</button></div></details>`;
+  return `<details class="game-overflow"><summary class="game-icon-button" aria-label="More game options"><span class="material-symbols-rounded" aria-hidden="true">more_horiz</span></summary><div class="game-overflow-menu"><button type="button" data-game-action="refresh"><span class="material-symbols-rounded" aria-hidden="true">refresh</span>Refresh sheet</button><button type="button" data-game-action="mute" aria-pressed="true"><span class="material-symbols-rounded" aria-hidden="true">volume_up</span><span data-mute-label>Mute</span></button><button type="button" data-game-action="tuning"><span class="material-symbols-rounded" aria-hidden="true">tune</span>Tuning panel</button><button type="button" class="game-overflow-playtest" data-game-action="retry-level"><span class="material-symbols-rounded" aria-hidden="true">replay</span>Retry level</button><button type="button" class="game-overflow-playtest" data-game-action="win"><span class="material-symbols-rounded" aria-hidden="true">emoji_events</span>Mark level won</button></div></details>`;
  }
  function bindHudMenu(){
   if(!root)return;
@@ -321,6 +322,7 @@ export function createSurvivalRun(engine:BubbleEngine,sheet:SurfaceHandle,onExit
   sync();
   root.querySelector<HTMLButtonElement>('[data-game-action=refresh]')?.addEventListener('click',()=>{refreshCurrentSheet();if(menu)menu.open=false;});
   root.querySelector<HTMLButtonElement>('[data-game-action=mute]')?.addEventListener('click',()=>{document.getElementById('sound')?.click();sync();if(menu)menu.open=false;});
+  root.querySelector<HTMLButtonElement>('[data-game-action=tuning]')?.addEventListener('click',()=>{if(menu)menu.open=false;if(!document.getElementById('tuning-drawer'))createTuningDrawer();});
   root.querySelector<HTMLButtonElement>('[data-game-action=retry-level]')?.addEventListener('click',retryCurrentLevel);
   root.querySelector<HTMLButtonElement>('[data-game-action=win]')?.addEventListener('click',markLevelWon);
  }

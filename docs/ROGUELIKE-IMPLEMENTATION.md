@@ -279,7 +279,7 @@ Build:
 - Put animated `$` score at top left, a small Smoothie Charts `pop/s` trace at top centre, and the goal count in large type with its unit caption underneath at top right.
 - Put the countdown at bottom left, with colon and danger-zone blink states and no status caption.
 - Group owned upgrades into one bottom-centre panel. One popover explains every owned upgrade, and an active value sits beside its icon.
-- Put refresh, mute, and preview/navigation actions in one Material Symbols overflow menu.
+- Put refresh, mute, and Tuning panel in the live Material Symbols overflow menu. The fixture HUD also lists Shop preview, Modes, and Run won preview.
 - Define compact phone and expanded desktop layouts.
 - Add danger-zone, soft-timer-expired, paused, and hidden-HUD states.
 - Add accessible live-region strategy without announcing every pop.
